@@ -54,9 +54,9 @@ body {
    ======================================== */
 
 header {
-    padding: 4rem 0 3rem;
+    padding: 3rem 0 2rem;
     border-bottom: 1px solid var(--line);
-    margin-bottom: 3rem;
+    margin-bottom: 2.25rem;
     position: relative;
 }
 
@@ -67,7 +67,7 @@ header {
     letter-spacing: 0.2em;
     color: var(--muted);
     text-transform: uppercase;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
 }
 
 h1 {
@@ -75,7 +75,7 @@ h1 {
     font-weight: 400;
     line-height: 1.05;
     letter-spacing: -0.02em;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
 }
 
 h1 em {
@@ -88,7 +88,7 @@ h1 em {
     color: var(--muted);
     max-width: 38ch;
     font-style: italic;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.25rem;
 }
 
 .source-link {
@@ -186,6 +186,37 @@ h1 em {
 
     .view-toggle {
         display: flex;
+    }
+}
+
+@media (min-width: 1100px) {
+    header {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+        column-gap: 3.5rem;
+        align-items: flex-end;
+    }
+
+    .hero-primary,
+    .hero-secondary {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .hero-primary .year,
+    .hero-primary h1,
+    .hero-secondary .subtitle {
+        margin: 0;
+    }
+
+    .hero-secondary {
+        align-self: end;
+    }
+
+    .header-links {
+        align-items: flex-start;
+        gap: 0.75rem;
     }
 }
 
@@ -550,7 +581,7 @@ footer {
 
 @media (min-width: 1400px) {
     .container { padding: 3rem 4rem; }
-    header { padding: 5rem 0 4rem; }
+    header { padding: 4rem 0 3rem; }
     .day { padding: 1.25rem; }
     .day-title { font-size: 1.4rem; }
     .day-author { font-size: 0.6rem; }
