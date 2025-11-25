@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sources & Methods — 31 Days of WA Data</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .sources-content {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .sources-content h2 {
+            font-size: 1.5rem;
+            font-weight: 400;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+
+        .sources-content p {
+            margin-bottom: 1.5rem;
+            font-size: 1.125rem;
+        }
+
+        .day-entry {
+            padding: 1.5rem 0;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .day-entry:first-of-type {
+            border-top: 1px solid var(--line);
+        }
+
+        .day-header {
+            display: flex;
+            gap: 1rem;
+            align-items: baseline;
+            margin-bottom: 0.75rem;
+        }
+
+        .day-num {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: var(--accent);
+            min-width: 2rem;
+        }
+
+        .day-name {
+            font-size: 1.25rem;
+            font-weight: 400;
+        }
+
+        .day-name a {
+            color: inherit;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .day-name a:hover {
+            color: var(--accent);
+        }
+
+        .day-details {
+            margin-left: 3rem;
+        }
+
+        .detail-section {
+            margin-bottom: 0.75rem;
+        }
+
+        .detail-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .detail-text {
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .detail-text a {
+            color: var(--accent);
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+        .detail-text a:hover {
+            opacity: 0.7;
+        }
+
+        .back-link {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 2rem;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+        }
+
+        .back-link::before {
+            content: '← ';
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="index.html" class="back-link">Back to calendar</a>
+            <p class="year">January 2026</p>
+            <h1>Sources &<br><em>Methods</em></h1>
+        </header>
+
+        <div class="sources-content">
+            <p>Data sources and methodologies for each day of the project.</p>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">01</span>
+                    <h3 class="day-name"><a href="day1-swanriver/index.html">Derbarl Yerrigan Swan River</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text">To be documented</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Methods</div>
+                        <div class="detail-text">To be documented</div>
+                    </div>
+                </div>
+            </div>
+
+            <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each day is published.</p>
+
+        </div>
+
+        <footer>
+            Perth, Western Australia
+        </footer>
+    </div>
+</body>
+</html>

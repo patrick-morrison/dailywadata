@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About — 31 Days of WA Data</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .about-content {
+            max-width: 65ch;
+            margin: 0 auto;
+        }
+
+        .about-content h2 {
+            font-size: 1.5rem;
+            font-weight: 400;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+
+        .about-content p {
+            margin-bottom: 1.5rem;
+            font-size: 1.125rem;
+        }
+
+        .about-content ul {
+            margin-bottom: 1.5rem;
+            padding-left: 1.5rem;
+        }
+
+        .about-content li {
+            margin-bottom: 0.75rem;
+            font-size: 1.125rem;
+        }
+
+        .back-link {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 2rem;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+        }
+
+        .back-link::before {
+            content: '← ';
+        }
+
+        .disclaimer {
+            margin-top: 2.5rem;
+            font-style: italic;
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="index.html" class="back-link">Back to calendar</a>
+            <p class="year">January 2026</p>
+            <h1>About<br><em>31 Days of WA Data</em></h1>
+        </header>
+
+        <div class="about-content">
+            <h2>Philosophy</h2>
+            <ul>
+                <li><strong>One dataset a day.</strong> A new take on Western Australian data every day throughout January. This advent calendar is in January because December is too busy.</li>
+                <li><strong>Ethical use.</strong> All data is used within published permissions and properly credited. We appreciate the work that goes into sharing data.</li>
+                <li><strong>Carefully curated.</strong> Every visualisation should be beautiful, interesting, and well-crafted. AI-assisted code is welcome—but no slop.</li>
+                <li><strong>Open collaboration.</strong> Want to contribute? Message the contributors.</li>
+            </ul>
+
+            <p class="disclaimer">
+                This is an unofficial community project, not affiliated with or endorsed by data.wa.gov.au,
+                the original data authors, or their departments. All views and interpretations are our own.
+            </p>
+        </div>
+
+        <footer>
+            Perth, Western Australia
+        </footer>
+    </div>
+</body>
+</html>

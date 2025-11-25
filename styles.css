@@ -1,0 +1,580 @@
+/* ========================================
+   Reset & Variables
+   ======================================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --ink: #1a1a1a;
+    --paper: #fbfdfb;
+    --accent: #2d6a4f;
+    --eucalyptus: #5b8a72;
+    --ocean: #4a7c94;
+    --ochre: #c85a3e;
+    --sand: #d9c6a3;
+    --muted: #5b615c;
+    --line: #e4e6e4;
+    --placeholder: #c6cdca;
+    --flag-black: #3d3d3d;
+    --flag-red: #a65d5d;
+    --flag-yellow: #d4b870;
+}
+
+/* ========================================
+   Base Styles
+   ======================================== */
+
+body {
+    font-family: 'Instrument Serif', Georgia, serif;
+    background: var(--paper);
+    background-image:
+        linear-gradient(180deg, rgba(74,124,148,0.05) 0%, rgba(74,124,148,0) 26%),
+        linear-gradient(120deg, rgba(45,106,79,0.03) 0%, rgba(45,106,79,0) 44%);
+    color: var(--ink);
+    min-height: 100vh;
+    line-height: 1.6;
+}
+
+/* ========================================
+   Layout
+   ======================================== */
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+/* ========================================
+   Header
+   ======================================== */
+
+header {
+    padding: 4rem 0 3rem;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 3rem;
+    position: relative;
+}
+
+.year {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 300;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+}
+
+h1 {
+    font-size: clamp(2.5rem, 8vw, 5rem);
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.5rem;
+}
+
+h1 em {
+    font-style: italic;
+    color: var(--accent);
+}
+
+.subtitle {
+    font-size: 1.125rem;
+    color: var(--muted);
+    max-width: 38ch;
+    font-style: italic;
+    margin-bottom: 1.5rem;
+}
+
+.source-link {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.source-link a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+}
+
+.source-link:hover {
+    color: var(--accent);
+}
+
+.community-link {
+    display: inline;
+    transition: color 0.2s ease;
+}
+
+.community-link:hover {
+    color: var(--accent);
+}
+
+.datawa-link {
+    text-decoration: underline;
+    text-decoration-color: currentColor;
+    text-decoration-thickness: 0.08em;
+    text-underline-offset: 0.18em;
+    transition: text-decoration-thickness 0.15s ease;
+}
+
+.community-link:hover .datawa-link {
+    text-decoration-thickness: 0.12em;
+}
+
+.header-links {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.source-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.link-separator {
+    margin: 0 0.75rem;
+    color: var(--muted);
+}
+
+.view-toggle {
+    display: none;
+    gap: 0.5rem;
+}
+
+.view-toggle-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+}
+
+.view-toggle-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.view-toggle-btn.active {
+    background: var(--accent);
+    color: var(--paper);
+    border-color: var(--accent);
+}
+
+@media (min-width: 769px) {
+    .header-links {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .view-toggle {
+        display: flex;
+    }
+}
+
+/* ========================================
+   Calendar
+   ======================================== */
+
+.calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.04);
+}
+
+.weekday {
+    background: var(--paper);
+    padding: 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+}
+
+.day {
+    background: var(--paper);
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    text-decoration: none;
+    color: inherit;
+    position: relative;
+    overflow: hidden;
+    transition: color 0.3s;
+}
+
+.day::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    transform: translateY(100%);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.day:hover {
+    color: var(--paper);
+}
+
+.day:hover::before {
+    transform: translateY(0);
+}
+
+.day:hover .day-number {
+    color: var(--paper);
+}
+
+.day:hover .day-title {
+    color: var(--paper);
+    opacity: 1;
+}
+
+.day:hover .day-author {
+    color: var(--paper);
+    opacity: 0.7;
+}
+
+.day-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.875rem;
+    color: var(--accent);
+    position: relative;
+    z-index: 1;
+    transition: color 0.3s;
+}
+
+.day-content {
+    margin-top: auto;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.day-title {
+    font-size: 1.25rem;
+    line-height: 1.2;
+    opacity: 0.9;
+    transition: color 0.3s, opacity 0.3s;
+}
+
+.day-author {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    margin-top: 0.3rem;
+    opacity: 0.7;
+    transition: color 0.3s, opacity 0.3s;
+    line-height: 1.3;
+}
+
+.day.empty {
+    background: transparent;
+    pointer-events: none;
+}
+
+.day.empty::before {
+    display: none;
+}
+
+.day.placeholder {
+    pointer-events: none;
+}
+
+.day.placeholder::before {
+    display: none;
+}
+
+.day.placeholder .day-number {
+    color: var(--placeholder);
+}
+
+.day.placeholder .day-content {
+    display: none;
+}
+
+.day.invasion-day {
+    pointer-events: none;
+    background: linear-gradient(to bottom, var(--flag-black) 50%, var(--flag-red) 50%);
+    opacity: 0.6;
+}
+
+.day.invasion-day::before {
+    display: none;
+}
+
+.day.invasion-day::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 28%;
+    aspect-ratio: 1;
+    background: var(--flag-yellow);
+    border-radius: 50%;
+}
+
+.day.invasion-day .day-number {
+    color: rgba(255,255,255,0.2);
+}
+
+.day.invasion-day .day-content {
+    display: none;
+}
+
+/* List view on desktop */
+@media (min-width: 769px) {
+    .calendar.list-view {
+        display: flex;
+        flex-direction: column;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 0;
+        overflow: visible;
+        gap: 0;
+        box-shadow: none;
+    }
+
+    .calendar.list-view .weekday {
+        display: none;
+    }
+
+    .calendar.list-view .day {
+        aspect-ratio: unset;
+        flex-direction: row;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 1.25rem 1rem;
+        background: var(--paper);
+        border-bottom: 1px solid var(--line);
+    }
+
+    .calendar.list-view .day::before {
+        display: none;
+    }
+
+    .calendar.list-view .day:hover {
+        color: var(--accent);
+    }
+
+    .calendar.list-view .day:hover .day-number {
+        color: var(--accent);
+    }
+
+    .calendar.list-view .day:hover .day-title {
+        color: var(--accent);
+    }
+
+    .calendar.list-view .day:hover .day-author {
+        color: var(--accent);
+        opacity: 0.8;
+    }
+
+    .calendar.list-view .day-number {
+        font-size: 1.5rem;
+        min-width: 2.5rem;
+    }
+
+    .calendar.list-view .day-content {
+        margin-top: 0;
+    }
+
+    .calendar.list-view .day-title {
+        font-size: 1.1rem;
+        opacity: 1;
+    }
+
+    .calendar.list-view .day-author {
+        margin-top: 0.25rem;
+        font-size: 0.7rem;
+    }
+
+    .calendar.list-view .day.empty {
+        display: none;
+    }
+
+    .calendar.list-view .day.placeholder {
+        opacity: 0.4;
+    }
+
+    .calendar.list-view .day.invasion-day {
+        background: linear-gradient(to bottom, var(--flag-black) 50%, var(--flag-red) 50%);
+        opacity: 0.9;
+        position: relative;
+    }
+
+    .calendar.list-view .day.invasion-day .day-number {
+        color: rgba(255,255,255,0.25);
+    }
+
+    .calendar.list-view .day.invasion-day::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 26%;
+        aspect-ratio: 1;
+        background: var(--flag-yellow);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
+    .calendar.list-view .day.invasion-day .day-content {
+        display: none;
+    }
+}
+
+/* ========================================
+   Footer
+   ======================================== */
+
+footer {
+    margin-top: 4rem;
+    padding: 2rem 0;
+    border-top: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-align: center;
+}
+
+/* ========================================
+   Media Queries
+   ======================================== */
+
+@media (max-width: 1100px) {
+    .day { padding: 0.75rem; }
+    .day-title { font-size: 1rem; }
+    .day-author { font-size: 0.5rem; }
+}
+
+@media (max-width: 900px) {
+    .day-title { font-size: 0.9rem; }
+    .day-author { font-size: 0.45rem; }
+}
+
+@media (max-width: 768px) {
+    .container { padding: 1.5rem; }
+    header { padding: 3rem 0 2rem; margin-bottom: 2rem; }
+
+    .calendar {
+        display: flex;
+        flex-direction: column;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 0;
+        overflow: visible;
+        gap: 0;
+        box-shadow: none;
+    }
+
+    .weekday { display: none; }
+
+    .day {
+        aspect-ratio: unset;
+        flex-direction: row;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 1.25rem 1rem;
+        background: var(--paper);
+        border-bottom: 1px solid var(--line);
+    }
+
+    .day::before { display: none; }
+    .day:hover { color: var(--accent); }
+    .day:hover .day-number { color: var(--accent); }
+    .day:hover .day-title { color: var(--accent); }
+    .day:hover .day-author { color: var(--accent); opacity: 0.8; }
+    .day:active { opacity: 0.6; }
+
+    .day-number { font-size: 1.5rem; min-width: 2.5rem; }
+    .day-content { margin-top: 0; }
+    .day-title { font-size: 1.1rem; opacity: 1; }
+    .day-author { margin-top: 0.25rem; font-size: 0.7rem; }
+
+    .day.empty { display: none; }
+    .day.placeholder { opacity: 0.4; }
+
+    .day.invasion-day {
+        background: linear-gradient(to bottom, var(--flag-black) 50%, var(--flag-red) 50%);
+        opacity: 0.9;
+        position: relative;
+    }
+    .day.invasion-day .day-number { color: rgba(255,255,255,0.25); }
+    .day.invasion-day::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 26%;
+        aspect-ratio: 1;
+        background: var(--flag-yellow);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+    .day.invasion-day .day-content {
+        display: none;
+    }
+}
+
+@media (min-width: 1400px) {
+    .container { padding: 3rem 4rem; }
+    header { padding: 5rem 0 4rem; }
+    .day { padding: 1.25rem; }
+    .day-title { font-size: 1.4rem; }
+    .day-author { font-size: 0.6rem; }
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+header {
+    animation: fadeUp 0.6s ease-out;
+}
+
+.calendar {
+    animation: fadeUp 0.6s ease-out 0.15s both;
+}
