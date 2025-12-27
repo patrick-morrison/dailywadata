@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wadjemup Rottnest Bathymetry</title>
+    <meta name="description"
+        content="Interactive bathymetry map of Perth coastal waters from Department of Transport LiDAR">
+
+    <!-- External Dependencies -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/deck.gl@9.0.16/dist.min.js"></script>
+    <script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+    <script src="https://unpkg.com/proj4@2.12.1/dist/proj4.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Loading State -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Downloading bathymetry data...</div>
+    </div>
+
+    <!-- Navigation -->
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Header -->
+    <div class="overlay header">
+        <div class="title-card">
+            <h1>Wadjemup Rottnest Bathymetry</h1>
+            <div class="subtitle">Department of Transport LiDAR</div>
+            <a href="../sources.html" class="methods-link">Show methods notes →</a>
+        </div>
+    </div>
+
+    <!-- Location Button -->
+    <button class="location-btn" id="location-btn" title="Show my location">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+        </svg>
+    </button>
+
+    <!-- Info Toggle (Mobile) -->
+    <button class="info-btn" id="info-btn" title="Show info">
+        <span class="info-icon">i</span>
+    </button>
+
+    <!-- Legend with Depth Display -->
+    <div class="overlay legend">
+        <div class="legend-card">
+            <div class="cursor-depth" id="cursor-depth">
+                <div class="cursor-depth-row">
+                    <span class="cursor-depth-label">At cursor:</span>
+                    <span class="cursor-depth-value" id="cursor-depth-value">--</span>
+                    <span class="cursor-depth-unit">m</span>
+                </div>
+                <div class="cursor-coords" id="cursor-coords">--</div>
+            </div>
+            <div class="legend-title">Depth Scale</div>
+            <div class="legend-bar" id="legend-gradient"></div>
+            <div class="legend-labels">
+                <span>0m</span>
+                <span>-15m</span>
+                <span>-30m</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Configuration -->
+    <script>
+        window.PAGE_CONFIG = {
+            cogUrl: 'dot_lidar.tif',
+            pois: [
+                { name: 'Blackwall Reach', lat: -32.017607, lng: 115.784866 },
+                { name: 'Roe Reef', lat: -31.973940, lng: 115.537192 },
+                { name: 'Stragglers Rocks', lat: -32.07, lng: 115.63 },
+                { name: 'Five Fathom Bank', lat: -32.11, lng: 115.60 },
+                { name: 'Marmion Reef', lat: -31.86, lng: 115.71 }
+            ]
+        };
+    </script>
+
+    <!-- Application Script -->
+    <script src="main.js"></script>
+</body>
+
+</html>

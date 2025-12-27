@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sources & Methods — 31 Days of WA Data</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <style>
         .sources-content {
@@ -117,6 +120,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -131,21 +135,36 @@
             <div class="day-entry">
                 <div class="day-header">
                     <span class="day-num">01</span>
-                    <h3 class="day-name"><a href="day1-swanriver/index.html">Derbarl Yerrigan Swan River</a></h3>
+                    <h3 class="day-name"><a href="day1-dotlidar/index.html">Wadjemup Rottnest Bathymetry</a></h3>
                 </div>
                 <div class="day-details">
                     <div class="detail-section">
                         <div class="detail-label">Source</div>
-                        <div class="detail-text">To be documented</div>
+                        <div class="detail-text">Perth Bathymetric LiDAR from the <a
+                                href="https://www.transport.wa.gov.au/marine/charts-warnings-current-conditions/coastal-data-charts/geospatial-data">Department
+                                of Transport WA</a> (December 2009, 10m grid). CC BY 4.0.</div>
                     </div>
                     <div class="detail-section">
-                        <div class="detail-label">Methods</div>
-                        <div class="detail-text">To be documented</div>
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">Individual survey grids combined as a virtual raster in QGIS, exported
+                            as a 25% Float32 DEFLATE COG (from 568 MB to 14 MB).</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Tech Stack</div>
+                        <div class="detail-text">HTML/CSS/JS webmap. I wanted a chance to upgrade from my Leaflet map
+                            experience, so this uses the modern and open MapLibre GL for basemap rendering. deck.gl:
+                            colours and hillshades the bathymetry on the client side. GeoTIFF.js reads the COG to show
+                            depth on click.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Patrick Morrison</div>
                     </div>
                 </div>
             </div>
 
-            <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each day is published.</p>
+            <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each
+                day is published.</p>
 
         </div>
 
@@ -154,4 +173,5 @@
         </footer>
     </div>
 </body>
+
 </html>
