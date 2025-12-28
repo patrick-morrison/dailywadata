@@ -165,6 +165,37 @@
                 </div>
             </div>
 
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">04</span>
+                    <h3 class="day-name"><a href="day4-swantides/index.html">Swan River Tides 2026</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text">Tide predictions from the <a
+                                href="https://www.bom.gov.au/oceanography/projects/ntc/wa_tide_tables.shtml">Bureau of
+                                Meteorology</a> (Fremantle &
+                            Barrack Street Jetty, 2026). © Commonwealth of Australia.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">BOM publishes tides as PDF charts, not machine-readable data. A Python
+                            script extracts times and heights using pdfplumber, with regex handling for merged text
+                            tokens. Tide types inferred from neighbouring heights. This took a lot of iteration.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation details</div>
+                        <div class="detail-text">HTML/CSS/JS calendar matching the style, but with a responsive grid
+                            layout. Designed for quickly scanning on desktop or mobile.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Patrick Morrison</div>
+                    </div>
+                </div>
+            </div>
+
             <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each
                 day is published.</p>
 

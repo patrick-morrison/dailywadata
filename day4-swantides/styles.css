@@ -13,7 +13,6 @@ body {
     font-size: 11px;
 }
 
-/* Back link - own row */
 .back-link.top {
     display: block;
     padding: 10px 20px;
@@ -22,7 +21,7 @@ body {
     text-decoration: none;
 }
 
-/* Header - matches PDF style */
+/* Header */
 .header {
     display: flex;
     justify-content: space-between;
@@ -57,7 +56,7 @@ body {
 /* Source Note */
 .source-note {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     padding: 8px 20px;
     background: #f0f0f0;
     font-size: 11px;
@@ -69,7 +68,7 @@ body {
     margin-left: 5px;
 }
 
-/* Controls panel - Sticky */
+/* Controls Panel */
 .controls {
     display: flex;
     flex-wrap: wrap;
@@ -81,26 +80,6 @@ body {
     position: sticky;
     top: 0;
     z-index: 100;
-}
-
-/* ... existing control styles ... */
-
-.month-header {
-    display: flex;
-    justify-content: space-between;
-    padding: 5px 8px;
-    font-weight: bold;
-    font-size: 12px;
-    border-bottom: 1px solid #000;
-    text-transform: uppercase;
-    background: #fff;
-    /* Ensure opaque background */
-    position: sticky;
-    top: 73px;
-    /* Stacks below controls (approx height) */
-    z-index: 90;
-    box-shadow: 0 2px 0 0 #000;
-    /* mimic border bottom when sticky */
 }
 
 .control-group {
@@ -120,33 +99,29 @@ body {
     padding: 4px;
 }
 
+/* Dual-Handle Range Sliders */
 .range-container {
     position: relative;
     width: 150px;
     height: 30px;
 }
 
-/* The invisible sliders */
 .range-container input[type="range"] {
     position: absolute;
     width: 100%;
     top: 50%;
     transform: translateY(-50%);
     pointer-events: none;
-    /* Let clicks pass through track */
     -webkit-appearance: none;
     appearance: none;
     background: none;
-    /* Transparent track */
     z-index: 2;
     margin: 0;
 }
 
-/* The visible thumbs */
 .range-container input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     pointer-events: auto;
-    /* Re-enable clicks on thumb */
     width: 16px;
     height: 16px;
     border-radius: 50%;
@@ -167,7 +142,6 @@ body {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-/* The visual track */
 .slider-track {
     position: absolute;
     width: 100%;
@@ -179,6 +153,7 @@ body {
     z-index: 1;
 }
 
+/* Checkboxes */
 .checkbox-group {
     display: flex;
     gap: 15px;
@@ -188,7 +163,6 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    /* Slightly more gap for custom box */
     font-size: 11px;
     cursor: pointer;
     user-select: none;
@@ -201,7 +175,6 @@ body {
     height: 14px;
     border: 1px solid #000;
     border-radius: 0;
-    /* Sharp corners */
     background: #fff;
     cursor: pointer;
     position: relative;
@@ -231,31 +204,18 @@ body {
     align-self: center;
 }
 
-/* Calendar Grid - Responsive Gap-Based Borders */
+/* Calendar Grid */
 .calendar-grid {
     display: grid;
-    /* Mobile: 2 columns */
     grid-template-columns: 1fr 1fr;
-    background: #000;
-    /* Create borders via gap */
+    background: #fff;
     gap: 1px;
     border: 2px solid #000;
-    /* Outer border */
 }
 
-/* Month block */
 .month {
     background: #fff;
-    width: auto;
-    border: none;
-    /* Borders handled by grid gap */
-}
-
-/* Desktop: Auto-fit columns ~200px */
-@media (min-width: 600px) {
-    .calendar-grid {
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    }
+    border: 1px solid #000;
 }
 
 .month-header {
@@ -269,14 +229,12 @@ body {
     background: #fff;
     position: sticky;
     top: var(--controls-height, 75px);
-    /* Stacks below controls */
     z-index: 90;
 }
 
 .month-header .col-header {
     display: flex;
     gap: 15px;
-    /* Spacing between Time and m columns */
     margin-right: 10px;
 }
 
@@ -285,39 +243,25 @@ body {
     text-align: center;
 }
 
-/* Day rows */
 .month-days {
     display: flex;
 }
 
 .month-col {
     flex: 1;
-    /* border-right: 1px solid #000; Removed per user request */
-}
-
-.month-col:last-child {
-    border-right: none;
 }
 
 .day-row {
     display: flex;
     padding: 4px;
-    /* Fixed height for 5 tides */
     height: 85px;
     font-family: Arial, sans-serif;
-}
-
-/* Last day in column shouldn't have bottom border if it matches container logic, 
-   but with fixed grid often helpful to keep it or remove on last-child */
-.day-row:last-child {
-    border-bottom: none;
 }
 
 .day-row:hover {
     background: #f9f9f9;
 }
 
-/* Left side: Day Num and Abbr */
 .day-info {
     display: flex;
     flex-direction: column;
@@ -328,7 +272,6 @@ body {
 
 .day-num {
     font-size: 24px;
-    /* Large day number */
     font-weight: bold;
     line-height: 1;
 }
@@ -339,7 +282,6 @@ body {
     margin-top: 2px;
 }
 
-/* Right side: Tides List */
 .tides-list {
     display: flex;
     flex-direction: column;
@@ -361,10 +303,6 @@ body {
 
 .tide-entry.dimmed {
     color: #ccc;
-}
-
-.tide-time {
-    /* Fixed width/alignment */
 }
 
 .tide-height {
@@ -391,4 +329,27 @@ body {
     text-align: center;
     padding: 50px;
     font-size: 16px;
+}
+
+/* Responsive */
+@media (min-width: 600px) {
+    .calendar-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .range-container {
+        height: 40px;
+    }
+
+    .range-container input[type="range"]::-webkit-slider-thumb {
+        width: 28px;
+        height: 28px;
+    }
+
+    .range-container input[type="range"]::-moz-range-thumb {
+        width: 28px;
+        height: 28px;
+    }
 }
