@@ -2,10 +2,17 @@
  * Swan Tides 2026 - Interactive Tide Calendar
  */
 
-const LOCATION_OFFSETS = {
-    fremantle: { minutes: 0, heightMultiplier: 1.0, name: 'Fremantle' },
-    canning: { minutes: 70, heightMultiplier: 1.04, name: 'Canning Bridge' },
-    barrack: { minutes: 0, heightMultiplier: 1.0, name: 'Barrack Street' }  // TBD
+const LOCATIONS = {
+    fremantle: {
+        file: 'tides_fremantle.json',
+        title: 'FREMANTLE – WESTERN AUSTRALIA',
+        subtitle: "LAT 32°03' S    LONG 115°44' E"
+    },
+    barrack: {
+        file: 'tides_barrack.json',
+        title: 'PERTH (BARRACK STREET JETTY) – WESTERN AUSTRALIA',
+        subtitle: "LAT 31° 57’ S LONG 115° 51’ E"
+    }
 };
 
 const MONTH_NAMES = [
@@ -39,15 +46,26 @@ const filterSummary = document.getElementById('filter-summary');
 const showHighsCheckbox = document.getElementById('show-highs');
 const showLowsCheckbox = document.getElementById('show-lows');
 
+const headerTitle = document.querySelector('.header-title h1');
+const headerSubtitle = document.querySelector('.header-title .subtitle');
+
 // Initialize
 async function init() {
-    calendarGrid.innerHTML = '<div class="loading">Loading tide data...</div>';
+    await loadData(currentLocation);
+    setupEventListeners();
+}
 
+async function loadData(locationId) {
+    calendarGrid.innerHTML = '<div class="loading">Loading tide data...</div>';
     try {
-        const response = await fetch('tides.json');
+        const loc = LOCATIONS[locationId];
+        const response = await fetch(loc.file);
         tideData = await response.json();
 
-        setupEventListeners();
+        // Update Metadata
+        headerTitle.textContent = loc.title;
+        headerSubtitle.textContent = loc.subtitle;
+
         renderCalendar();
     } catch (error) {
         calendarGrid.innerHTML = '<div class="loading">Error loading tide data</div>';
@@ -58,16 +76,56 @@ async function init() {
 function setupEventListeners() {
     locationSelect.addEventListener('change', (e) => {
         currentLocation = e.target.value;
-        renderCalendar();
+        loadData(currentLocation);
     });
 
-    heightMinInput.addEventListener('input', updateFilters);
-    heightMaxInput.addEventListener('input', updateFilters);
-    timeMinInput.addEventListener('input', updateFilters);
-    timeMaxInput.addEventListener('input', updateFilters);
+    function handleSlider(e) {
+        const isMin = e.target.id.includes('min');
+        const parent = e.target.parentElement;
+        const minInput = parent.querySelector('input[id$="-min"]');
+        const maxInput = parent.querySelector('input[id$="-max"]');
+
+        const minVal = parseFloat(minInput.value);
+        const maxVal = parseFloat(maxInput.value);
+
+        // Clamping: Prevent crossing
+        if (minVal > maxVal - (parseFloat(minInput.step) || 0)) {
+            if (isMin) minInput.value = maxVal;
+            else maxInput.value = minVal;
+        }
+
+        updateSliderVisuals(parent);
+        updateFilters();
+    }
+
+    [heightMinInput, heightMaxInput, timeMinInput, timeMaxInput].forEach(input => {
+        input.addEventListener('input', handleSlider);
+    });
 
     showHighsCheckbox.addEventListener('change', updateFilters);
     showLowsCheckbox.addEventListener('change', updateFilters);
+
+    // Init visuals
+    updateSliderVisuals(heightMinInput.parentElement);
+    updateSliderVisuals(timeMinInput.parentElement);
+}
+
+function updateSliderVisuals(container) {
+    const minInput = container.querySelector('input[id$="-min"]');
+    const maxInput = container.querySelector('input[id$="-max"]');
+    const track = container.querySelector('.slider-track');
+
+    if (!track) return;
+
+    const min = parseFloat(minInput.min);
+    const max = parseFloat(maxInput.max);
+    const valMin = parseFloat(minInput.value);
+    const valMax = parseFloat(maxInput.value);
+
+    const percentMin = ((valMin - min) / (max - min)) * 100;
+    const percentMax = ((valMax - min) / (max - min)) * 100;
+
+    track.style.background = `linear-gradient(to right, #ddd ${percentMin}%, #000 ${percentMin}%, #000 ${percentMax}%, #ddd ${percentMax}%)`;
 }
 
 function updateFilters() {
@@ -76,13 +134,7 @@ function updateFilters() {
     filters.timeMin = parseInt(timeMinInput.value);
     filters.timeMax = parseInt(timeMaxInput.value);
 
-    // Ensure min <= max
-    if (filters.heightMin > filters.heightMax) {
-        [filters.heightMin, filters.heightMax] = [filters.heightMax, filters.heightMin];
-    }
-    if (filters.timeMin > filters.timeMax) {
-        [filters.timeMin, filters.timeMax] = [filters.timeMax, filters.timeMin];
-    }
+    // Filter logic no longer needs to swap/sort because UI prevents crossing
 
     // Tide type filters
     filters.showHighs = showHighsCheckbox.checked;
@@ -113,27 +165,20 @@ function timeToMinutes(timeStr) {
     return h * 60 + m;
 }
 
-function applyOffset(timeStr, offsetMinutes) {
-    const totalMins = timeToMinutes(timeStr) + offsetMinutes;
-    const adjustedMins = ((totalMins % 1440) + 1440) % 1440;  // Handle day wrap
-    return formatMinutes(adjustedMins);
-}
-
 function renderCalendar() {
-    const offset = LOCATION_OFFSETS[currentLocation];
-    const tidesByDate = groupTidesByDate(tideData.tides, offset);
+    const tidesByDate = groupTidesByDate(tideData.tides);
 
     calendarGrid.innerHTML = '';
 
     for (let month = 0; month < 12; month++) {
-        const monthEl = createMonthElement(month, tidesByDate, offset);
+        const monthEl = createMonthElement(month, tidesByDate);
         calendarGrid.appendChild(monthEl);
     }
 
     updateFilterSummary();
 }
 
-function groupTidesByDate(tides, offset) {
+function groupTidesByDate(tides) {
     const grouped = {};
 
     tides.forEach(tide => {
@@ -141,21 +186,17 @@ function groupTidesByDate(tides, offset) {
             grouped[tide.date] = [];
         }
 
-        // Apply time offset
-        const adjustedTime = applyOffset(tide.time, offset.minutes);
-        const adjustedHeight = tide.height * offset.heightMultiplier;
-
         grouped[tide.date].push({
             ...tide,
-            displayTime: adjustedTime,
-            displayHeight: adjustedHeight
+            displayTime: tide.time,
+            displayHeight: tide.height
         });
     });
 
     return grouped;
 }
 
-function createMonthElement(monthIndex, tidesByDate, offset) {
+function createMonthElement(monthIndex, tidesByDate) {
     const monthEl = document.createElement('div');
     monthEl.className = 'month';
 

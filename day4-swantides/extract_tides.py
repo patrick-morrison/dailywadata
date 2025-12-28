@@ -16,8 +16,11 @@ except ImportError:
     print("ERROR: pdfplumber required. Run: pip install pdfplumber")
     sys.exit(1)
 
-PDF_FILE = 'IDO59001_2026_WA_TP015.pdf'
-OUTPUT_FILE = 'tides.json'
+LOCATIONS = [
+    {"name": "Fremantle", "pdf": "IDO59001_2026_WA_TP015.pdf", "output": "tides_fremantle.json"},
+    {"name": "Barrack Street", "pdf": "IDO59001_2026_WA_TP062.pdf", "output": "tides_barrack.json"}
+]
+
 YEAR = 2026
 DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
@@ -147,11 +150,11 @@ def extract_from_column(words, month_idx):
         
     return entries
 
-def extract_all():
-    print(f"Opening {PDF_FILE}...")
+def extract_all(pdf_file):
+    print(f"Opening {pdf_file}...")
     all_entries = []
     
-    with pdfplumber.open(PDF_FILE) as pdf:
+    with pdfplumber.open(pdf_file) as pdf:
         for page_idx, month_indices in PAGE_MAP.items():
             if page_idx >= len(pdf.pages):
                 break
@@ -251,40 +254,44 @@ def validate_data(tides):
     return issues
 
 def main():
-    raw_data = extract_all()
-    print(f"Extracted {len(raw_data)} raw entries")
-    
-    # Deduplicate (sometimes column overlaps might catch same word? Unlikely with strict bounds but good hygiene)
-    # Using a dictionary key ensures uniqueness
-    unique_map = {}
-    for entry in raw_data:
-        key = f"{entry['date']}_{entry['time']}"
-        unique_map[key] = entry
-    
-    clean_data = list(unique_map.values())
-    clean_data = classify_tides(clean_data)
-    
-    issues = validate_data(clean_data)
-    
-    if issues:
-        print("\n❌ VALIDATION FAILED:")
-        for i in issues:
-            print(f" - {i}")
-        # Proceeding to write anyway for debugging, but yelling about it
-    else:
-        print("\n✅ VALIDATION PASSED: 365 Days, Data looks healthy.")
+    for loc in LOCATIONS:
+        print(f"\n--- Extracting {loc['name']} ---")
+        try:
+            raw_data = extract_all(loc['pdf'])
+            print(f"Extracted {len(raw_data)} raw entries")
+            
+            # Deduplicate
+            unique_map = {}
+            for entry in raw_data:
+                key = f"{entry['date']}_{entry['time']}"
+                unique_map[key] = entry
+            
+            clean_data = list(unique_map.values())
+            clean_data = classify_tides(clean_data)
+            
+            issues = validate_data(clean_data)
+            
+            if issues:
+                print(f"\n❌ VALIDATION FAILED for {loc['name']}:")
+                for i in issues:
+                    print(f" - {i}")
+            else:
+                print(f"\n✅ VALIDATION PASSED for {loc['name']}: 365 Days.")
 
-    output = {
-        "location": "Fremantle",
-        "year": YEAR,
-        "source": "Bureau of Meteorology",
-        "extracted": datetime.now().isoformat(),
-        "tides": clean_data
-    }
-    
-    with open(OUTPUT_FILE, 'w') as f:
-        json.dump(output, f, indent=2)
-    print(f"Saved to {OUTPUT_FILE}")
+            output = {
+                "location": loc['name'],
+                "year": YEAR,
+                "source": "Bureau of Meteorology",
+                "extracted": datetime.now().isoformat(),
+                "tides": clean_data
+            }
+            
+            with open(loc['output'], 'w') as f:
+                json.dump(output, f, indent=2)
+            print(f"Saved to {loc['output']}")
+            
+        except Exception as e:
+            print(f"FAILED to process {loc['name']}: {e}")
 
 if __name__ == "__main__":
     main()
