@@ -217,8 +217,17 @@ function toggleTracking() {
                 })
                 .catch(console.error);
         } else {
-            // Non-iOS or older devices
-            window.addEventListener('deviceorientation', handleOrientation);
+            // Android often needs absolute event for true north
+            if ('ondeviceorientationabsolute' in window) {
+                window.addEventListener('deviceorientationabsolute', handleOrientation);
+            } else {
+                window.addEventListener('deviceorientation', handleOrientation);
+            }
+        }
+
+        // Start smoothing loop
+        if (!state.compassLoop) {
+            state.compassLoop = requestAnimationFrame(updateCompassPhysics);
         }
 
         console.log("Tracking started (Test Mode: Locked Location, Live Compass)");
@@ -226,17 +235,47 @@ function toggleTracking() {
 }
 
 function handleOrientation(e) {
+    let heading = null;
+
     if (e.webkitCompassHeading) {
         // iOS
-        state.heading = e.webkitCompassHeading;
-    } else if (e.alpha) {
-        // Android 
-        state.heading = 360 - e.alpha;
+        heading = e.webkitCompassHeading;
+    } else if (e.absolute && e.alpha !== null) {
+        // Android (Absolute North)
+        heading = 360 - e.alpha;
+    } else if (e.alpha !== null) {
+        // Fallback (Relative)
+        heading = 360 - e.alpha;
     }
 
-    // Instant rotation for responsiveness
-    // Using jumpTo with only bearing is faster than rotateTo with duration
-    map.jumpTo({ bearing: state.heading });
+    if (heading !== null) {
+        state.targetHeading = heading;
+    }
+}
+
+// Smoothly interpolate current heading to target
+function updateCompassPhysics() {
+    if (!state.isTracking) return;
+
+    if (state.targetHeading !== undefined) {
+        // Initialize if needed
+        if (state.currentHeading === undefined) {
+            state.currentHeading = state.targetHeading;
+        }
+
+        // Handle the 359->0 wrap-around
+        let diff = state.targetHeading - state.currentHeading;
+        while (diff < -180) diff += 360;
+        while (diff > 180) diff -= 360;
+
+        // Lerp factor (0.1 = heavy/smooth, 0.3 = responsive)
+        // "Like compass app" implies some weight. Try 0.15
+        state.currentHeading += diff * 0.15;
+
+        map.setBearing(state.currentHeading);
+    }
+
+    state.compassLoop = requestAnimationFrame(updateCompassPhysics);
 }
 
 function updatePosition(pos) {
