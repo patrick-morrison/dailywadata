@@ -98,9 +98,17 @@ body {
     font-weight: 300;
 }
 
-.methods-link {
-    display: inline-block;
+.title-meta {
     margin-top: 8px;
+}
+
+.attribution {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.4);
+    margin-right: 12px;
+}
+
+.methods-link {
     font-size: 0.65rem;
     color: rgba(0, 0, 0, 0.4);
     text-decoration: none;
