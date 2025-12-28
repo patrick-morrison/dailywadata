@@ -1,0 +1,319 @@
+/* Reset and base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #fff;
+    color: #000;
+    line-height: 1.3;
+    font-size: 11px;
+}
+
+/* Back link - own row */
+.back-link.top {
+    display: block;
+    padding: 10px 20px;
+    font-size: 11px;
+    color: #000;
+    text-decoration: none;
+}
+
+/* Header - matches PDF style */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 15px 20px;
+    border-bottom: 2px solid #000;
+}
+
+.header-title {
+    flex: 1;
+    text-align: left;
+}
+
+.header-title h1 {
+    font-size: 22px;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.header-title .subtitle {
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.header-year {
+    font-size: 32px;
+    font-weight: bold;
+    margin-left: 20px;
+}
+
+/* Source Note */
+.source-note {
+    display: flex;
+    justify-content: center;
+    padding: 8px 20px;
+    background: #f0f0f0;
+    font-size: 11px;
+}
+
+.source-note a {
+    color: #000;
+    text-decoration: underline;
+    margin-left: 5px;
+}
+
+/* Controls panel - Sticky */
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 12px 20px;
+    border-bottom: 2px solid #000;
+    background: #f8f8f8;
+    align-items: flex-end;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+/* ... existing control styles ... */
+
+.month-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 8px;
+    font-weight: bold;
+    font-size: 12px;
+    border-bottom: 1px solid #000;
+    text-transform: uppercase;
+    background: #fff;
+    /* Ensure opaque background */
+    position: sticky;
+    top: 73px;
+    /* Stacks below controls (approx height) */
+    z-index: 90;
+    box-shadow: 0 2px 0 0 #000;
+    /* mimic border bottom when sticky */
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.control-group label {
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.control-group select {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 4px;
+}
+
+.range-container {
+    position: relative;
+    width: 150px;
+    height: 20px;
+}
+
+.range-container input[type="range"] {
+    position: absolute;
+    width: 100%;
+    top: 5px;
+}
+
+.checkbox-group {
+    display: flex;
+    gap: 12px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.filter-summary {
+    font-size: 11px;
+    color: #333;
+    flex: 1;
+    text-align: right;
+    font-weight: bold;
+    white-space: nowrap;
+    align-self: center;
+}
+
+/* Calendar Grid - Responsive Gap-Based Borders */
+.calendar-grid {
+    display: grid;
+    /* Mobile: 2 columns */
+    grid-template-columns: 1fr 1fr;
+    background: #000;
+    /* Create borders via gap */
+    gap: 1px;
+    border: 2px solid #000;
+    /* Outer border */
+}
+
+/* Month block */
+.month {
+    background: #fff;
+    width: auto;
+    border: none;
+    /* Borders handled by grid gap */
+}
+
+/* Desktop: Auto-fit columns ~200px */
+@media (min-width: 600px) {
+    .calendar-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+}
+
+.month-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 8px;
+    font-weight: bold;
+    font-size: 12px;
+    border-bottom: 1px solid #000;
+    text-transform: uppercase;
+    background: #fff;
+    position: sticky;
+    top: var(--controls-height, 75px);
+    /* Stacks below controls */
+    z-index: 90;
+}
+
+.month-header .col-header {
+    display: flex;
+    gap: 15px;
+    /* Spacing between Time and m columns */
+    margin-right: 10px;
+}
+
+.month-header .col-header span {
+    width: 30px;
+    text-align: center;
+}
+
+/* Day rows */
+.month-days {
+    display: flex;
+}
+
+.month-col {
+    flex: 1;
+    border-right: 1px solid #000;
+}
+
+.month-col:last-child {
+    border-right: none;
+}
+
+.day-row {
+    display: flex;
+    padding: 4px;
+    /* Fixed height for 5 tides */
+    height: 85px;
+    border-bottom: 1px solid #ccc;
+    font-family: Arial, sans-serif;
+}
+
+/* Last day in column shouldn't have bottom border if it matches container logic, 
+   but with fixed grid often helpful to keep it or remove on last-child */
+.day-row:last-child {
+    border-bottom: none;
+}
+
+.day-row:hover {
+    background: #f9f9f9;
+}
+
+/* Left side: Day Num and Abbr */
+.day-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 25px;
+    margin-right: 5px;
+}
+
+.day-num {
+    font-size: 24px;
+    /* Large day number */
+    font-weight: bold;
+    line-height: 1;
+}
+
+.day-abbr {
+    font-size: 10px;
+    font-weight: bold;
+    margin-top: 2px;
+}
+
+/* Right side: Tides List */
+.tides-list {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: flex-start;
+}
+
+.tide-entry {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    line-height: 1.25;
+}
+
+.tide-entry.highlighted {
+    background: #ffeb3b;
+    font-weight: bold;
+}
+
+.tide-entry.dimmed {
+    color: #ccc;
+}
+
+.tide-time {
+    /* Fixed width/alignment */
+}
+
+.tide-height {
+    font-weight: normal;
+}
+
+/* Footer */
+.footer {
+    padding: 20px;
+    border-top: 3px solid #000;
+    font-size: 11px;
+    color: #000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+}
+
+.footer-section.disclaimer {
+    font-style: italic;
+}
+
+.loading {
+    text-align: center;
+    padding: 50px;
+    font-size: 16px;
+}

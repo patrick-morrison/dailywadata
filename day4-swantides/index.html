@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fremantle Tides 2026</title>
+    <meta name="description" content="Interactive tide predictions for Fremantle, Western Australia - 2026">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Back Link -->
+    <a href="../index.html" class="back-link top">← Back to calendar</a>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-title">
+            <h1>FREMANTLE – WESTERN AUSTRALIA</h1>
+            <div class="subtitle">LAT 32°03' S &nbsp;&nbsp; LONG 115°44' E</div>
+            <div class="subtitle">Times and Heights of High and Low Waters</div>
+        </div>
+        <div class="header-year">2026</div>
+    </header>
+
+    <!-- Source Note -->
+    <div class="source-note">
+        <span>Bureau of Meteorology tide predictions (verbatim). Filters added for planning fieldwork. <a
+                href="../sources.html">Sources & methods →</a></span>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+        <div class="control-group">
+            <label for="location">Location</label>
+            <select id="location">
+                <option value="fremantle" selected>Fremantle</option>
+                <option value="canning">Canning Bridge (+70 min)</option>
+                <option value="barrack">Barrack Street (data TBD)</option>
+            </select>
+
+        </div>
+
+        <div class="control-group">
+            <label>Tide Type</label>
+            <div class="checkbox-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show-lows" checked> Lows
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show-highs" checked> Highs
+                </label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Height: <span id="height-display">0.0m – 1.5m</span></label>
+            <div class="range-container">
+                <input type="range" id="height-min" min="0" max="1.5" step="0.1" value="0">
+                <input type="range" id="height-max" min="0" max="1.5" step="0.1" value="1.5">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Time: <span id="time-display">00:00 – 23:59</span></label>
+            <div class="range-container">
+                <input type="range" id="time-min" min="0" max="1439" step="15" value="0">
+                <input type="range" id="time-max" min="0" max="1439" step="15" value="1439">
+            </div>
+        </div>
+
+        <div class="filter-summary" id="filter-summary"></div>
+    </div>
+
+    <!-- Calendar Grid -->
+    <main class="calendar-grid" id="calendar-grid">
+        <!-- Months will be rendered here by JavaScript -->
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-section">
+            <strong>Data Notes:</strong> Datum of Predictions is Chart Datum. Times are in local standard time
+            (UTC+08:00).
+        </div>
+        <div class="footer-section disclaimer">
+            <strong>Disclaimer:</strong> This product is based on Bureau of Meteorology information that has
+            subsequently been modified.
+            The Bureau does not necessarily support or endorse, or have any connection with, the product.
+            The Bureau gives no warranty of any kind in respect to the accuracy, currency, completeness, or reliability
+            of the information.
+            The Bureau's liability for any loss, damage, cost or expense resulting from use of, or reliance on, the
+            information is entirely excluded.
+        </div>
+        <div class="footer-section">
+            <p>Patrick Morrison 2026</p>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+</body>
+
+</html>

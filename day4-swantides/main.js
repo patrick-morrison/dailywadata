@@ -1,0 +1,298 @@
+/**
+ * Swan Tides 2026 - Interactive Tide Calendar
+ */
+
+const LOCATION_OFFSETS = {
+    fremantle: { minutes: 0, heightMultiplier: 1.0, name: 'Fremantle' },
+    canning: { minutes: 70, heightMultiplier: 1.04, name: 'Canning Bridge' },
+    barrack: { minutes: 0, heightMultiplier: 1.0, name: 'Barrack Street' }  // TBD
+};
+
+const MONTH_NAMES = [
+    'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+    'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+];
+
+const DAY_ABBRS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+
+let tideData = null;
+let currentLocation = 'fremantle';
+let filters = {
+    heightMin: 0,
+    heightMax: 1.5,
+    timeMin: 0,
+    timeMax: 1439,
+    showHighs: true,
+    showLows: true
+};
+
+// DOM Elements
+const calendarGrid = document.getElementById('calendar-grid');
+const locationSelect = document.getElementById('location');
+const heightMinInput = document.getElementById('height-min');
+const heightMaxInput = document.getElementById('height-max');
+const timeMinInput = document.getElementById('time-min');
+const timeMaxInput = document.getElementById('time-max');
+const heightDisplay = document.getElementById('height-display');
+const timeDisplay = document.getElementById('time-display');
+const filterSummary = document.getElementById('filter-summary');
+const showHighsCheckbox = document.getElementById('show-highs');
+const showLowsCheckbox = document.getElementById('show-lows');
+
+// Initialize
+async function init() {
+    calendarGrid.innerHTML = '<div class="loading">Loading tide data...</div>';
+
+    try {
+        const response = await fetch('tides.json');
+        tideData = await response.json();
+
+        setupEventListeners();
+        renderCalendar();
+    } catch (error) {
+        calendarGrid.innerHTML = '<div class="loading">Error loading tide data</div>';
+        console.error('Failed to load tide data:', error);
+    }
+}
+
+function setupEventListeners() {
+    locationSelect.addEventListener('change', (e) => {
+        currentLocation = e.target.value;
+        renderCalendar();
+    });
+
+    heightMinInput.addEventListener('input', updateFilters);
+    heightMaxInput.addEventListener('input', updateFilters);
+    timeMinInput.addEventListener('input', updateFilters);
+    timeMaxInput.addEventListener('input', updateFilters);
+
+    showHighsCheckbox.addEventListener('change', updateFilters);
+    showLowsCheckbox.addEventListener('change', updateFilters);
+}
+
+function updateFilters() {
+    filters.heightMin = parseFloat(heightMinInput.value);
+    filters.heightMax = parseFloat(heightMaxInput.value);
+    filters.timeMin = parseInt(timeMinInput.value);
+    filters.timeMax = parseInt(timeMaxInput.value);
+
+    // Ensure min <= max
+    if (filters.heightMin > filters.heightMax) {
+        [filters.heightMin, filters.heightMax] = [filters.heightMax, filters.heightMin];
+    }
+    if (filters.timeMin > filters.timeMax) {
+        [filters.timeMin, filters.timeMax] = [filters.timeMax, filters.timeMin];
+    }
+
+    // Tide type filters
+    filters.showHighs = showHighsCheckbox.checked;
+    filters.showLows = showLowsCheckbox.checked;
+
+    // Update displays - show 23:59 for max time
+    heightDisplay.textContent = `${filters.heightMin.toFixed(1)}m – ${filters.heightMax.toFixed(1)}m`;
+    const maxTimeDisplay = filters.timeMax >= 1439 ? '23:59' : formatMinutes(filters.timeMax);
+    timeDisplay.textContent = `${formatMinutes(filters.timeMin)} – ${maxTimeDisplay}`;
+
+    updateHighlights();
+    updateFilterSummary();
+}
+
+function formatMinutes(mins) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+function formatTime(timeStr) {
+    // timeStr is "HH:MM"
+    return timeStr.replace(':', '');
+}
+
+function timeToMinutes(timeStr) {
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+}
+
+function applyOffset(timeStr, offsetMinutes) {
+    const totalMins = timeToMinutes(timeStr) + offsetMinutes;
+    const adjustedMins = ((totalMins % 1440) + 1440) % 1440;  // Handle day wrap
+    return formatMinutes(adjustedMins);
+}
+
+function renderCalendar() {
+    const offset = LOCATION_OFFSETS[currentLocation];
+    const tidesByDate = groupTidesByDate(tideData.tides, offset);
+
+    calendarGrid.innerHTML = '';
+
+    for (let month = 0; month < 12; month++) {
+        const monthEl = createMonthElement(month, tidesByDate, offset);
+        calendarGrid.appendChild(monthEl);
+    }
+
+    updateFilterSummary();
+}
+
+function groupTidesByDate(tides, offset) {
+    const grouped = {};
+
+    tides.forEach(tide => {
+        if (!grouped[tide.date]) {
+            grouped[tide.date] = [];
+        }
+
+        // Apply time offset
+        const adjustedTime = applyOffset(tide.time, offset.minutes);
+        const adjustedHeight = tide.height * offset.heightMultiplier;
+
+        grouped[tide.date].push({
+            ...tide,
+            displayTime: adjustedTime,
+            displayHeight: adjustedHeight
+        });
+    });
+
+    return grouped;
+}
+
+function createMonthElement(monthIndex, tidesByDate, offset) {
+    const monthEl = document.createElement('div');
+    monthEl.className = 'month';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'month-header';
+    header.innerHTML = `
+        <span>${MONTH_NAMES[monthIndex]}</span>
+        <div class="col-header">
+            <span>Time</span>
+            <span>m</span>
+        </div>
+    `;
+    monthEl.appendChild(header);
+
+    // Days container
+    const daysContainer = document.createElement('div');
+    daysContainer.className = 'month-days';
+
+    // Split into two columns (1-15 and 16-31)
+    const col1 = document.createElement('div');
+    col1.className = 'month-col';
+    const col2 = document.createElement('div');
+    col2.className = 'month-col';
+
+    const year = tideData.year;
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${(monthIndex + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+        const dayTides = tidesByDate[dateStr] || [];
+        const dayOfWeek = new Date(year, monthIndex, day).getDay();
+
+        const dayRow = createDayRow(day, dayOfWeek, dayTides);
+
+        if (day <= 15) {
+            col1.appendChild(dayRow);
+        } else {
+            col2.appendChild(dayRow);
+        }
+    }
+
+    daysContainer.appendChild(col1);
+    daysContainer.appendChild(col2);
+    monthEl.appendChild(daysContainer);
+
+    return monthEl;
+}
+
+function createDayRow(day, dayOfWeek, tides) {
+    const row = document.createElement('div');
+    row.className = 'day-row';
+
+    row.innerHTML = `
+        <div class="day-info">
+            <span class="day-num">${day}</span>
+            <span class="day-abbr">${DAY_ABBRS[dayOfWeek]}</span>
+        </div>
+        <div class="tides-list">
+            ${tides.map(tide => createTideEntry(tide)).join('')}
+        </div>
+    `;
+
+    return row;
+}
+
+function createTideEntry(tide) {
+    const timeMinutes = timeToMinutes(tide.displayTime.replace(/(\d{2})(\d{2})/, '$1:$2'));
+    const tideType = tide.type || 'unknown';
+    const isMatch = matchesFilters(tide.displayHeight, timeMinutes, tideType);
+    const className = isMatch ? 'highlighted' : (hasActiveFilters() ? 'dimmed' : '');
+
+    return `
+        <div class="tide-entry ${className}" 
+             data-height="${tide.displayHeight.toFixed(2)}" 
+             data-time="${timeMinutes}"
+             data-type="${tideType}">
+            <span class="tide-time">${tide.displayTime}</span>
+            <span class="tide-height">${tide.displayHeight.toFixed(2)}</span>
+        </div>
+    `;
+}
+
+function matchesFilters(height, timeMinutes, tideType) {
+    const heightMatch = height >= filters.heightMin && height <= filters.heightMax;
+    const timeMatch = timeMinutes >= filters.timeMin && timeMinutes <= filters.timeMax;
+    const typeMatch = (tideType === 'high' && filters.showHighs) ||
+        (tideType === 'low' && filters.showLows) ||
+        (tideType === 'unknown');
+    return heightMatch && timeMatch && typeMatch;
+}
+
+function hasActiveFilters() {
+    return filters.heightMin > 0 ||
+        filters.heightMax < 1.5 ||
+        filters.timeMin > 0 ||
+        filters.timeMax < 1439 ||
+        !filters.showHighs ||
+        !filters.showLows;
+}
+
+function updateHighlights() {
+    const entries = document.querySelectorAll('.tide-entry');
+
+    entries.forEach(entry => {
+        const height = parseFloat(entry.dataset.height);
+        const time = parseInt(entry.dataset.time);
+        const tideType = entry.dataset.type || 'unknown';
+        const isMatch = matchesFilters(height, time, tideType);
+
+        entry.classList.toggle('highlighted', isMatch);
+        entry.classList.toggle('dimmed', !isMatch && hasActiveFilters());
+    });
+}
+
+function updateFilterSummary() {
+    const entries = document.querySelectorAll('.tide-entry');
+    const matching = document.querySelectorAll('.tide-entry:not(.dimmed)');
+
+    filterSummary.textContent = `Showing ${matching.length} of ${entries.length} tides`;
+}
+
+
+// Handle sticky header offset
+const controlsEl = document.querySelector('.controls');
+if (controlsEl) {
+    const resizeObserver = new ResizeObserver(entries => {
+        for (const entry of entries) {
+            const height = entry.contentRect.height +
+                parseFloat(getComputedStyle(entry.target).paddingTop) +
+                parseFloat(getComputedStyle(entry.target).paddingBottom) +
+                parseFloat(getComputedStyle(entry.target).borderBottomWidth);
+            document.documentElement.style.setProperty('--controls-height', `${height}px`);
+        }
+    });
+    resizeObserver.observe(controlsEl);
+}
+
+// Start the app
+init();
