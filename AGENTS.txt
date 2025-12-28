@@ -1,0 +1,55 @@
+# 31 Days of WA Data — AI Agent Instructions
+
+## Project Overview
+Daily exploration of Western Australia through open data. Maps and graphs, mostly.
+One dataset per day throughout January 2026.
+
+## Philosophy
+- **Beautiful & Interesting**: Every visualization should be beautiful, interesting, and well-crafted
+- **No Slop**: AI-assisted code is welcome, but no slop
+- **Ethical Use**: All data used within permissions, properly credited
+- **Open Collaboration**: Contributors welcome to repost and expand their work
+
+## Project Structure
+```
+dailywadata/
+├── index.html          # Calendar view (main landing page)
+├── about.html          # Project philosophy
+├── sources.html        # Data sources & methods for all days
+├── styles.css          # Shared styles
+├── script.js           # Calendar interaction
+└── dayN-description/   # One folder per day
+    ├── index.html      # Day's visualization
+    ├── main.js         # Visualization logic
+    ├── styles.css      # Day-specific styles
+    ├── methods.md      # Data source, processing, tech stack
+    └── [data files]    # GeoTIFF, GeoJSON, etc.
+```
+
+## Workflow: Git Branches
+
+**IMPORTANT**: Use one branch per day, merge to main for GitHub Pages deployment.
+
+### Creating a New Day
+1. **Branch naming**: `day{N}-{short-description}` (e.g., `day8-treesperth`)
+2. **Create from main**: `git checkout main && git pull && git checkout -b day8-treesperth`
+3. **Build the day**:
+   - Create `day8-treesperth/` folder with index.html, main.js, styles.css, methods.md
+   - Add entry to main `index.html` calendar (update link on appropriate day number)
+   - Add entry to `sources.html` with source, processing, tech stack, and author
+
+### When Day is Complete
+1. **Merge to main**: Create PR or direct merge
+2. **GitHub Pages**: Automatically deploys from main branch
+3. **Keep branch**: Don't delete day branches for reference
+
+## Current State
+- Live site: https://dailywadata.com
+- Server running: `python -m http.server 8000` for local dev
+- Calendar links should point to folder (`day1-dotlidar/`) not index directly
+
+## Key Reminders
+- Update BOTH index.html calendar AND sources.html for each new day
+- Include proper attribution and licensing info in methods.md
+- Test on mobile (most people use mobile)
+- Beautiful > functional (but both is better)
