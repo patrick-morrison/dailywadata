@@ -20,7 +20,7 @@ const CONFIG = {
         SIGNIFICANT_GROUP: [65, 105, 225], // Royal Blue - significant group
         SELECTED: [50, 200, 50],         // Vibrant Lime Green - highly visible
         RINGS: [0, 0, 0, 0],             // Transparent Fill
-        RING_STROKE: [74, 93, 74, 25]    // Subtle dark rings
+        RING_STROKE: [74, 93, 74, 80]    // Visible dark rings (increased opacity from 25)
     },
     // Locked Pitch
     LOCKED_PITCH: 0,
@@ -140,10 +140,11 @@ function toggleTab(tabName) {
     // Map Mode Switch
     try {
         if (isNearby) {
-            // Nearby mode: Enable location tracking automatically
-            if (!state.isTracking) {
-                toggleTracking(); // Auto-start tracking for radar view
-            }
+            // Nearby mode: DO NOT auto-enable tracking. 
+            // User must explicitly click "Enable Location" or "Start"
+            // if (!state.isTracking) {
+            //    toggleTracking(); 
+            // }
 
             // Show base map layer (visible in radar view)
             if (map.getLayer('carto-positron')) {
@@ -254,7 +255,7 @@ const map = new maplibregl.Map({
                 type: 'raster',
                 source: 'carto',
                 layout: { visibility: 'visible' }, // Visible to show map background
-                paint: { 'raster-opacity': 0.6 } // Increased opacity for visibility
+                paint: { 'raster-opacity': 0.8 } // Increased opacity for better visibility
             }
         ]
     },
@@ -613,7 +614,7 @@ function renderDeck() {
             stroked: true,
             getLineColor: CONFIG.COLORS.RING_STROKE,
             getLineWidth: 0.5,
-            lineWidthMinPixels: 0.5,
+            lineWidthMinPixels: 1.0,
             getLineDashArray: [4, 4], // Dashed lines for paper map grid feel
             dashJustified: true,
             pickable: false,
@@ -805,7 +806,7 @@ function renderDeck() {
     if (state.deckOverlay) {
         state.deckOverlay.setProps({ layers });
     } else {
-        state.deckOverlay = new deck.MapboxOverlay({ layers });
+        state.deckOverlay = new deck.MapboxOverlay({ layers, interleaved: true });
         map.addControl(state.deckOverlay);
     }
 }
