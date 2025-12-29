@@ -52,10 +52,34 @@
 
             <!-- Bottom Shelf -->
             <div class="shelf-container">
+                <!-- Progress Bar (Above Tabs) -->
+                <div id="progress-container" class="progress-bar-container" style="display: none;">
+                    <div class="progress-info">
+                        <span id="progress-text">0 / 0 Species</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Tab Bar -->
+                <div class="tab-bar">
+                    <button class="tab-btn active" data-tab="nearby">Nearby</button>
+                    <button class="tab-btn" data-tab="collection">My Species</button>
+                </div>
+
                 <div class="shelf-scroll" id="tree-list">
                     <!-- Items injected here -->
                     <div class="empty-state">
                         Move around to scan area
+                    </div>
+                </div>
+
+                <div class="shelf-scroll" id="collection-list" style="display: none;">
+                    <!-- Collected items injected here -->
+                    <div class="empty-state">
+                        No species collected yet.<br>Walk around to find trees!
                     </div>
                 </div>
             </div>

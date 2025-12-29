@@ -42,7 +42,10 @@ const state = {
     selectedIndex: -1,
     watchId: null,
     isTracking: false,
-    radarRings: [] // GeoJSON features
+    radarRings: [], // GeoJSON features
+    seenSpecies: {}, // { speciesName: { firstSeenAt, firstTreeId, firstTreeName } }
+    activeTab: 'nearby', // 'nearby' or 'collection'
+    selectedCollectionSpecies: null // speciesName selected in collection tab
 };
 
 // ============================================
@@ -69,6 +72,122 @@ function getDistance(lat1, lon1, lat2, lon2) {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
 }
+
+// ============================================
+// Seen Species Storage (localStorage)
+// ============================================
+
+const STORAGE_KEY = 'treesPerth_seenSpecies';
+
+function loadSeenSpecies() {
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            state.seenSpecies = JSON.parse(stored);
+        }
+    } catch (e) {
+        console.warn('Failed to load seen species:', e);
+        state.seenSpecies = {};
+    }
+}
+
+function saveSeenSpecies() {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.seenSpecies));
+    } catch (e) {
+        console.warn('Failed to save seen species:', e);
+    }
+}
+
+function markSpeciesSeen(speciesName, tree) {
+    if (state.seenSpecies[speciesName]) return; // Already seen
+
+    state.seenSpecies[speciesName] = {
+        firstSeenAt: new Date().toISOString(),
+        firstTreeId: tree.id,
+        firstTreeName: tree.name
+    };
+    saveSeenSpecies();
+    updateUI();
+}
+
+// ============================================
+// Collection & Tab Logic
+// ============================================
+
+function toggleTab(tabName) {
+    state.activeTab = tabName;
+
+    // Update Tab UI
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+
+    // Update Content Visibility
+    const isNearby = tabName === 'nearby';
+    document.getElementById('tree-list').style.display = isNearby ? 'block' : 'none';
+    document.getElementById('collection-list').style.display = isNearby ? 'none' : 'block';
+    document.getElementById('progress-container').style.display = isNearby ? 'none' : 'block';
+    document.querySelector('.radar-status').style.display = isNearby ? 'block' : 'none';
+
+    // Map Mode Switch
+    try {
+        if (isNearby) {
+            // Radar Mode
+            if (map.getLayer('carto-positron')) {
+                map.setLayoutProperty('carto-positron', 'visibility', 'none');
+            }
+            updatePosition({ coords: { longitude: state.userPos.lng, latitude: state.userPos.lat } }); // Reset zoom/pitch
+
+            // Disable interaction for pure radar feel
+            map.boxZoom.disable();
+            map.doubleClickZoom.disable();
+            map.dragPan.disable();
+            map.dragRotate.disable();
+            map.keyboard.disable();
+            map.scrollZoom.disable();
+            map.touchZoomRotate.disable();
+        } else {
+            // Collection Map Mode
+            if (map.getLayer('carto-positron')) {
+                map.setLayoutProperty('carto-positron', 'visibility', 'visible');
+            }
+            map.jumpTo({
+                center: [state.userPos.lng, state.userPos.lat],
+                zoom: 13,
+                pitch: 0
+            });
+
+            // Enable interaction for exploration
+            map.boxZoom.enable();
+            map.doubleClickZoom.enable();
+            map.dragPan.enable();
+            map.dragRotate.enable();
+            map.keyboard.enable();
+            map.scrollZoom.enable();
+            map.touchZoomRotate.enable();
+        }
+    } catch (e) {
+        console.warn("Map interaction error:", e);
+    }
+
+    // Reset selection when switching
+    state.selectedCollectionSpecies = null;
+    renderDeck();
+    updateUI();
+}
+
+// Init Tabs
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => toggleTab(btn.dataset.tab));
+});
+
+function isSpeciesSeen(speciesName) {
+    return !!state.seenSpecies[speciesName];
+}
+
+// Load on init
+loadSeenSpecies();
 
 // ============================================
 // Dynamic Zoom Calculation
@@ -105,8 +224,26 @@ const map = new maplibregl.Map({
     container: 'map',
     style: {
         version: 8,
-        sources: {}, // Pure Radar (No Basemap)
-        layers: []
+        sources: {
+            'carto': {
+                type: 'raster',
+                tiles: [
+                    'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+                    'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png'
+                ],
+                tileSize: 256,
+                attribution: '&copy; CARTO'
+            }
+        },
+        layers: [
+            {
+                id: 'carto-positron',
+                type: 'raster',
+                source: 'carto',
+                layout: { visibility: 'none' }, // Hidden by default (Radar Mode)
+                paint: { 'raster-opacity': 1 }
+            }
+        ]
     },
     center: [CONFIG.TEST_LOCATION.lng, CONFIG.TEST_LOCATION.lat],
     zoom: initialZoom,
@@ -401,20 +538,23 @@ function renderDeck() {
             pickable: false,
             parameters: {
                 depthTest: false
-            }
+            },
+            // Hide radar rings in collection mode
+            visible: state.activeTab === 'nearby'
         }),
 
-        // Trees
+        // Nearby Trees (Radar Mode)
         new deck.ScatterplotLayer({
-            id: 'trees-scatter',
+            id: 'trees-scatter-nearby',
             data: state.nearbyTrees,
+            visible: state.activeTab === 'nearby',
             getPosition: d => d.position,
             getFillColor: d => {
                 const rgb = d.significant ? CONFIG.COLORS.SIGNIFICANT : CONFIG.COLORS.NORMAL;
                 if (d.id === state.selectedIndex) return [...CONFIG.COLORS.SELECTED, 255];
                 return [...rgb, d.alpha];
             },
-            getRadius: d => d.id === state.selectedIndex ? 5 : 3, // Smaller bubbles
+            getRadius: d => d.id === state.selectedIndex ? 5 : 3,
             radiusMinPixels: 1.5,
             radiusMaxPixels: 10,
             stroked: true,
@@ -428,8 +568,75 @@ function renderDeck() {
                 }
             },
             updateTriggers: {
-                getFillColor: [state.selectedIndex],
-                getRadius: [state.selectedIndex]
+                getFillColor: [state.selectedIndex], // Corrected syntax
+                getRadius: [state.selectedIndex]     // Corrected syntax
+            }
+        }),
+
+        // -------------------------------
+        // COLLECTION MODE LAYERS
+        // -------------------------------
+
+        // 1. Distribution View (Grey Dots - All instances of collected species)
+        new deck.ScatterplotLayer({
+            id: 'collection-distribution',
+            data: state.allTrees,
+            // Show if we are in collection tab
+            visible: state.activeTab === 'collection',
+            getPosition: d => d.position,
+            getFillColor: d => {
+                const collectedNames = Object.keys(state.seenSpecies);
+                // 1. If not collected, hide
+                if (!collectedNames.includes(d.name)) return [0, 0, 0, 0];
+
+                // 2. If a specific species is selected
+                if (state.selectedCollectionSpecies) {
+                    // Highlight the selected one, fade the others
+                    return d.name === state.selectedCollectionSpecies
+                        ? [100, 100, 100, 180]  // Dark, visible
+                        : [200, 200, 200, 50];  // Faint background context
+                }
+
+                // 3. Default: Show all collected species distributions nicely
+                return [150, 150, 150, 100];
+            },
+            getRadius: 5,
+            radiusMinPixels: 2,
+            radiusMaxPixels: 10,
+            stroked: false,
+            pickable: false,
+            updateTriggers: {
+                getFillColor: [state.selectedCollectionSpecies, Object.keys(state.seenSpecies).length]
+            }
+        }),
+
+        // 2. "My Trees" (The specific ones I found)
+        new deck.ScatterplotLayer({
+            id: 'collection-my-trees',
+            data: Object.values(state.seenSpecies).map(seen => {
+                // Hydrate with full tree data found by ID
+                return state.allTrees.find(t => t.id === seen.firstTreeId);
+            }).filter(Boolean),
+            visible: state.activeTab === 'collection',
+            getPosition: d => d.position,
+            getFillColor: d => {
+                // Highight if this is the selected species
+                if (d.name === state.selectedCollectionSpecies) return CONFIG.COLORS.SELECTED;
+                return d.significant ? CONFIG.COLORS.SIGNIFICANT : CONFIG.COLORS.NORMAL;
+            },
+            getRadius: d => d.name === state.selectedCollectionSpecies ? 8 : 4,
+            radiusMinPixels: 3,
+            radiusMaxPixels: 12,
+            stroked: true,
+            getLineColor: [255, 255, 255, 255],
+            getLineWidth: 1,
+            pickable: true,
+            onClick: info => {
+                if (info.object) selectCollectionSpecies(info.object.name);
+            },
+            updateTriggers: {
+                getFillColor: [state.selectedCollectionSpecies],
+                getRadius: [state.selectedCollectionSpecies]
             }
         }),
 
@@ -491,6 +698,13 @@ function updateUI() {
         if (tree.height) metaHtml += `<span>${tree.height}m</span>`;
         if (tree.age) metaHtml += `<span>${tree.age} yrs</span>`;
 
+        // Plus button - only show if species not yet seen
+        const speciesSeen = isSpeciesSeen(tree.name);
+        const escapedName = tree.name.replace(/'/g, "\\'");
+        const plusBtnHtml = speciesSeen ? `<span class="tree-dist" style="margin-right: 12px; font-size: 0.8rem; color: #999;">COLLECTED</span>` : `
+            <button class="collect-btn" onclick="event.stopPropagation(); markSpeciesSeen('${escapedName}', {id: ${tree.id}, name: '${escapedName}'})">+</button>
+        `;
+
         item.innerHTML = `
             <div class="tree-info">
                 <h3>${tree.name}</h3>
@@ -498,10 +712,66 @@ function updateUI() {
                     ${metaHtml}
                 </div>
             </div>
-            <div class="tree-dist">${Math.round(tree.distance)}m</div>
+            <div style="display:flex; align-items:center;">
+                ${plusBtnHtml}
+                <div class="tree-dist">${Math.round(tree.distance)}m</div>
+            </div>
         `;
         list.appendChild(item);
     });
+
+    // Update Collection UI if on that tab
+    if (state.activeTab === 'collection') {
+        updateCollectionList();
+    }
+}
+
+function getUniqueSpeciesCount() {
+    const unique = new Set(state.allTrees.map(t => t.name));
+    return unique.size;
+}
+
+function updateCollectionList() {
+    const list = document.getElementById('collection-list');
+    list.innerHTML = '';
+
+    const seenEntries = Object.entries(state.seenSpecies);
+
+    // Update Progress
+    const total = getUniqueSpeciesCount();
+    const count = seenEntries.length;
+    document.getElementById('progress-text').textContent = `${count} / ${total} Species Collected`;
+    document.getElementById('progress-percent').textContent = `${Math.round((count / total) * 100)}%`;
+    document.getElementById('progress-fill').style.width = `${(count / total) * 100}%`;
+
+    if (count === 0) return; // Keep default empty state
+
+    // Sort by recent
+    seenEntries.sort((a, b) => new Date(b[1].firstSeenAt) - new Date(a[1].firstSeenAt));
+
+    seenEntries.forEach(([name, data]) => {
+        const item = document.createElement('div');
+        item.className = `tree-item ${state.selectedCollectionSpecies === name ? 'selected' : ''}`;
+        item.onclick = () => selectCollectionSpecies(name);
+
+        const dateStr = new Date(data.firstSeenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+        item.innerHTML = `
+            <div class="tree-info">
+                <h3>${name}</h3>
+                <div class="tree-meta">
+                    <span>Found ${dateStr}</span>
+                </div>
+            </div>
+        `;
+        list.appendChild(item);
+    });
+}
+
+function selectCollectionSpecies(name) {
+    state.selectedCollectionSpecies = name;
+    renderDeck();
+    updateCollectionList(); // To update selected highlight
 }
 
 function selectTree(id) {
