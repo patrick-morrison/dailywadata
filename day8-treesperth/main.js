@@ -22,13 +22,9 @@ const CONFIG = {
         RINGS: [0, 0, 0, 0],             // Transparent Fill
         RING_STROKE: [74, 93, 74, 80]    // Visible dark rings (increased opacity from 25)
     },
-    // Locked Pitch
-    LOCKED_PITCH: 0,
-    // TEST LOCATION: Lock to specific coordinates
-    TEST_LOCATION: {
-        lng: 115.8721966,
-        lat: -31.9558337
-    }
+    // Locked Pitch - REMOVED (Allow user to tilt? Or keep locked 0)
+    // Actually keep 0 for pure radar feel
+    LOCKED_PITCH: 0
 };
 
 // ============================================
@@ -38,8 +34,8 @@ const CONFIG = {
 const state = {
     allTrees: [],
     nearbyTrees: [],
-    // Initialize with Test Location
-    userPos: { ...CONFIG.TEST_LOCATION },
+    // Initialize with NULL (Waiting for location)
+    userPos: null,
     heading: 0,
     deckOverlay: null,
     selectedIndex: -1,
@@ -74,6 +70,33 @@ function getDistance(lat1, lon1, lat2, lon2) {
         Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
+}
+
+function getBearing(lat1, lon1, lat2, lon2) {
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) -
+        Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+
+    const θ = Math.atan2(y, x);
+    return (θ * 180 / Math.PI + 360) % 360; // Degrees 0-360
+}
+
+function findNearestTree(lat, lng) {
+    let nearest = null;
+    let minDist = Infinity;
+
+    for (const tree of state.allTrees) {
+        const d = getDistance(lat, lng, tree.position[1], tree.position[0]);
+        if (d < minDist) {
+            minDist = d;
+            nearest = tree;
+        }
+    }
+    return { tree: nearest, distance: minDist };
 }
 
 // ============================================
@@ -211,6 +234,9 @@ function calculateOptimalZoom(lat) {
     const container = document.getElementById('map');
     if (!container) return 18;
 
+    // Default if no lat provided
+    if (lat === null || lat === undefined) return 13;
+
     // We want 60m (diameter for 30m radius) to fit in the smallest dimension
     const minDim = Math.min(container.clientWidth, container.clientHeight);
 
@@ -231,8 +257,9 @@ function calculateOptimalZoom(lat) {
 // Map Initialization
 // ============================================
 
-// Initial zoom based on Test Location
-const initialZoom = calculateOptimalZoom(CONFIG.TEST_LOCATION.lat);
+// Initial zoom based on Perth CBD Default
+const initialZoom = 13;
+const defaultCenter = [115.8605, -31.9505]; // Perth CBD
 
 const map = new maplibregl.Map({
     container: 'map',
@@ -259,7 +286,7 @@ const map = new maplibregl.Map({
             }
         ]
     },
-    center: [CONFIG.TEST_LOCATION.lng, CONFIG.TEST_LOCATION.lat],
+    center: defaultCenter,
     zoom: initialZoom,
     pitch: CONFIG.LOCKED_PITCH,
     attributionControl: false,
@@ -284,7 +311,7 @@ map.on('load', () => {
     // Default to location OFF - show enable button
     setTimeout(() => {
         showEnableLocationButton();
-        greyOutRadar();
+        if (!state.userPos) greyOutRadar();
     }, 100);
 });
 
@@ -338,8 +365,10 @@ function processData(rawData) {
 
     state.allTrees = processed;
 
-    // Initial Radar Update
-    updateRadar();
+    // Initial Radar Update (Only if location known)
+    if (state.userPos) {
+        updateRadar();
+    }
 
     // Initialize progress bar with correct total
     updateCollectionList();
@@ -354,6 +383,10 @@ document.getElementById('locate-btn').addEventListener('click', toggleTracking);
 function toggleTracking() {
     if (state.isTracking) {
         // Stop tracking
+        if (state.watchId) {
+            navigator.geolocation.clearWatch(state.watchId);
+            state.watchId = null;
+        }
         window.removeEventListener('deviceorientation', handleOrientation);
         window.removeEventListener('deviceorientationabsolute', handleOrientation);
         if (state.compassLoop) {
@@ -366,54 +399,92 @@ function toggleTracking() {
         document.getElementById('locate-btn').classList.remove('active');
         showLocationMessage();
     } else {
-        // Start tracking (Orientation ONLY for testing)
-        state.isTracking = true;
-        document.getElementById('locate-btn').classList.add('active');
-        hideLocationMessage();
-
-        // FORCE LOCATION (In case it drifted)
-        updatePosition({
-            coords: {
-                longitude: CONFIG.TEST_LOCATION.lng,
-                latitude: CONFIG.TEST_LOCATION.lat
-            }
-        });
-
-        // Request Compass Permission (iOS 13+)
-        if (typeof DeviceOrientationEvent !== 'undefined' &&
-            typeof DeviceOrientationEvent.requestPermission === 'function') {
-            DeviceOrientationEvent.requestPermission()
-                .then(response => {
-                    if (response === 'granted') {
-                        window.addEventListener('deviceorientation', handleOrientation, true);
-                        hideLocationMessage();
-                    } else {
-                        // Permission denied
-                        state.isTracking = false;
-                        document.getElementById('locate-btn').classList.remove('active');
-                        showLocationMessage();
-                    }
-                })
-                .catch(err => {
-                    console.error(err);
-                    state.isTracking = false;
-                    document.getElementById('locate-btn').classList.remove('active');
-                    showLocationMessage();
-                });
-        } else {
-            // Android often needs absolute event for true north
-            if ('ondeviceorientationabsolute' in window) {
-                window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-            } else {
-                window.addEventListener('deviceorientation', handleOrientation, true);
-            }
+        // Start tracking
+        if (!navigator.geolocation) {
+            alert("Geolocation is not supported by your browser");
+            return;
         }
 
-        // Start smoothing loop
-        state.compassLoop = requestAnimationFrame(updateCompassPhysics);
+        state.isTracking = true;
+        document.getElementById('locate-btn').classList.add('active');
+        hideLocationMessage(); // Show map (even if waiting)
 
-        console.log("Tracking started (Test Mode: Locked Location, Live Compass)");
+        hideLocationMessage(); // Show map (even if waiting)
+
+        // Use startWatch for robust handling (retries, high/low accuracy)
+        startWatch(true);
+
+        console.log("Tracking started (Requesting GPS)");
     }
+}
+
+function startWatch(useHighAccuracy) {
+    // Clear existing if any (prevent duplicates on retry)
+    if (state.watchId) navigator.geolocation.clearWatch(state.watchId);
+
+    const options = {
+        enableHighAccuracy: useHighAccuracy,
+        maximumAge: 5000,
+        timeout: 10000
+    };
+
+    state.watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+            updatePosition(pos);
+            // Also enable compass if available
+            enableCompass();
+        },
+        (err) => {
+            // Quietly handle errors - no alerts for transient issues
+
+            // Code 1: Permission Denied - Fatal
+            if (err.code === 1) {
+                console.warn("Location error (Fatal): Permission denied.");
+                alert("Location permission denied. Please enable it in settings.");
+                toggleTracking(); // Stop tracking cleanly
+                return;
+            }
+
+            // Code 2 (Unavailable) & 3 (Timeout): Transient
+            // Only log as debug/info to avoid "freaking out" the console/user
+            // console.debug(`Location error (${useHighAccuracy ? 'High' : 'Low'} Accuracy):`, err.message);
+
+            // If using High Accuracy and failing, fallback to Low Accuracy
+            if ((err.code === 2 || err.code === 3) && useHighAccuracy) {
+                console.log("Falling back to low accuracy...");
+                startWatch(false);
+                return;
+            }
+
+            // If already on low accuracy, just keep waiting. The browser will retry.
+            // Do NOT stop tracking.
+        },
+        options
+    );
+}
+
+function enableCompass() {
+    if (state.compassLoop) return; // Already running
+
+    // Request Compass Permission (iOS 13+)
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+            .then(response => {
+                if (response === 'granted') {
+                    window.addEventListener('deviceorientation', handleOrientation, true);
+                }
+            })
+            .catch(console.error);
+    } else {
+        if ('ondeviceorientationabsolute' in window) {
+            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+        } else {
+            window.addEventListener('deviceorientation', handleOrientation, true);
+        }
+    }
+    // Start smoothing loop
+    state.compassLoop = requestAnimationFrame(updateCompassPhysics);
 }
 
 // Location UI helpers
@@ -422,7 +493,7 @@ function showEnableLocationButton() {
     list.innerHTML = `
         <div class="empty-state intro-state">
             <p class="intro-text">
-                This shows the trees recorded by the City of Perth in their open data.<br>
+                This shows the open data for trees in the City of Perth<br>
                 Allow location to look around and collect species.
             </p>
             <button id="enable-location-btn" class="enable-location-btn">
@@ -573,8 +644,11 @@ function getAlpha(distance) {
 
 function updateRadar() {
     if (!state.userPos) {
-        const center = map.getCenter();
-        state.userPos = { lng: center.lng, lat: center.lat };
+        state.radarRings = { type: 'FeatureCollection', features: [] };
+        state.nearbyTrees = [];
+        renderDeck();
+        updateUI();
+        return;
     }
 
     state.radarRings = generateRadarRings(state.userPos);
@@ -823,8 +897,37 @@ function updateUI() {
     const list = document.getElementById('tree-list');
     list.innerHTML = '';
 
+    // If not tracking (or waiting for location for the first time), show enable button
+    if (!state.isTracking && !state.userPos) {
+        showEnableLocationButton();
+        return;
+    }
+
     if (listTrees.length === 0) {
-        list.innerHTML = `<div class="empty-state">No trees found within 30m.</div>`;
+        let msg = "No trees found within 30m.";
+
+        // Find nearest tree if we have user position
+        if (state.userPos && state.allTrees.length > 0) {
+            const nearest = findNearestTree(state.userPos.lat, state.userPos.lng);
+            if (nearest && nearest.tree) {
+                const distKm = (nearest.distance / 1000).toFixed(1);
+                const bearing = getBearing(state.userPos.lat, state.userPos.lng, nearest.tree.position[1], nearest.tree.position[0]);
+                const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+                const cardIndex = Math.round(bearing / 45) % 8;
+                const cardinal = directions[cardIndex];
+
+                msg = `
+                    <div style="margin-bottom: 8px;">No trees nearby.</div>
+                    <div style="font-size: 0.85em; color: #8b9b8b; line-height: 1.4;">
+                        This map only covers the City of Perth.<br><br>
+                        Nearest tree: <strong>${nearest.tree.name}</strong><br>
+                        <strong>${distKm} km</strong> to the <strong>${cardinal}</strong>
+                    </div>
+                `;
+            }
+        }
+
+        list.innerHTML = `<div class="empty-state">${msg}</div>`;
         return;
     }
 
