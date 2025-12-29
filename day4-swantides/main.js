@@ -28,7 +28,7 @@ let filters = {
     heightMin: 0,
     heightMax: 1.5,
     timeMin: 0,
-    timeMax: 1439,
+    timeMax: 1440,
     showHighs: true,
     showLows: true
 };
@@ -258,7 +258,7 @@ function hasActiveFilters() {
     return filters.heightMin > 0 ||
         filters.heightMax < 1.5 ||
         filters.timeMin > 0 ||
-        filters.timeMax < 1439 ||
+        filters.timeMax < 1440 ||
         !filters.showHighs ||
         !filters.showLows;
 }
