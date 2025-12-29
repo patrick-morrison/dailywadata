@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Day 28 — Swan River Bathymetry</title>
+    <meta name="description" content="High-resolution multibeam bathymetry of the Swan and Canning river channels.">
+
+    <!-- External Dependencies -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/deck.gl@9.0.16/dist.min.js"></script>
+    <script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/proj4@2.12.1/dist/proj4.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css?v=18">
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
+</head>
+
+<body>
+    <!-- Loading State -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Downloading bathymetry data...</div>
+    </div>
+
+    <!-- Navigation -->
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+
+
+    <!-- Location Button -->
+    <button class="location-btn" id="location-btn" title="Show my location">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+        </svg>
+    </button>
+    </button>
+
+    <!-- Waypoint Table (Right Sidebar) -->
+    <div class="waypoint-sidebar hidden" id="waypoint-sidebar">
+        <div class="waypoint-header">
+            <h3>Route Plan</h3>
+            <div class="dist-display">
+                <span id="total-dist-display">0</span>
+                <select id="dist-unit-sidebar" class="dist-unit-select">
+                    <option value="m" selected>m</option>
+                    <option value="nm">nm</option>
+                    <option value="km">km</option>
+                </select>
+            </div>
+        </div>
+        <div class="depth-stats" id="depth-stats">
+            <span><strong>Min:</strong> <span id="depth-min">--</span>m</span>
+            <span><strong>Max:</strong> <span id="depth-max">--</span>m</span>
+            <span><strong>Avg:</strong> <span id="depth-avg">--</span>m</span>
+        </div>
+        <div class="waypoint-content">
+            <table id="waypoint-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Pos</th>
+                        <th>Dist</th>
+                        <th>Dir</th>
+                        <th>Dur</th>
+                        <th>Depth</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows injected via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Info Toggle (Mobile) -->
+    <button class="info-btn" id="info-btn" title="Show info">
+        <span class="info-icon">i</span>
+    </button>
+
+    <!-- Draw Button -->
+
+    <!-- Bottom Shelf -->
+    <div class="shelf" id="shelf">
+        <div class="shelf-header">
+            <div class="shelf-title">
+                <h3>Day 28 — Swan River Bathymetry</h3>
+                <span class="shelf-subtitle">Department of Transport Multibeam · <a href="../sources.html">Methods
+                        →</a></span>
+            </div>
+            <div class="shelf-controls">
+                <div class="control-group">
+                    <label>Speed</label>
+                    <input type="number" id="speed-input" value="40" min="1" max="100" step="1">
+                    <select id="speed-unit">
+                        <option value="mmin" selected>m/min</option>
+                        <option value="knots">knots</option>
+                        <option value="ms">m/s</option>
+                    </select>
+                </div>
+                <button class="finish-btn hidden" id="finish-btn">Stop</button>
+                <button class="shelf-btn" id="clear-btn" title="Clear Route" style="margin-left: 8px;">Clear</button>
+                <button class="shelf-close-btn" id="shelf-close-btn" style="display: none;"
+                    title="Close Profile">×</button>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="profile-chart"></canvas>
+
+            <!-- Distance Unit Selector -->
+            <div class="chart-dist-unit">
+                <select id="dist-unit">
+                    <option value="m" selected>m</option>
+                    <option value="nm">nm</option>
+                    <option value="km">km</option>
+                </select>
+            </div>
+
+            <!-- Start Overlay -->
+            <div class="start-overlay" id="start-overlay">
+                <button class="start-btn" id="start-btn">Start Profile</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legend with Depth Display -->
+    <div class="overlay legend">
+        <div class="legend-card">
+            <div class="cursor-depth" id="cursor-depth">
+                <div class="cursor-depth-row">
+                    <span class="cursor-depth-label">At cursor:</span>
+                    <span class="cursor-depth-value" id="cursor-depth-value">--</span>
+                    <span class="cursor-depth-unit">m</span>
+                </div>
+                <div class="cursor-coords" id="cursor-coords">--</div>
+            </div>
+            <div class="legend-title">Depth Scale</div>
+            <div class="legend-bar" id="legend-gradient"></div>
+            <div class="legend-labels">
+                <span>-2m</span>
+                <span>-12m</span>
+                <span>-22m</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Configuration -->
+    <script>
+        window.PAGE_CONFIG = {
+            cogUrl: 'SC20100413_optimized.tif',
+            pois: [
+                { name: 'Narrows Bridge', lat: -31.961304, lng: 115.842777 },
+                { name: 'Blackwall Reach', lat: -32.019553, lng: 115.787627 },
+                { name: 'Mosman Bay', lat: -32.008354, lng: 115.772591 },
+                { name: 'Fremantle Harbor', lat: -32.053724, lng: 115.742841 },
+                { name: 'Canning Bridge', lat: -32.010530, lng: 115.850259 }
+            ]
+        };
+    </script>
+
+    <!-- Application Script -->
+    <script src="main.js?v=18"></script>
+</body>
+
+</html>
