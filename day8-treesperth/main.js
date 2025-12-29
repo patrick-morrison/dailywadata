@@ -13,18 +13,21 @@ const CONFIG = {
     FADE_START: 5,  // Alpha = 255 until here
     FADE_END: 30,   // Alpha = 0 by here (Invisible at outer ring)
     COLORS: {
-        NORMAL: [65, 90, 60],     // Deep Olive / Forest Green
-        SIGNIFICANT: [194, 145, 46], // Deep Ochre / Antique Gold
-        SELECTED: [50, 205, 50],   // Lime Green (Bright but not Neon)
-        RINGS: [0, 0, 0, 0], // Transparent Fill
-        RING_STROKE: [0, 0, 0, 40] // Clean stroke
+        NORMAL: [85, 107, 85],           // Deep Sage (#556b55) - Dark on light
+        RARE: [218, 165, 32],            // Goldenrod - rare species
+        HISTORIC: [70, 130, 180],        // Steel Blue - historic significance
+        COMMUNITY: [100, 149, 237],      // Cornflower Blue - community significance
+        SIGNIFICANT_GROUP: [65, 105, 225], // Royal Blue - significant group
+        SELECTED: [50, 200, 50],         // Vibrant Lime Green - highly visible
+        RINGS: [0, 0, 0, 0],             // Transparent Fill
+        RING_STROKE: [74, 93, 74, 25]    // Subtle dark rings
     },
     // Locked Pitch
     LOCKED_PITCH: 0,
     // TEST LOCATION: Lock to specific coordinates
     TEST_LOCATION: {
-        lng: 115.859213,
-        lat: -31.957816
+        lng: 115.8721966,
+        lat: -31.9558337
     }
 };
 
@@ -104,8 +107,8 @@ function markSpeciesSeen(speciesName, tree) {
 
     state.seenSpecies[speciesName] = {
         firstSeenAt: new Date().toISOString(),
-        firstTreeId: tree.id,
-        firstTreeName: tree.name
+        treeId: tree.id,
+        botanical: tree.botanical || null
     };
     saveSeenSpecies();
     updateUI();
@@ -123,19 +126,28 @@ function toggleTab(tabName) {
         btn.classList.toggle('active', btn.dataset.tab === tabName);
     });
 
+    // Set data-tab on body for CSS control (e.g., wedge visibility)
+    document.body.setAttribute('data-tab', tabName);
+
     // Update Content Visibility
     const isNearby = tabName === 'nearby';
     document.getElementById('tree-list').style.display = isNearby ? 'block' : 'none';
     document.getElementById('collection-list').style.display = isNearby ? 'none' : 'block';
-    document.getElementById('progress-container').style.display = isNearby ? 'none' : 'block';
+    // Keep progress bar visible in both views
+    document.getElementById('progress-container').style.display = 'block';
     document.querySelector('.radar-status').style.display = isNearby ? 'block' : 'none';
 
     // Map Mode Switch
     try {
         if (isNearby) {
-            // Radar Mode
+            // Nearby mode: Enable location tracking automatically
+            if (!state.isTracking) {
+                toggleTracking(); // Auto-start tracking for radar view
+            }
+
+            // Show base map layer (visible in radar view)
             if (map.getLayer('carto-positron')) {
-                map.setLayoutProperty('carto-positron', 'visibility', 'none');
+                map.setLayoutProperty('carto-positron', 'visibility', 'visible');
             }
             updatePosition({ coords: { longitude: state.userPos.lng, latitude: state.userPos.lat } }); // Reset zoom/pitch
 
@@ -155,7 +167,8 @@ function toggleTab(tabName) {
             map.jumpTo({
                 center: [state.userPos.lng, state.userPos.lat],
                 zoom: 13,
-                pitch: 0
+                pitch: 0,
+                bearing: 0 // Lock to north
             });
 
             // Enable interaction for exploration
@@ -200,10 +213,10 @@ function calculateOptimalZoom(lat) {
     // We want 60m (diameter for 30m radius) to fit in the smallest dimension
     const minDim = Math.min(container.clientWidth, container.clientHeight);
 
-    // Target size: fit within 2px margin on each side = 4px total deduction
+    // Target size: fit within full width (no margin)
     // 30m radius = 60m diameter
-    // We want 60 meters to be represented by (minDim - 4) pixels.
-    const targetPixels = minDim - 4;
+    // We want 60 meters to be represented by minDim pixels.
+    const targetPixels = minDim;
 
     const C = 156543.03;
     const latRad = lat * Math.PI / 180;
@@ -240,8 +253,8 @@ const map = new maplibregl.Map({
                 id: 'carto-positron',
                 type: 'raster',
                 source: 'carto',
-                layout: { visibility: 'none' }, // Hidden by default (Radar Mode)
-                paint: { 'raster-opacity': 1 }
+                layout: { visibility: 'visible' }, // Visible to show map background
+                paint: { 'raster-opacity': 0.6 } // Increased opacity for visibility
             }
         ]
     },
@@ -265,6 +278,11 @@ map.on('load', () => {
     if (state.userPos) {
         const newZoom = calculateOptimalZoom(state.userPos.lat);
         map.jumpTo({ zoom: newZoom });
+    }
+
+    // Auto-request location and orientation permissions on page load
+    if (!state.isTracking) {
+        toggleTracking();
     }
 });
 
@@ -308,6 +326,10 @@ function processData(rawData) {
             botanical: row.BOTANICAL_NAME || null,
             height: row.TREE_HEIGHT || null,
             age: age,
+            isRare: row.RARE_SPECIES === 'Yes',
+            historicSignificance: row.HISTORIC_SIGNIFICANCE === 'Yes',
+            communitySignificance: row.COMMUNITY_SIGNIFICANCE === 'Yes',
+            significantGroup: row.SIGNIFICANT_GROUP === 'Yes',
             significant: isSignificant
         });
     }
@@ -316,6 +338,9 @@ function processData(rawData) {
 
     // Initial Radar Update
     updateRadar();
+
+    // Initialize progress bar with correct total
+    updateCollectionList();
 }
 
 // ============================================
@@ -409,7 +434,16 @@ function updateCompassPhysics() {
         // "Like compass app" implies some weight. Try 0.15
         state.currentHeading += diff * 0.15;
 
-        map.setBearing(state.currentHeading);
+        // Only rotate map in "nearby" tab (proximity collecting screen)
+        // Keep collection map north-up for easier browsing
+        if (state.activeTab === 'nearby') {
+            map.setBearing(state.currentHeading);
+        }
+
+        // Always rotate wedge to point north (opposite of map rotation)
+        // Negative because we want wedge to counter-rotate to stay pointing north
+        const wedgeRotation = -state.currentHeading;
+        document.getElementById('map').style.setProperty('--wedge-rotation', `${wedgeRotation}deg`);
     }
 
     state.compassLoop = requestAnimationFrame(updateCompassPhysics);
@@ -460,24 +494,7 @@ function generateRadarRings(center) {
         }));
     });
 
-    // 2. Diagonal Crosshairs: NW, NE, SE, SW (45, 135, 225, 315)
-    // Extending from center to 30m inner ring? Or full? 30m seems right.
-    // Actually typically crosshairs extend to the limit.
-    const bearings = [45, 135, 225, 315];
-    const origin = [center.lng, center.lat];
-
-    bearings.forEach(bearing => {
-        const start = turf.destination(turf.point(origin), 10, bearing, { units: 'meters' }).geometry.coordinates;
-        const dest = turf.destination(turf.point(origin), 30, bearing, { units: 'meters' }).geometry.coordinates;
-        features.push({
-            type: 'Feature',
-            geometry: {
-                type: 'LineString',
-                coordinates: [start, dest]
-            },
-            properties: { type: 'crosshair', bearing: bearing }
-        });
-    });
+    // Crosshairs removed - keeping only circles for cleaner view
 
     return features;
 }
@@ -535,6 +552,8 @@ function renderDeck() {
             getLineColor: CONFIG.COLORS.RING_STROKE,
             getLineWidth: 0.5,
             lineWidthMinPixels: 0.5,
+            getLineDashArray: [4, 4], // Dashed lines for paper map grid feel
+            dashJustified: true,
             pickable: false,
             parameters: {
                 depthTest: false
@@ -550,8 +569,21 @@ function renderDeck() {
             visible: state.activeTab === 'nearby',
             getPosition: d => d.position,
             getFillColor: d => {
-                const rgb = d.significant ? CONFIG.COLORS.SIGNIFICANT : CONFIG.COLORS.NORMAL;
+                // Priority: Selected > Rare > Significance types > Normal
                 if (d.id === state.selectedIndex) return [...CONFIG.COLORS.SELECTED, 255];
+
+                let rgb;
+                if (d.isRare) {
+                    rgb = CONFIG.COLORS.RARE;
+                } else if (d.historicSignificance) {
+                    rgb = CONFIG.COLORS.HISTORIC;
+                } else if (d.communitySignificance) {
+                    rgb = CONFIG.COLORS.COMMUNITY;
+                } else if (d.significantGroup) {
+                    rgb = CONFIG.COLORS.SIGNIFICANT_GROUP;
+                } else {
+                    rgb = CONFIG.COLORS.NORMAL;
+                }
                 return [...rgb, d.alpha];
             },
             getRadius: d => d.id === state.selectedIndex ? 5 : 3,
@@ -585,26 +617,46 @@ function renderDeck() {
             visible: state.activeTab === 'collection',
             getPosition: d => d.position,
             getFillColor: d => {
-                const collectedNames = Object.keys(state.seenSpecies);
                 // 1. If not collected, hide
-                if (!collectedNames.includes(d.name)) return [0, 0, 0, 0];
+                if (!isSpeciesSeen(d.name)) return [0, 0, 0, 0];
 
                 // 2. If a specific species is selected
                 if (state.selectedCollectionSpecies) {
-                    // Highlight the selected one, fade the others
-                    return d.name === state.selectedCollectionSpecies
-                        ? [100, 100, 100, 180]  // Dark, visible
-                        : [200, 200, 200, 50];  // Faint background context
+                    if (d.name === state.selectedCollectionSpecies) {
+                        // Check if this is the first collected tree
+                        const data = state.seenSpecies[state.selectedCollectionSpecies];
+                        if (data && d.id === data.treeId) {
+                            return [...CONFIG.COLORS.SELECTED, 255]; // Bright green for first found
+                        }
+                        // Other trees of this species - use their proper color
+                        if (d.isRare) return [...CONFIG.COLORS.RARE, 200];
+                        if (d.historicSignificance) return [...CONFIG.COLORS.HISTORIC, 200];
+                        if (d.communitySignificance) return [...CONFIG.COLORS.COMMUNITY, 200];
+                        if (d.significantGroup) return [...CONFIG.COLORS.SIGNIFICANT_GROUP, 200];
+                        return [...CONFIG.COLORS.NORMAL, 200];
+                    }
+                    return [200, 200, 200, 50];  // Faint background for other species
                 }
 
-                // 3. Default: Show all collected species distributions nicely
-                return [150, 150, 150, 100];
+                // 3. Default: Show all collected species with proper colors
+                if (d.isRare) return [...CONFIG.COLORS.RARE, 120];
+                if (d.historicSignificance) return [...CONFIG.COLORS.HISTORIC, 120];
+                if (d.communitySignificance) return [...CONFIG.COLORS.COMMUNITY, 120];
+                if (d.significantGroup) return [...CONFIG.COLORS.SIGNIFICANT_GROUP, 120];
+                return [...CONFIG.COLORS.NORMAL, 120];
             },
             getRadius: 5,
             radiusMinPixels: 2,
             radiusMaxPixels: 10,
             stroked: false,
             pickable: false,
+            getElevation: d => {
+                // Highlighted trees (when species selected) should be on top
+                if (state.selectedCollectionSpecies && d.name === state.selectedCollectionSpecies) {
+                    return 10;
+                }
+                return 0;
+            },
             updateTriggers: {
                 getFillColor: [state.selectedCollectionSpecies, Object.keys(state.seenSpecies).length]
             }
@@ -620,17 +672,25 @@ function renderDeck() {
             visible: state.activeTab === 'collection',
             getPosition: d => d.position,
             getFillColor: d => {
-                // Highight if this is the selected species
+                // Highlight selected species in bright green
                 if (d.name === state.selectedCollectionSpecies) return CONFIG.COLORS.SELECTED;
-                return d.significant ? CONFIG.COLORS.SIGNIFICANT : CONFIG.COLORS.NORMAL;
+                // All other collected trees in deep green
+                return [74, 93, 74, 255]; // Deep green (#4a5d4a)
             },
             getRadius: d => d.name === state.selectedCollectionSpecies ? 8 : 4,
             radiusMinPixels: 3,
             radiusMaxPixels: 12,
             stroked: true,
-            getLineColor: [255, 255, 255, 255],
+            getLineColor: [255, 255, 255, 150],
             getLineWidth: 1,
-            pickable: true,
+            pickable: false,
+            getElevation: d => {
+                // Selected species should render on top
+                if (d.name === state.selectedCollectionSpecies) {
+                    return 20;
+                }
+                return 5;
+            },
             onClick: info => {
                 if (info.object) selectCollectionSpecies(info.object.name);
             },
@@ -647,16 +707,16 @@ function renderDeck() {
             getPosition: d => d.position,
             getText: d => d.name,
             getSize: 13,
-            getColor: d => [26, 26, 26, d.alpha],
+            getColor: d => [26, 26, 26, d.alpha || 255],
             getPixelOffset: [0, -18],
             fontFamily: 'Roboto',
             fontWeight: 700,
             fontSettings: { sdf: true },
-            outlineColor: d => [255, 255, 255, d.alpha],
+            outlineColor: [255, 255, 255, 200],
             outlineWidth: 4,
             background: false,
             extensions: [new deck.CollisionFilterExtension()],
-            collisionEnabled: true,
+            collisionEnabled: true, // Re-enabled but less aggressive
             getCollisionPriority: d => -d.distance,
             collisionGroup: 'trees'
         })
@@ -698,23 +758,34 @@ function updateUI() {
         if (tree.height) metaHtml += `<span>${tree.height}m</span>`;
         if (tree.age) metaHtml += `<span>${tree.age} yrs</span>`;
 
+        // Add badge for special trees
+        let badgeHtml = '';
+        if (tree.isRare) {
+            badgeHtml = '<span class="tree-badge rare" title="Rare Species">RARE</span>';
+        } else if (tree.historicSignificance) {
+            badgeHtml = '<span class="tree-badge historic" title="Historic Significance">HISTORIC</span>';
+        } else if (tree.communitySignificance) {
+            badgeHtml = '<span class="tree-badge community" title="Community Significance">COMMUNITY</span>';
+        } else if (tree.significantGroup) {
+            badgeHtml = '<span class="tree-badge significant-group" title="Significant Group">GROUP</span>';
+        }
+
         // Plus button - only show if species not yet seen
         const speciesSeen = isSpeciesSeen(tree.name);
         const escapedName = tree.name.replace(/'/g, "\\'");
-        const plusBtnHtml = speciesSeen ? `<span class="tree-dist" style="margin-right: 12px; font-size: 0.8rem; color: #999;">COLLECTED</span>` : `
-            <button class="collect-btn" onclick="event.stopPropagation(); markSpeciesSeen('${escapedName}', {id: ${tree.id}, name: '${escapedName}'})">+</button>
-        `;
+        const escapedBotanical = (tree.botanical || '').replace(/'/g, "\\'");
+        const plusBtnHtml = speciesSeen ?
+            `<button class="collect-btn collected" disabled>✓</button>` :
+            `<button class="collect-btn" onclick="event.stopPropagation(); markSpeciesSeen('${escapedName}', {id: ${tree.id}, name: '${escapedName}', botanical: '${escapedBotanical}'})">+</button>`;
 
         item.innerHTML = `
             <div class="tree-info">
-                <h3>${tree.name}</h3>
-                <div class="tree-meta">
-                    ${metaHtml}
-                </div>
+                <h3>${tree.name} ${badgeHtml}</h3>
+                <div class="tree-meta">${metaHtml}</div>
             </div>
-            <div style="display:flex; align-items:center;">
+            <div class="tree-actions">
+                <span class="tree-dist">${tree.distance.toFixed(0)}m</span>
                 ${plusBtnHtml}
-                <div class="tree-dist">${Math.round(tree.distance)}m</div>
             </div>
         `;
         list.appendChild(item);
@@ -755,11 +826,13 @@ function updateCollectionList() {
         item.onclick = () => selectCollectionSpecies(name);
 
         const dateStr = new Date(data.firstSeenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        const botanicalHtml = data.botanical ? `<span class="botanical">${data.botanical}</span>` : '';
 
         item.innerHTML = `
             <div class="tree-info">
                 <h3>${name}</h3>
                 <div class="tree-meta">
+                    ${botanicalHtml}
                     <span>Found ${dateStr}</span>
                 </div>
             </div>
@@ -769,10 +842,55 @@ function updateCollectionList() {
 }
 
 function selectCollectionSpecies(name) {
-    state.selectedCollectionSpecies = name;
+    const tooltip = document.getElementById('collection-tooltip');
+
+    if (!name || state.selectedCollectionSpecies === name) {
+        // Deselect or toggle off
+        state.selectedCollectionSpecies = null;
+        tooltip.style.display = 'none';
+    } else {
+        state.selectedCollectionSpecies = name;
+
+        // Show tooltip with collection info
+        const data = state.seenSpecies[name];
+        if (data) {
+            const dateStr = new Date(data.firstSeenAt).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+
+            // Find the original tree to get its position
+            const originalTree = state.allTrees.find(t => t.id === data.treeId);
+            if (originalTree) {
+                // Convert lat/lng to screen position
+                const point = map.project(originalTree.position);
+
+                tooltip.innerHTML = `Found ${dateStr}`;
+                tooltip.style.left = `${point.x}px`;
+                tooltip.style.top = `${point.y - 50}px`;
+                tooltip.style.display = 'block';
+            }
+        }
+    }
+
     renderDeck();
     updateCollectionList(); // To update selected highlight
 }
+
+// Hide tooltip on map interaction
+map.on('movestart', () => {
+    const tooltip = document.getElementById('collection-tooltip');
+    if (tooltip) tooltip.style.display = 'none';
+});
+map.on('zoomstart', () => {
+    const tooltip = document.getElementById('collection-tooltip');
+    if (tooltip) tooltip.style.display = 'none';
+});
+map.on('rotatestart', () => {
+    const tooltip = document.getElementById('collection-tooltip');
+    if (tooltip) tooltip.style.display = 'none';
+});
 
 function selectTree(id) {
     if (!id) return;

@@ -1,5 +1,5 @@
 /**
- * Trees Perth - Radar Map Styles (Material Design + Mobile Only)
+ * Trees Perth - Wedge Focus (Square Light Map + Dark Void UI)
  */
 
 /* Reset */
@@ -10,11 +10,58 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+/* Collection Tooltip */
+.collection-tooltip {
+    position: absolute;
+    background: rgba(20, 25, 20, 0.7);
+    border: 1px solid rgba(139, 155, 139, 0.3);
+    border-radius: 6px;
+    padding: 8px 12px;
+    pointer-events: none;
+    z-index: 1000;
+    transform: translateX(-50%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    max-width: 200px;
+}
+
+.collection-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid rgba(20, 25, 20, 0.7);
+}
+
+.tooltip-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #e8e4dc;
+    margin-bottom: 2px;
+}
+
+.tooltip-botanical {
+    font-size: 0.75rem;
+    font-style: italic;
+    color: #8b9b8b;
+    margin-bottom: 4px;
+}
+
+.tooltip-date {
+    font-size: 0.75rem;
+    color: #c4a35a;
+}
+
 body {
     font-family: 'Roboto', sans-serif;
     overflow: hidden;
-    background: #f5f5f0;
-    color: #1a1a1a;
+    background: #1e231e;
+    /* Match shelf background for iPhone overflow */
+    color: #e8e4dc;
 }
 
 /* Desktop Blocker */
@@ -25,7 +72,7 @@ body {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: #f5f5f0;
+    background: #1a1c1a;
     z-index: 9999;
     flex-direction: column;
     justify-content: center;
@@ -38,11 +85,12 @@ body {
     font-size: 3rem;
     font-weight: 700;
     margin-bottom: 20px;
+    color: #f4f1ea;
 }
 
 #desktop-blocker p {
     font-size: 1.2rem;
-    color: #555;
+    color: #8b8b80;
     line-height: 1.6;
 }
 
@@ -63,33 +111,89 @@ body {
     height: 100vh;
 }
 
-/* Map Container */
+/* =========================================
+   RADAR SCREEN - Square Focus
+   ========================================= */
+
 #map {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 65vh;
-    /* Leave space for 35vh shelf */
     z-index: 0;
-    background: #f5f5f0;
-    /* Ensure background shows */
+    background: #f4f1ea;
+    overflow: hidden;
+    /* 
+       User Request: "no boundary for the mini map, that stays square"
+       So we remove the circular mask entirely.
+       Just a square map view.
+    */
 }
 
-/* Map Canvas Fade (High Contrast / Technical feel) */
+/* 
+   Wedge Focus:
+   North indicator - always points to true north via rotation.
+*/
+#map::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 150vmax;
+    height: 150vmax;
+    transform: translate(-50%, -50%) rotate(var(--wedge-rotation, 0deg));
+    z-index: 3;
+    /* Above basemap, below deck.gl layers */
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+
+    /* 
+       Conic Gradient centered on North (Up).
+       Darker greenish forward area with feathered edges - focused 60° beam.
+    */
+    background: conic-gradient(from -30deg at 50% 50%,
+            transparent 0deg,
+            /* Clear sides */
+            rgba(30, 50, 30, 0.05) 20deg,
+            /* Feather in */
+            rgba(30, 50, 30, 0.25) 30deg,
+            /* Dark greenish forward */
+            rgba(30, 50, 30, 0.25) 150deg,
+            /* Dark greenish forward */
+            rgba(30, 50, 30, 0.05) 160deg,
+            /* Feather out */
+            transparent 180deg,
+            /* Clear sides */
+            transparent 360deg
+            /* Clear sides */
+        );
+}
+
+/* Show wedge only in nearby mode */
+body[data-tab="nearby"] #map::after {
+    opacity: 1;
+}
+
+/* Map Canvas - Crisp White with Radial Fade */
 .maplibregl-canvas {
-    opacity: 0.8;
-    filter: saturate(0) contrast(1.1) brightness(1.1);
+    background-color: #ffffff !important;
+    opacity: 1;
+    filter: contrast(1.05) brightness(1.05);
 }
 
-/* UI Layer */
+/* =========================================
+   UI LAYER
+   ========================================= */
+
 .ui-layer {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 10;
+    z-index: 20;
     pointer-events: none;
     display: flex;
     flex-direction: column;
@@ -98,65 +202,85 @@ body {
 
 /* Top Bar */
 .top-bar {
-    padding: 24px;
+    padding: 20px 24px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     pointer-events: auto;
+    /* Subtle gradient to ensure text readability on map? */
+    background: linear-gradient(180deg, rgba(244, 241, 234, 0.8) 0%, transparent 100%);
 }
 
 .back-btn {
-    font-size: 1.5rem;
-    color: #000;
+    font-size: 1.4rem;
+    color: #4a5d4a;
+    /* Dark green on light map */
     text-decoration: none;
-    opacity: 0.6;
+    opacity: 0.8;
     transition: opacity 0.2s;
     font-weight: 700;
 }
 
+.back-btn:hover {
+    opacity: 1;
+}
+
 .radar-status {
     font-family: 'Roboto', sans-serif;
-    font-weight: 700;
-    font-size: 1rem;
-    color: #1a1a1a;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #7a7a70;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.1em;
+}
+
+#radar-count {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #556b55;
 }
 
 .icon-btn {
-    background: #fff;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    width: 48px;
-    height: 48px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(74, 93, 74, 0.2);
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(74, 93, 74, 0.1);
     transition: all 0.2s;
-    color: #333;
+    color: #4a5d4a;
+}
+
+.icon-btn:hover {
+    border-color: rgba(74, 93, 74, 0.4);
+    box-shadow: 0 6px 16px rgba(74, 93, 74, 0.2);
 }
 
 .icon-btn.active {
-    background: #1a1a1a;
-    color: #fff;
-    border-color: #1a1a1a;
+    background: #4a5d4a;
+    color: #f4f1ea;
+    border-color: #4a5d4a;
 }
 
-/* Bottom Shelf */
+
+/* =========================================
+   BOTTOM SHELF - Dark Earth
+   ========================================= */
+
 .shelf-container {
     position: relative;
     height: 35vh;
-    background: #e8e6e1;
-    /* Deep Warm Taupe / Off-White */
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    background: #1e231e;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
     pointer-events: auto;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
     overflow: visible;
-    /* Ensure progress bar is visible outside */
     z-index: 1000;
 }
 
@@ -166,94 +290,148 @@ body {
     padding: 0;
 }
 
-/* Tree Item in List */
+/* Tree Item */
 .tree-item {
-    padding: 16px 24px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    margin-bottom: 1px;
+    background: rgba(30, 35, 30, 0.5);
     cursor: pointer;
     transition: background 0.2s;
+    gap: 16px;
 }
 
 .tree-item:hover {
-    background: #f9f9f9;
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .tree-item.selected {
-    background: #f0fdf4;
-    /* Light green tint */
-    border-left: 4px solid #32cd32;
-    /* Lime Green */
-    padding-left: 20px;
+    background: rgba(196, 163, 90, 0.1);
+    border-left: 3px solid #c4a35a;
+    padding-left: 21px;
 }
 
 .tree-info h3 {
     font-family: 'Roboto', sans-serif;
     font-size: 1rem;
-    font-weight: 700;
+    font-weight: 600;
     margin-bottom: 4px;
-    color: #1a1a1a;
+    color: #e8e4dc;
 }
 
 .tree-meta {
     font-size: 0.85rem;
-    color: #666;
+    color: #8b9b8b;
     display: flex;
     gap: 12px;
 }
 
 .tree-meta span.botanical {
     font-style: italic;
-    color: #444;
+    color: #6b7b6b;
 }
+
+/* Tree Badges */
+.tree-badge {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+}
+
+.tree-badge.rare {
+    background-color: rgba(218, 165, 32, 0.2);
+    color: rgb(218, 165, 32);
+    border: 1px solid rgba(218, 165, 32, 0.4);
+}
+
+.tree-badge.historic {
+    background-color: rgba(70, 130, 180, 0.2);
+    color: rgb(120, 170, 210);
+    border: 1px solid rgba(70, 130, 180, 0.4);
+}
+
+.tree-badge.community {
+    background-color: rgba(100, 149, 237, 0.2);
+    color: rgb(130, 169, 247);
+    border: 1px solid rgba(100, 149, 237, 0.4);
+}
+
+.tree-badge.significant-group {
+    background-color: rgba(65, 105, 225, 0.2);
+    color: rgb(95, 135, 235);
+    border: 1px solid rgba(65, 105, 225, 0.4);
+}
+
 
 .tree-dist {
     font-family: 'Roboto', sans-serif;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 0.9rem;
-    color: #16a34a;
+    color: #c4a35a;
+    min-width: 40px;
+    text-align: right;
 }
 
-/* Collect Button (Large Plus) */
+.tree-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Collect Button */
 .collect-btn {
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
     border: none;
     border-radius: 50%;
-    background: #415a3c;
-    color: #fff;
-    font-size: 1.8rem;
-    font-weight: 400;
+    background: #4a5d4a;
+    color: #f4f1ea;
+    font-size: 1.6rem;
+    font-weight: 300;
     line-height: 1;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-right: 16px;
-    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    box-shadow: 0 4px 12px rgba(65, 90, 60, 0.3);
+    transition: all 0.2s;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }
 
-.collect-btn:hover {
-    background: #4a6b44;
-    transform: scale(1.1);
-    box-shadow: 0 6px 16px rgba(65, 90, 60, 0.4);
+.collect-btn:hover:not(:disabled) {
+    background: #5a6d5a;
+    transform: scale(1.08);
 }
 
-.collect-btn:active {
-    background: #364c33;
+.collect-btn:active:not(:disabled) {
+    background: #3a4d3a;
     transform: scale(0.95);
 }
+
+.collect-btn.collected {
+    background: rgba(74, 93, 74, 0.3);
+    color: rgba(244, 241, 234, 0.5);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    cursor: default;
+    font-weight: 200;
+}
+
 
 /* Tab Bar */
 .tab-bar {
     display: flex;
-    padding: 0 16px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-    background: #fff;
+    padding: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: #181c18;
 }
 
 .tab-btn {
@@ -263,57 +441,32 @@ body {
     border: none;
     font-family: 'Roboto', sans-serif;
     font-weight: 700;
-    font-size: 0.9rem;
-    color: #999;
+    font-size: 0.85rem;
+    color: #5b6b5b;
     cursor: pointer;
     position: relative;
     transition: color 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.tab-btn:hover {
+    color: #8b9b8b;
 }
 
 .tab-btn.active {
-    color: #415a3c;
+    color: #c4a35a;
 }
 
 .tab-btn.active::after {
     content: '';
     position: absolute;
     bottom: 0;
-    left: 0;
-    width: 100%;
+    left: 25%;
+    width: 50%;
     height: 3px;
-    background: #415a3c;
-}
-
-/* Progress Bar */
-.progress-bar-container {
-    padding: 16px 24px 16px 24px;
-    background: #fff;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.progress-info {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: #555;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-}
-
-.progress-track {
-    width: 100%;
-    height: 6px;
-    background: rgba(0, 0, 0, 0.05);
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.progress-fill {
-    height: 100%;
-    background: #415a3c;
-    border-radius: 6px;
-    transition: width 0.5s ease-out;
+    background: #c4a35a;
+    border-radius: 2px 2px 0 0;
 }
 
 /* Progress Bar */
@@ -323,68 +476,110 @@ body {
     left: 0;
     width: 100%;
     transform: translateY(-100%);
-    /* Move it above the shelf */
     padding: 16px 24px;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(5px);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    background: #1e231e;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 20px 20px 0 0;
-    /* Rounded top */
     z-index: 10;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
 }
-
-/* When progress bar is active, we might want to flatten the shelf's top corners? 
-   Actually, if the progress bar sits on top, the shelf's top corners are covered or below. 
-   Let's keep it simple. */
 
 .progress-info {
     display: flex;
     justify-content: space-between;
-    font-size: 0.9rem;
-    font-weight: 800;
-    color: #333;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #8b9b8b;
     margin-bottom: 10px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
 
+#progress-percent {
+    color: #c4a35a;
+}
+
 .progress-track {
     width: 100%;
-    height: 12px;
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 6px;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
     overflow: hidden;
 }
 
 .progress-fill {
     height: 100%;
-    background: #415a3c;
-    border-radius: 6px;
+    background: linear-gradient(90deg, #4a5d4a, #6b8f5e);
+    border-radius: 4px;
     transition: width 0.5s ease-out;
 }
 
-/* Collection List Specifics */
-/* Ensure it looks exactly like the radar list */
+/* Collection List */
 #collection-list .tree-item {
     background: transparent;
-    opacity: 1;
 }
 
 #collection-list .tree-item.selected {
-    background: #f0fdf4;
-    border-left: 4px solid #32cd32;
-    padding-left: 20px;
+    background: rgba(196, 163, 90, 0.08);
+    border-left: 3px solid #c4a35a;
+    padding-left: 21px;
 }
 
 .empty-state {
     text-align: center;
-    color: #999;
+    color: #5b6b5b;
     font-weight: 500;
+    font-size: 0.95rem;
     margin-top: 40px;
+    line-height: 1.6;
 }
 
 /* MapLibre Controls Hidden */
 .maplibregl-ctrl-bottom-right,
 .maplibregl-ctrl-bottom-left {
     display: none !important;
+}
+
+/* Scrollbar Dark */
+.shelf-scroll::-webkit-scrollbar {
+    width: 4px;
+}
+
+.shelf-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.shelf-scroll::-webkit-scrollbar-thumb {
+    background: rgba(74, 93, 74, 0.4);
+    border-radius: 2px;
+}
+
+.shelf-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(74, 93, 74, 0.6);
+}
+
+/* Attribution */
+.attribution {
+    position: absolute;
+    bottom: 38vh;
+    /* Above the shelf (35vh), on map area */
+    right: 16px;
+    font-size: 0.65rem;
+    color: rgba(232, 228, 220, 0.7);
+    /* Light color for dark background */
+    text-align: right;
+    z-index: 30;
+    pointer-events: auto;
+    font-weight: 500;
+}
+
+.attribution a {
+    color: rgba(232, 228, 220, 0.9);
+    text-decoration: none;
+    border-bottom: 1px dotted rgba(232, 228, 220, 0.5);
+}
+
+.attribution a:hover {
+    color: #c4a35a;
+    border-bottom-style: solid;
 }
