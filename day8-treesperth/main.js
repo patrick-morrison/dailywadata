@@ -280,10 +280,11 @@ map.on('load', () => {
         map.jumpTo({ zoom: newZoom });
     }
 
-    // Auto-request location and orientation permissions on page load
-    if (!state.isTracking) {
-        toggleTracking();
-    }
+    // Default to location OFF - show enable button
+    setTimeout(() => {
+        showEnableLocationButton();
+        greyOutRadar();
+    }, 100);
 });
 
 
@@ -353,12 +354,21 @@ function toggleTracking() {
     if (state.isTracking) {
         // Stop tracking
         window.removeEventListener('deviceorientation', handleOrientation);
+        window.removeEventListener('deviceorientationabsolute', handleOrientation);
+        if (state.compassLoop) {
+            cancelAnimationFrame(state.compassLoop);
+            state.compassLoop = null;
+        }
         state.isTracking = false;
+        state.targetHeading = undefined;
+        state.currentHeading = undefined;
         document.getElementById('locate-btn').classList.remove('active');
+        showLocationMessage();
     } else {
         // Start tracking (Orientation ONLY for testing)
         state.isTracking = true;
         document.getElementById('locate-btn').classList.add('active');
+        hideLocationMessage();
 
         // FORCE LOCATION (In case it drifted)
         updatePosition({
@@ -374,26 +384,82 @@ function toggleTracking() {
             DeviceOrientationEvent.requestPermission()
                 .then(response => {
                     if (response === 'granted') {
-                        window.addEventListener('deviceorientation', handleOrientation);
+                        window.addEventListener('deviceorientation', handleOrientation, true);
+                        hideLocationMessage();
+                    } else {
+                        // Permission denied
+                        state.isTracking = false;
+                        document.getElementById('locate-btn').classList.remove('active');
+                        showLocationMessage();
                     }
                 })
-                .catch(console.error);
+                .catch(err => {
+                    console.error(err);
+                    state.isTracking = false;
+                    document.getElementById('locate-btn').classList.remove('active');
+                    showLocationMessage();
+                });
         } else {
             // Android often needs absolute event for true north
             if ('ondeviceorientationabsolute' in window) {
-                window.addEventListener('deviceorientationabsolute', handleOrientation);
+                window.addEventListener('deviceorientationabsolute', handleOrientation, true);
             } else {
-                window.addEventListener('deviceorientation', handleOrientation);
+                window.addEventListener('deviceorientation', handleOrientation, true);
             }
         }
 
         // Start smoothing loop
-        if (!state.compassLoop) {
-            state.compassLoop = requestAnimationFrame(updateCompassPhysics);
-        }
+        state.compassLoop = requestAnimationFrame(updateCompassPhysics);
 
         console.log("Tracking started (Test Mode: Locked Location, Live Compass)");
     }
+}
+
+// Location UI helpers
+function showEnableLocationButton() {
+    const list = document.getElementById('tree-list');
+    list.innerHTML = `
+        <div class="empty-state intro-state">
+            <p class="intro-text">
+                This shows the trees recorded by the City of Perth in their open data.<br>
+                Allow location to look around and collect species.
+            </p>
+            <button id="enable-location-btn" class="enable-location-btn">
+                Enable Location
+            </button>
+        </div>
+    `;
+    // Attach click handler
+    setTimeout(() => {
+        const btn = document.getElementById('enable-location-btn');
+        if (btn) {
+            btn.onclick = () => toggleTracking();
+        }
+    }, 0);
+}
+
+function greyOutRadar() {
+    const mapEl = document.getElementById('map');
+    if (mapEl && !mapEl.classList.contains('disabled')) {
+        mapEl.classList.add('disabled');
+    }
+}
+
+function enableRadar() {
+    const mapEl = document.getElementById('map');
+    if (mapEl) {
+        mapEl.classList.remove('disabled');
+    }
+}
+
+function showLocationMessage() {
+    showEnableLocationButton();
+    greyOutRadar();
+}
+
+function hideLocationMessage() {
+    enableRadar();
+    // Will be repopulated by updateUI()
 }
 
 function handleOrientation(e) {
@@ -417,9 +483,7 @@ function handleOrientation(e) {
 
 // Smoothly interpolate current heading to target
 function updateCompassPhysics() {
-    if (!state.isTracking) return;
-
-    if (state.targetHeading !== undefined) {
+    if (state.targetHeading !== undefined && state.isTracking) {
         // Initialize if needed
         if (state.currentHeading === undefined) {
             state.currentHeading = state.targetHeading;
@@ -439,14 +503,12 @@ function updateCompassPhysics() {
         if (state.activeTab === 'nearby') {
             map.setBearing(state.currentHeading);
         }
-
-        // Always rotate wedge to point north (opposite of map rotation)
-        // Negative because we want wedge to counter-rotate to stay pointing north
-        const wedgeRotation = -state.currentHeading;
-        document.getElementById('map').style.setProperty('--wedge-rotation', `${wedgeRotation}deg`);
     }
 
-    state.compassLoop = requestAnimationFrame(updateCompassPhysics);
+    // Continue loop if tracking is active
+    if (state.isTracking) {
+        state.compassLoop = requestAnimationFrame(updateCompassPhysics);
+    }
 }
 
 function updatePosition(pos) {
@@ -704,10 +766,14 @@ function renderDeck() {
         new deck.TextLayer({
             id: 'trees-text-common',
             data: state.nearbyTrees,
+            visible: false, // Labels hidden
             getPosition: d => d.position,
             getText: d => d.name,
             getSize: 13,
-            getColor: d => [26, 26, 26, d.alpha || 255],
+            getColor: d => {
+                // Labels always fully opaque - no fading
+                return [26, 26, 26, 255];
+            },
             getPixelOffset: [0, -18],
             fontFamily: 'Roboto',
             fontWeight: 700,
@@ -716,9 +782,23 @@ function renderDeck() {
             outlineWidth: 4,
             background: false,
             extensions: [new deck.CollisionFilterExtension()],
-            collisionEnabled: true, // Re-enabled but less aggressive
-            getCollisionPriority: d => -d.distance,
-            collisionGroup: 'trees'
+            collisionEnabled: true,
+            getCollisionPriority: d => -d.distance, // Closer trees get priority
+            collisionTestProps: {
+                sizeScale: 1.2, // Smaller test box = more labels can fit (was default 2)
+                sizeMinPixels: 0,
+                sizeMaxPixels: 100
+            },
+            collisionGroup: 'trees',
+            // Stabilize labels during rotation - only update when data changes
+            updateTriggers: {
+                getPosition: [state.nearbyTrees.length],
+                getText: [state.nearbyTrees.length]
+            },
+            // GPU acceleration for smooth rendering
+            parameters: {
+                depthTest: false
+            }
         })
     ];
 
