@@ -237,6 +237,12 @@ map.on('click', async (e) => {
     // If drawing a route, ignore normal clicks
     if (window.profiler && window.profiler.isActive) return;
 
+    // Only show popup for touch events, not mouse clicks
+    const isTouch = e.originalEvent?.pointerType === 'touch' ||
+                    e.originalEvent?.touches !== undefined ||
+                    e.originalEvent?.type?.startsWith('touch');
+    if (!isTouch) return;
+
     const depth = await queryDepth(e.lngLat.lng, e.lngLat.lat);
     if (depth !== null) {
         showClickPopup(depth, e.lngLat.lng, e.lngLat.lat);
@@ -571,32 +577,62 @@ function renderBathymetry(width, height) {
 // Utilities
 // ============================================
 
-async function queryDepth(lng, lat) {
-    const { bounds, image } = state;
-    if (!image || !bounds) return null;
+// Fast synchronous depth lookup using cached raster data (for profile generation)
+function queryDepthFast(lng, lat) {
+    if (!state.rasterData || !state.bounds || !state.renderedWidth) return null;
 
-    // Convert input LngLat to Mercator Meters
+    const data = state.rasterData[0];
+    const width = state.renderedWidth;
+    const height = state.renderedHeight;
+    const { mercatorBbox } = state.bounds;
+
+    // Convert to Mercator
     const [mx, my] = lngLatToMercator(lng, lat);
-    const { mercatorBbox } = bounds;
 
-    // Check bounds in Meters
+    // Check bounds
     if (mx < mercatorBbox[0] || mx > mercatorBbox[2] || my < mercatorBbox[1] || my > mercatorBbox[3]) {
         return null;
     }
 
-    // Map to pixel
+    // Map to pixel in rendered dimensions
+    const pixelX = Math.floor((mx - mercatorBbox[0]) / (mercatorBbox[2] - mercatorBbox[0]) * width);
+    const pixelY = Math.floor((mercatorBbox[3] - my) / (mercatorBbox[3] - mercatorBbox[1]) * height);
+
+    if (pixelX < 0 || pixelX >= width || pixelY < 0 || pixelY >= height) return null;
+
+    const idx = pixelY * width + pixelX;
+    if (idx < 0 || idx >= data.length) return null;
+
+    const depth = data[idx] / 100; // Scale Int16 to meters
+    return (depth > CONFIG.DEPTH_MIN && depth < CONFIG.DEPTH_MAX) ? depth : null;
+}
+
+// Async version for single-point queries (e.g., click popup)
+async function queryDepth(lng, lat) {
+    // Use fast cached version if available
+    if (state.rasterData) {
+        return queryDepthFast(lng, lat);
+    }
+
+    // Fallback to reading from image
+    const { bounds, image } = state;
+    if (!image || !bounds) return null;
+
+    const [mx, my] = lngLatToMercator(lng, lat);
+    const { mercatorBbox } = bounds;
+
+    if (mx < mercatorBbox[0] || mx > mercatorBbox[2] || my < mercatorBbox[1] || my > mercatorBbox[3]) {
+        return null;
+    }
+
     const pixelX = Math.floor((mx - mercatorBbox[0]) / (mercatorBbox[2] - mercatorBbox[0]) * bounds.width);
-    // Note: Y is flipped in image coords (0 at top) vs Mercator (0 at equator, increasing North)
-    // Mercator: Y increases North. Image: Y increases South (down).
-    // Raster usually stored North-Up.
-    // Pixel 0 is Max Y (North).
     const pixelY = Math.floor((mercatorBbox[3] - my) / (mercatorBbox[3] - mercatorBbox[1]) * bounds.height);
 
     if (pixelX < 0 || pixelX >= bounds.width || pixelY < 0 || pixelY >= bounds.height) return null;
 
     try {
         const value = await image.readRasters({ window: [pixelX, pixelY, pixelX + 1, pixelY + 1] });
-        const depth = value[0][0] / 100; // Scale Int16 data back to meters
+        const depth = value[0][0] / 100;
         return (depth > CONFIG.DEPTH_MIN && depth < CONFIG.DEPTH_MAX) ? depth : null;
     } catch {
         return null;
@@ -986,6 +1022,7 @@ class RouteProfiler {
         this.speedInput.addEventListener('input', (e) => {
             this.speed = parseFloat(e.target.value) || 1;
             this.updateChartTimeLabels();
+            this.updateSpeedDescription();
             if (this.currentProfileData && this.waypointDists) {
                 this.updateWaypointTable(this.currentProfileData, this.waypointDists);
             }
@@ -994,10 +1031,14 @@ class RouteProfiler {
         this.unitSelect.addEventListener('change', (e) => {
             this.speedUnit = e.target.value;
             this.updateChartTimeLabels();
+            this.updateSpeedDescription();
             if (this.currentProfileData && this.waypointDists) {
                 this.updateWaypointTable(this.currentProfileData, this.waypointDists);
             }
         });
+
+        // Initial speed description
+        this.updateSpeedDescription();
 
         // Distance unit change listener - sync both dropdowns
         const distUnitChart = document.getElementById('dist-unit');
@@ -1369,7 +1410,13 @@ class RouteProfiler {
             map.off('mousemove', onDragMove);
             map.off('mouseup', onDragEnd);
 
-            // Update leg data fully for connected legs
+            // Remember which adjacent legs were in contour mode
+            const wasContourNext = pointIndex < this.points.length - 1 &&
+                this.legData[pointIndex]?.type === 'contour';
+            const wasContourPrev = pointIndex > 0 &&
+                this.legData[pointIndex - 1]?.type === 'contour';
+
+            // Reset adjacent legs to bearing (contour path is now invalid)
             if (pointIndex < this.points.length - 1) {
                 this.legData[pointIndex] = {
                     type: 'bearing',
@@ -1394,14 +1441,30 @@ class RouteProfiler {
 
             this.updateLineLayer();
 
-            // Calculate contour suggestions if enabled
-            const contourAssistEnabled = document.getElementById('contour-assist-checkbox')?.checked;
-            if (contourAssistEnabled) {
-                await this.calculateContourSuggestions(pointIndex);
-            }
-
+            // Generate profile first (it's visible), then contour suggestions in background
             if (this.currentProfileData) {
                 await this.generateProfile();
+            }
+
+            // Defer contour calculations so they don't block the UI
+            const contourAssistEnabled = document.getElementById('contour-assist-checkbox')?.checked;
+            if (contourAssistEnabled) {
+                setTimeout(async () => {
+                    await this.calculateContourSuggestions(pointIndex);
+
+                    // If leg was in contour mode and we found a new valid path, restore contour mode
+                    if (wasContourNext && this.legData[pointIndex]?.hasContour) {
+                        this.setLegType(pointIndex, 'contour');
+                    }
+                    if (wasContourPrev && this.legData[pointIndex - 1]?.hasContour) {
+                        this.setLegType(pointIndex - 1, 'contour');
+                    }
+
+                    // Regenerate profile with restored contour paths
+                    if (this.currentProfileData) {
+                        await this.generateProfile();
+                    }
+                }, 0);
             }
         };
 
@@ -1498,26 +1561,34 @@ class RouteProfiler {
             });
             marker.on('dragend', async () => {
                 const lngLat = marker.getLngLat();
-                // Now that drag is done, update point and leg data
-                this.points[marker._pointIndex] = [lngLat.lng, lngLat.lat];
+                const idx = marker._pointIndex;
 
-                // Update leg data for connected legs
-                if (marker._pointIndex < this.points.length - 1) {
-                    this.legData[marker._pointIndex] = {
+                // Remember which adjacent legs were in contour mode
+                const wasContourNext = idx < this.points.length - 1 &&
+                    this.legData[idx]?.type === 'contour';
+                const wasContourPrev = idx > 0 &&
+                    this.legData[idx - 1]?.type === 'contour';
+
+                // Now that drag is done, update point and leg data
+                this.points[idx] = [lngLat.lng, lngLat.lat];
+
+                // Reset adjacent legs (contour path is now invalid)
+                if (idx < this.points.length - 1) {
+                    this.legData[idx] = {
                         type: 'bearing',
-                        path: [this.points[marker._pointIndex], this.points[marker._pointIndex + 1]],
-                        bearingPath: [this.points[marker._pointIndex], this.points[marker._pointIndex + 1]],
+                        path: [this.points[idx], this.points[idx + 1]],
+                        bearingPath: [this.points[idx], this.points[idx + 1]],
                         hasContour: false
                     };
-                    this.suggestedPaths[marker._pointIndex] = null;
-                    this.hideSuggestedPath(marker._pointIndex);
+                    this.suggestedPaths[idx] = null;
+                    this.hideSuggestedPath(idx);
                 }
-                if (marker._pointIndex > 0) {
-                    const legIdx = marker._pointIndex - 1;
+                if (idx > 0) {
+                    const legIdx = idx - 1;
                     this.legData[legIdx] = {
                         type: 'bearing',
-                        path: [this.points[legIdx], this.points[marker._pointIndex]],
-                        bearingPath: [this.points[legIdx], this.points[marker._pointIndex]],
+                        path: [this.points[legIdx], this.points[idx]],
+                        bearingPath: [this.points[legIdx], this.points[idx]],
                         hasContour: false
                     };
                     this.suggestedPaths[legIdx] = null;
@@ -1529,14 +1600,30 @@ class RouteProfiler {
                 // Hide contour highlight when drag ends
                 this.hideContourHighlight();
 
-                // Calculate contour path suggestions if Contour Assist is enabled
-                const contourAssistEnabled = document.getElementById('contour-assist-checkbox')?.checked;
-                if (contourAssistEnabled) {
-                    await this.calculateContourSuggestions(marker._pointIndex);
-                }
-
+                // Generate profile first (it's visible)
                 if (this.points.length >= 2 && this.currentProfileData) {
                     await this.generateProfile();
+                }
+
+                // Defer contour calculations so they don't block the UI
+                const contourAssistEnabled = document.getElementById('contour-assist-checkbox')?.checked;
+                if (contourAssistEnabled) {
+                    setTimeout(async () => {
+                        await this.calculateContourSuggestions(idx);
+
+                        // If leg was in contour mode and we found a new valid path, restore contour mode
+                        if (wasContourNext && this.legData[idx]?.hasContour) {
+                            this.setLegType(idx, 'contour');
+                        }
+                        if (wasContourPrev && this.legData[idx - 1]?.hasContour) {
+                            this.setLegType(idx - 1, 'contour');
+                        }
+
+                        // Regenerate profile with restored contour paths
+                        if (this.currentProfileData) {
+                            await this.generateProfile();
+                        }
+                    }, 0);
                 }
             });
 
@@ -1579,57 +1666,70 @@ class RouteProfiler {
         // Clear hover state
         this.hoveredMarkerIndex = null;
 
+        const numPoints = this.points.length;
+        const isFirstPoint = index === 0;
+        const isLastPoint = index === numPoints - 1;
+
         // Remove the point
         this.points.splice(index, 1);
 
-        // Rebuild leg data - merge the two legs that were connected to this point
-        const newLegData = [];
-        for (let i = 0; i < this.legData.length; i++) {
-            if (i === index - 1 && index > 0) {
-                // Merge with next leg: this leg now goes to the point after the deleted one
-                const nextEndPoint = this.points[index]; // After deletion, this is the new endpoint
-                newLegData.push({
-                    type: 'bearing',
-                    path: [this.points[index - 1], nextEndPoint],
-                    bearingPath: [this.points[index - 1], nextEndPoint],
-                    hasContour: false
-                });
-            } else if (i === index) {
-                // Skip this leg (it was connected to the deleted point)
-                continue;
-            } else if (i > index) {
-                // Legs after: update indices, preserve contour paths
-                const leg = this.legData[i];
-                const newIdx = i - 1;
+        // Rebuild leg data based on which point was deleted
+        if (isFirstPoint) {
+            // Deleting first point: remove first leg, shift remaining legs
+            this.legData = this.legData.slice(1).map((leg, i) => {
                 if (leg.type === 'contour' && leg.hasContour && leg.path && leg.path.length > 2) {
-                    // For contour legs, preserve the full calculated path
-                    newLegData.push({
+                    // Preserve contour path, just update bearingPath
+                    return {
                         ...leg,
-                        bearingPath: [this.points[newIdx], this.points[newIdx + 1]]
-                    });
+                        bearingPath: [this.points[i], this.points[i + 1]]
+                    };
                 } else {
-                    // For bearing legs, update path to new endpoints
-                    newLegData.push({
+                    return {
                         ...leg,
-                        path: [this.points[newIdx], this.points[newIdx + 1]],
-                        bearingPath: [this.points[newIdx], this.points[newIdx + 1]]
-                    });
+                        path: [this.points[i], this.points[i + 1]],
+                        bearingPath: [this.points[i], this.points[i + 1]]
+                    };
                 }
-            } else {
-                // Legs before the deleted point: keep as-is
-                newLegData.push(this.legData[i]);
-            }
-        }
-
-        // Handle edge case: deleting first point
-        if (index === 0 && this.legData.length > 0) {
-            // The first leg is removed, shift everything
-            this.legData = this.legData.slice(1).map((leg, i) => ({
-                ...leg,
-                path: [this.points[i], this.points[i + 1]],
-                bearingPath: [this.points[i], this.points[i + 1]]
-            }));
+            });
+        } else if (isLastPoint) {
+            // Deleting last point: just remove the last leg
+            this.legData = this.legData.slice(0, -1);
         } else {
+            // Deleting middle point: merge two adjacent legs into one
+            const newLegData = [];
+            for (let i = 0; i < this.legData.length; i++) {
+                if (i === index - 1) {
+                    // This leg needs to connect to the point after the deleted one
+                    newLegData.push({
+                        type: 'bearing',
+                        path: [this.points[index - 1], this.points[index]],
+                        bearingPath: [this.points[index - 1], this.points[index]],
+                        hasContour: false
+                    });
+                } else if (i === index) {
+                    // Skip this leg (absorbed into the previous one)
+                    continue;
+                } else if (i > index) {
+                    // Legs after: shift indices, preserve contour paths
+                    const leg = this.legData[i];
+                    const newIdx = i - 1;
+                    if (leg.type === 'contour' && leg.hasContour && leg.path && leg.path.length > 2) {
+                        newLegData.push({
+                            ...leg,
+                            bearingPath: [this.points[newIdx], this.points[newIdx + 1]]
+                        });
+                    } else {
+                        newLegData.push({
+                            ...leg,
+                            path: [this.points[newIdx], this.points[newIdx + 1]],
+                            bearingPath: [this.points[newIdx], this.points[newIdx + 1]]
+                        });
+                    }
+                } else {
+                    // Legs before: keep as-is
+                    newLegData.push(this.legData[i]);
+                }
+            }
             this.legData = newLegData;
         }
 
@@ -1813,58 +1913,67 @@ class RouteProfiler {
             totalPathLen += this.haversineDistance(fullPath[i], fullPath[i + 1]);
         }
 
-        const numSamples = 300; // Good resolution
-        const profileData = [];
+        // Progressive rendering: quick low-res first, then full resolution
+        const lowResSamples = 30;
+        const fullResSamples = 300;
 
-        // Start point
-        profileData.push({
-            dist: 0,
-            depth: await queryDepth(fullPath[0][0], fullPath[0][1]),
-            lng: fullPath[0][0],
-            lat: fullPath[0][1]
-        });
+        // Generate samples at a given resolution (synchronous using cached raster data)
+        const generateSamples = (numSamples) => {
+            const data = [];
 
-        let currentDist = 0;
+            // Start point
+            data.push({
+                dist: 0,
+                depth: queryDepthFast(fullPath[0][0], fullPath[0][1]),
+                lng: fullPath[0][0],
+                lat: fullPath[0][1]
+            });
 
-        for (let i = 0; i < fullPath.length - 1; i++) {
-            const p1 = fullPath[i];
-            const p2 = fullPath[i + 1];
-            const segLen = this.haversineDistance(p1, p2);
+            let currentDist = 0;
 
-            // Use at least 2 samples per segment if it's long enough, or proportional
-            // For very short segments (contour parts), proportional might be 0.
-            // Ensure at least one sample at the end of segment (or close to it)
-            // But fullPath has many points.
+            for (let i = 0; i < fullPath.length - 1; i++) {
+                const p1 = fullPath[i];
+                const p2 = fullPath[i + 1];
+                const segLen = this.haversineDistance(p1, p2);
 
-            const samplesInSeg = Math.max(1, Math.round((segLen / totalPathLen) * numSamples));
+                const samplesInSeg = Math.max(1, Math.round((segLen / totalPathLen) * numSamples));
 
-            for (let j = 1; j <= samplesInSeg; j++) {
-                const t = j / samplesInSeg;
-                const lng = p1[0] + (p2[0] - p1[0]) * t;
-                const lat = p1[1] + (p2[1] - p1[1]) * t;
+                for (let j = 1; j <= samplesInSeg; j++) {
+                    const t = j / samplesInSeg;
+                    const lng = p1[0] + (p2[0] - p1[0]) * t;
+                    const lat = p1[1] + (p2[1] - p1[1]) * t;
+                    const depth = queryDepthFast(lng, lat);
 
-                // Get depth
-                const depth = await queryDepth(lng, lat);
-
-                profileData.push({
-                    dist: currentDist + (segLen * t),
-                    depth: depth,
-                    lng: lng,
-                    lat: lat
-                });
+                    data.push({
+                        dist: currentDist + (segLen * t),
+                        depth: depth,
+                        lng: lng,
+                        lat: lat
+                    });
+                }
+                currentDist += segLen;
             }
-            currentDist += segLen;
-        }
+            return data;
+        };
 
-        this.currentProfileData = profileData;
-
+        // Quick low-res render first (instant with synchronous depth queries)
+        const lowResData = generateSamples(lowResSamples);
+        this.currentProfileData = lowResData;
         this.updateChart();
-        this.updateWaypointTable(profileData, dists);
+        this.updateWaypointTable(lowResData, dists);
+
+        // Then full resolution (deferred to allow browser to paint low-res first)
+        await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 16)));
+
+        const fullResData = generateSamples(fullResSamples);
+        this.currentProfileData = fullResData;
+        this.updateChart();
+        this.updateWaypointTable(fullResData, dists);
 
         // Render sample point markers along route
-        this.renderProfileSampleMarkers(profileData);
+        this.renderProfileSampleMarkers(fullResData);
 
-        return profileData;
+        return fullResData;
     }
 
     renderProfileSampleMarkers(profileData) {
@@ -2538,8 +2647,8 @@ class RouteProfiler {
             let depthMax = null;
 
             if (hasOutgoingLeg) {
-                // Leg from this point to next point
-                distM = this.haversineDistance(this.points[i], this.points[i + 1]);
+                // Use actual path distance from dists array (accounts for contour paths)
+                distM = dists[i + 1] - dists[i];
                 legTimeMin = distM / speedMetersPerMin;
                 bearing = this.calculateBearing(this.points[i], this.points[i + 1]);
 
@@ -2561,11 +2670,32 @@ class RouteProfiler {
 
             const lat = p[1].toFixed(4);
             const lon = p[0].toFixed(4);
-            const distStr = hasOutgoingLeg ? `${(distM / 1852).toFixed(2)} NM` : '--';
+
+            // Format distance based on selected unit
+            const distUnitEl = document.getElementById('dist-unit');
+            const distUnit = distUnitEl ? distUnitEl.value : 'm';
+            let distStr = '--';
+            if (hasOutgoingLeg) {
+                if (distUnit === 'm') {
+                    distStr = `${Math.round(distM)} m`;
+                } else if (distUnit === 'km') {
+                    distStr = `${(distM / 1000).toFixed(2)} km`;
+                } else {
+                    distStr = `${(distM / 1852).toFixed(2)} nm`;
+                }
+            }
 
             let depthStr = '--';
-            if (depthMin !== null) {
-                depthStr = `${Math.abs(depthMin).toFixed(1)}m`;
+            if (depthMin !== null && depthMax !== null) {
+                if (Math.abs(depthMin - depthMax) < 0.5) {
+                    // Same depth, just show one value
+                    depthStr = `${Math.abs(depthMin).toFixed(1)}m`;
+                } else {
+                    // Show range (shallower - deeper)
+                    const shallow = Math.abs(Math.min(depthMin, depthMax)).toFixed(1);
+                    const deep = Math.abs(Math.max(depthMin, depthMax)).toFixed(1);
+                    depthStr = `${shallow}-${deep}m`;
+                }
             }
 
             const durMin = hasOutgoingLeg ? Math.round(legTimeMin) : '--';
@@ -2573,14 +2703,14 @@ class RouteProfiler {
             const tr = document.createElement('tr');
 
             if (isEnd) {
-                // Last point - END badge with total runtime, no outgoing leg
+                // Last point - END badge in distance column, total runtime shown
                 tr.innerHTML = `
-                    <td class="wp-time">${timeStr} <span style="font-size:0.65em; color:#dc2626; font-weight:bold">END</span></td>
+                    <td class="wp-time">${timeStr}</td>
                     <td class="wp-pos">${lat}<br>${lon}</td>
+                    <td class="wp-val"><span class="end-badge">END</span></td>
                     <td class="wp-val">--</td>
                     <td class="wp-val">--</td>
-                    <td class="wp-val">--</td>
-                    <td>--</td>
+                    <td class="wp-depth">--</td>
                     <td></td>
                 `;
             } else {
@@ -2590,23 +2720,27 @@ class RouteProfiler {
                 const hasContour = leg && leg.hasContour;
                 const isContourMode = leg && leg.type === 'contour';
 
-                const toggleHtml = `
-                    <label class="switch">
+                const toggleHtml = hasContour
+                    ? `<label class="switch" title="Contour path available - click to toggle">
                         <input type="checkbox"
-                            ${!hasContour ? 'disabled' : ''}
                             ${isContourMode ? 'checked' : ''}
                             onchange="profiler.setLegType(${legIdx}, this.checked ? 'contour' : 'bearing')">
                         <span class="slider"></span>
-                    </label>
-                `;
+                    </label>`
+                    : `<span class="contour-unavailable" title="No contour path found for this leg">--</span>`;
+
+                // Bearing is approximate on contour legs - show lighter with superscript asterisk
+                const bearingDisplay = isContourMode
+                    ? `<span class="contour-hint">${Math.round(bearing)}°<sup>*</sup></span>`
+                    : `${Math.round(bearing)}°`;
 
                 tr.innerHTML = `
                     <td class="wp-time">${timeStr}</td>
                     <td class="wp-pos">${lat}<br>${lon}</td>
                     <td class="wp-val">${distStr}</td>
-                    <td class="wp-val">${Math.round(bearing)}°</td>
+                    <td class="wp-val">${bearingDisplay}</td>
                     <td class="wp-val">${durMin} min</td>
-                    <td>${depthStr}</td>
+                    <td class="wp-depth">${depthStr}</td>
                     <td>${toggleHtml}</td>
                 `;
             }
@@ -2973,6 +3107,16 @@ class RouteProfiler {
                     }
                 }]
         });
+
+        // Clean up hover marker when cursor leaves chart
+        const canvas = document.getElementById('profile-chart');
+        canvas.addEventListener('mouseleave', () => {
+            if (this.hoverMarker) {
+                this.hoverMarker.remove();
+                this.hoverMarker = null;
+            }
+            updateCursorDepth(null, 0, 0);
+        });
     }
 
     updateChart() {
@@ -3008,17 +3152,48 @@ class RouteProfiler {
         });
 
         this.chart.data.datasets[0].data = dataPoints;
-
-        this.updateChartTimeLabels();
-        this.chart.update();
+        this.chart.update('none'); // Skip animation for instant render
     }
 
     updateChartTimeLabels() {
         // The xTime axis callback is defined in chart init and uses window.profiler
         // to get live speed/unit values. We just need to trigger a redraw.
         if (this.chart) {
-            this.chart.update();
+            this.chart.update('none');
         }
+    }
+
+    updateSpeedDescription() {
+        const descEl = document.getElementById('speed-desc');
+        if (!descEl) return;
+
+        // Convert current speed to m/min for comparison
+        let speedMMin = this.speed;
+        if (this.speedUnit === 'knots') {
+            speedMMin = this.speed * 30.867; // 1 knot ≈ 30.867 m/min
+        } else if (this.speedUnit === 'ms') {
+            speedMMin = this.speed * 60; // m/s to m/min
+        }
+
+        // Determine description based on m/min
+        let desc = '';
+        if (speedMMin >= 70) {
+            desc = 'Unreasonable';
+        } else if (speedMMin >= 55) {
+            desc = 'Fast Scooter';
+        } else if (speedMMin >= 35) {
+            desc = 'Scooter';
+        } else if (speedMMin >= 30) {
+            desc = 'Fast Swim';
+        } else if (speedMMin >= 20) {
+            desc = 'Normal';
+        } else if (speedMMin >= 10) {
+            desc = 'Slow';
+        } else {
+            desc = 'Very Slow';
+        }
+
+        descEl.textContent = desc;
     }
 }
 

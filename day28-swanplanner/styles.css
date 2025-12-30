@@ -29,7 +29,7 @@ body {
     top: 0;
     left: 0;
     width: 100%;
-    height: 100%;
+    height: calc(100% - 280px);
 }
 
 /* ============================================
@@ -816,6 +816,15 @@ body {
     background: white;
 }
 
+.speed-desc {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    font-style: italic;
+    width: 85px;
+    text-align: right;
+    margin-right: 8px;
+}
+
 .shelf-close-btn {
     background: none;
     border: none;
@@ -1000,13 +1009,13 @@ body {
     position: fixed;
     top: 80px;
     right: 20px;
-    width: 400px;
+    width: 348px;
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(8px);
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 1100;
-    max-height: calc(100vh - 300px);
+    max-height: 450px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1143,7 +1152,7 @@ body {
     color: #0284c7;
 }
 
-.table-container {
+.waypoint-content {
     overflow-y: auto;
     flex: 1;
 }
@@ -1155,6 +1164,22 @@ body {
     font-family: 'JetBrains Mono', monospace;
     table-layout: fixed;
 }
+
+/* Column widths: Time, Pos, Dist, Dir, Dur, Depth, Con */
+#waypoint-table th:nth-child(1),
+#waypoint-table td:nth-child(1) { width: 42px; } /* Time */
+#waypoint-table th:nth-child(2),
+#waypoint-table td:nth-child(2) { width: 68px; } /* Pos */
+#waypoint-table th:nth-child(3),
+#waypoint-table td:nth-child(3) { width: 50px; } /* Dist */
+#waypoint-table th:nth-child(4),
+#waypoint-table td:nth-child(4) { width: 38px; } /* Dir */
+#waypoint-table th:nth-child(5),
+#waypoint-table td:nth-child(5) { width: 38px; } /* Dur */
+#waypoint-table th:nth-child(6),
+#waypoint-table td:nth-child(6) { width: 45px; } /* Depth */
+#waypoint-table th:nth-child(7),
+#waypoint-table td:nth-child(7) { width: 32px; } /* Con */
 
 #waypoint-table th {
     background: #f1f5f9;
@@ -1198,8 +1223,28 @@ body {
 }
 
 .wp-depth {
-    color: #0284c7;
+    color: #1e40af;
     font-weight: 600;
+    font-size: 0.8rem;
+}
+
+/* END badge for last waypoint */
+.end-badge {
+    font-size: 0.6em;
+    color: #dc2626;
+    font-weight: 700;
+    background: rgba(220, 38, 38, 0.1);
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-left: 4px;
+}
+
+/* Subtle contour mode indicator */
+.contour-hint {
+    color: #9ca3af;
+    font-style: italic;
+    font-size: 0.85em;
+    margin-left: 1px;
 }
 
 /* Contour Mode Controls */
@@ -1314,14 +1359,29 @@ input:checked+.slider:before {
 }
 
 input:disabled+.slider {
-    opacity: 0.5;
+    opacity: 0.3;
     cursor: not-allowed;
+    background-color: #d1d5db;
+}
+
+/* Available contour toggle - neutral when off */
+input:not(:disabled):not(:checked)+.slider:hover {
+    background-color: #cbd5e1;
+    /* Slightly darker on hover */
+}
+
+/* Contour unavailable indicator */
+.contour-unavailable {
+    color: #9ca3af;
+    font-size: 0.7rem;
+    opacity: 0.6;
 }
 
 /* Add minimal padding for toggle column */
 #waypoint-table td:last-child {
-    padding: 0 4px;
+    padding: 2px 6px;
     text-align: center;
+    vertical-align: middle;
 }
 
 /* Empty State */
