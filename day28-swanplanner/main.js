@@ -1796,9 +1796,15 @@ class RouteProfiler {
         // Reset overlay state
         this.startOverlay.classList.remove('hidden');
         this.startOverlay.classList.remove('background-hidden');
+        this.startOverlay.style.display = ''; // Clear any inline display:none
 
         this.startBtn.textContent = 'Start Profile';
         this.startBtn.classList.remove('complete-mode');
+
+        // Reset start link text
+        if (this.startLink) {
+            this.startLink.textContent = 'Start Profile';
+        }
 
         this.finishBtn.classList.add('hidden');
         map.getCanvas().style.cursor = '';
@@ -2312,6 +2318,31 @@ class RouteProfiler {
             return null;
         }
 
+        // Check if direct path is already within tolerance - if so, use it
+        const directSamples = 20;
+        const tolerance100 = tolerance * 100;
+        const targetDepth100 = targetDepth * 100;
+        let directPathValid = true;
+        for (let i = 0; i <= directSamples; i++) {
+            const t = i / directSamples;
+            const x = Math.floor(startX + (endX - startX) * t);
+            const y = Math.floor(startY + (endY - startY) * t);
+            if (x < 0 || x >= width || y < 0 || y >= height) {
+                directPathValid = false;
+                break;
+            }
+            const idx = y * width + x;
+            const depth = data[idx];
+            if (Math.abs(depth - targetDepth100) > tolerance100) {
+                directPathValid = false;
+                break;
+            }
+        }
+        if (directPathValid) {
+            // Direct path is good enough, no need for contour routing
+            return null;
+        }
+
         // Calculate straight-line distance for iteration limit
         const straightDist = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
         // Increased multiplier (50x) and max (20k) for long winding contour paths
@@ -2323,9 +2354,6 @@ class RouteProfiler {
         const gScores = new Float32Array(totalPixels);
         gScores.fill(Infinity);
 
-        // Pre-convert constants
-        const tolerance100 = tolerance * 100;
-        const targetDepth100 = targetDepth * 100;
         const startIdx = startY * width + startX;
 
         gScores[startIdx] = 0;
@@ -2362,6 +2390,9 @@ class RouteProfiler {
                     path.unshift([lng, lat]);
                     node = node.parent;
                 }
+                // Ensure path starts and ends exactly at waypoints
+                path[0] = [startLng, startLat];
+                path[path.length - 1] = [endLng, endLat];
                 return this.simplifyPath(path);
             }
 
@@ -2385,7 +2416,20 @@ class RouteProfiler {
                 // Calculate G cost
                 // Add penalty for deviation from target depth to encourage staying "on contour"
                 const depthPenalty = (diff / tolerance100) * 2.0;
-                const g = current.g + cost + depthPenalty;
+
+                // Directness bonus: small penalty for moves not toward goal
+                // Dot product of move direction with goal direction
+                const goalDx = endX - current.x;
+                const goalDy = endY - current.y;
+                const goalDist = Math.sqrt(goalDx * goalDx + goalDy * goalDy);
+                let directnessPenalty = 0;
+                if (goalDist > 0) {
+                    const dot = (dx * goalDx + dy * goalDy) / (Math.sqrt(dx * dx + dy * dy) * goalDist);
+                    // dot is -1 (away) to +1 (toward), convert to penalty 0 to 0.5
+                    directnessPenalty = (1 - dot) * 0.25;
+                }
+
+                const g = current.g + cost + depthPenalty + directnessPenalty;
 
                 if (g < gScores[nIdx]) {
                     gScores[nIdx] = g;
