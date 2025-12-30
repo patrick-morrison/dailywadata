@@ -1015,7 +1015,14 @@ class RouteProfiler {
         // Listeners for Clear Button
         this.clearBtn = document.getElementById('clear-btn');
         this.clearBtn.addEventListener('click', () => {
-            this.stopDrawing();
+            // Skip confirmation if only 0-1 points
+            if (this.points.length <= 1) {
+                this.stopDrawing();
+                return;
+            }
+            if (confirm('Clear the current route?')) {
+                this.stopDrawing();
+            }
         });
 
         // Listeners for Controls
@@ -1116,6 +1123,12 @@ class RouteProfiler {
                     this.hideAllSuggestedPaths();
                 }
             });
+        }
+
+        // Share button listener
+        const shareBtn = document.getElementById('share-btn');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', () => this.copyShareUrl());
         }
 
         // Mid-line insertion marker
@@ -3163,6 +3176,168 @@ class RouteProfiler {
         }
     }
 
+    /**
+     * Generate a shareable URL with current route state
+     */
+    generateShareUrl() {
+        if (this.points.length < 2) return null;
+
+        const params = new URLSearchParams();
+
+        // Speed and unit
+        params.set('s', this.speed.toString());
+        params.set('u', this.speedUnit);
+
+        // Points - encode as comma-separated lng,lat pairs with 6 decimal precision
+        const pointsStr = this.points.map(p =>
+            `${p[0].toFixed(6)},${p[1].toFixed(6)}`
+        ).join(';');
+        params.set('p', pointsStr);
+
+        // Leg types - compact encoding: 'b' for bearing, 'c' for contour
+        const legTypes = this.legData.map(leg => leg.type === 'contour' ? 'c' : 'b').join('');
+        params.set('l', legTypes);
+
+        const url = new URL(window.location.href.split('?')[0]);
+        url.search = params.toString();
+        return url.toString();
+    }
+
+    /**
+     * Copy share URL to clipboard
+     */
+    async copyShareUrl() {
+        const url = this.generateShareUrl();
+        if (!url) {
+            console.warn('No route to share');
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(url);
+            const btn = document.getElementById('share-btn');
+            if (btn) {
+                btn.classList.add('copied');
+                const originalTitle = btn.title;
+                btn.title = 'Copied!';
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.title = originalTitle;
+                }, 1500);
+            }
+        } catch (err) {
+            console.error('Failed to copy URL:', err);
+        }
+    }
+
+    /**
+     * Load route state from URL parameters
+     */
+    async loadFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+
+        // Check if we have route data
+        const pointsStr = params.get('p');
+        if (!pointsStr) return false;
+
+        try {
+            // Parse points
+            const points = pointsStr.split(';').map(pair => {
+                const [lng, lat] = pair.split(',').map(Number);
+                if (isNaN(lng) || isNaN(lat)) throw new Error('Invalid coordinates');
+                return [lng, lat];
+            });
+
+            if (points.length < 2) return false;
+
+            // Parse speed
+            const speed = parseFloat(params.get('s'));
+            if (!isNaN(speed) && speed > 0) {
+                this.speed = speed;
+                if (this.speedInput) this.speedInput.value = speed;
+            }
+
+            // Parse unit
+            const unit = params.get('u');
+            if (unit && ['mmin', 'knots', 'ms'].includes(unit)) {
+                this.speedUnit = unit;
+                if (this.unitSelect) this.unitSelect.value = unit;
+            }
+
+            // Parse leg types
+            const legTypesStr = params.get('l') || '';
+
+            // Set points
+            this.points = points;
+            this.initializeLegData();
+
+            // Apply leg types
+            for (let i = 0; i < legTypesStr.length && i < this.legData.length; i++) {
+                if (legTypesStr[i] === 'c') {
+                    this.legData[i].type = 'contour';
+                }
+            }
+
+            // Mark as finished route
+            this.isFinished = true;
+            this.isActive = false;
+
+            // Disable edit mode for shared routes
+            this.editMode = false;
+            const editBtn = document.getElementById('edit-toggle-btn');
+            if (editBtn) {
+                editBtn.classList.remove('active');
+                const label = editBtn.querySelector('.edit-label');
+                if (label) label.textContent = 'Edit';
+            }
+
+            // Hide start overlay
+            if (this.startOverlay) {
+                this.startOverlay.style.display = 'none';
+            }
+
+            // Show shelf
+            if (this.shelf) {
+                this.shelf.classList.add('active');
+            }
+
+            // Update UI
+            this.rebuildMarkers();
+            this.updateLineLayer();
+            this.updateSpeedDescription();
+
+            // Generate profile and calculate contours after a short delay for map to settle
+            setTimeout(async () => {
+                // Fit map to route bounds with padding for UI elements
+                const bounds = this.points.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(this.points[0], this.points[0]));
+                map.fitBounds(bounds, {
+                    padding: { top: 40, bottom: 40, left: 40, right: 280 },
+                    maxZoom: 16
+                });
+
+                // Calculate contour suggestions for all legs
+                for (let i = 0; i < this.points.length - 1; i++) {
+                    await this.calculateContourSuggestions(i);
+                    // If leg was marked as contour and we found a path, apply it
+                    if (this.legData[i].type === 'contour' && this.legData[i].hasContour) {
+                        this.legData[i].path = this.legData[i].contourPath;
+                    }
+                }
+
+                // Update map with contour paths
+                this.updateLineLayer();
+
+                // Generate profile with correct paths
+                await this.generateProfile();
+            }, 500);
+
+            return true;
+        } catch (err) {
+            console.error('Failed to load route from URL:', err);
+            return false;
+        }
+    }
+
     updateSpeedDescription() {
         const descEl = document.getElementById('speed-desc');
         if (!descEl) return;
@@ -3200,6 +3375,8 @@ class RouteProfiler {
 // Initialize Profiler when map loads
 map.on('load', () => {
     window.profiler = new RouteProfiler();
+    // Load route from URL if present
+    window.profiler.loadFromUrl();
 });
 
 // Hook into updateChart to sync axis ranges BEFORE tick generation
