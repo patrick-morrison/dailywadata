@@ -12,19 +12,19 @@ const CONFIG = {
     COG_URL: window.PAGE_CONFIG?.cogUrl || 'SC20100413_optimized.tif',
     NODATA_VALUE: -9999,
 
-    // Visualization settings
-    DEPTH_MIN: -30,    // Deep water (m)
+    // Visualization settings (Swan River: 0-22m depth)
+    DEPTH_MIN: -22,    // Deep water (m)
     DEPTH_MAX: 0,      // Shallow water (m)
 
-    // Gradient stops (shallow to deep)
+    // Gradient stops (shallow to deep) - optimized for 0-22m range
     COLOR_STOPS: [
-        { depth: -1, color: [122, 4, 3] },         // Shallow - dark red
-        { depth: -5, color: [249, 117, 29] },      // Orange
-        { depth: -10, color: [239, 205, 58] },     // Yellow
-        { depth: -15, color: [109, 254, 98] },     // Green
-        { depth: -20, color: [30, 203, 218] },     // Cyan
-        { depth: -25, color: [70, 100, 218] },     // Blue
-        { depth: -30, color: [48, 18, 59] }        // Deep - purple
+        { depth: -0.5, color: [122, 4, 3] },       // Very shallow - dark red
+        { depth: -4, color: [249, 117, 29] },      // Orange
+        { depth: -8, color: [239, 205, 58] },      // Yellow
+        { depth: -12, color: [109, 254, 98] },     // Green
+        { depth: -16, color: [30, 203, 218] },     // Cyan
+        { depth: -20, color: [70, 100, 218] },     // Blue
+        { depth: -22, color: [48, 18, 59] }        // Deep - purple
     ],
 
     // Hillshade parameters
@@ -63,6 +63,10 @@ const state = {
     bounds: null,
     deckOverlay: null,
     exaggeration: 15,
+
+    // Rendered dimensions (may differ from TIFF dimensions due to scaling)
+    renderedWidth: null,
+    renderedHeight: null,
 
     // Markers
     clickMarker: null,
@@ -148,6 +152,27 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom
 // Map Load
 map.on('load', () => {
     initializeLegend();
+
+    // Create route line layer early so deck.gl can use beforeId to render beneath it
+    map.addSource('route-line', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+    });
+    map.addLayer({
+        id: 'route-line-layer',
+        type: 'line',
+        source: 'route-line',
+        layout: {
+            'line-join': 'round',
+            'line-cap': 'round'
+        },
+        paint: {
+            'line-color': '#dc2626',
+            'line-width': 3,
+            'line-opacity': 1
+        }
+    });
+
     loadBathymetry();
 
     // Add POIs
@@ -417,6 +442,8 @@ async function loadBathymetry() {
 
         // Render preview immediately
         state.rasterData = previewData; // Temporary store
+        state.renderedWidth = previewWidth;
+        state.renderedHeight = previewHeight;
         renderBathymetry(previewWidth, previewHeight);
 
         // Fit map bounds immediately so user sees something
@@ -441,6 +468,8 @@ async function loadBathymetry() {
 
         // Render full quality
         state.rasterData = fullData; // Update store
+        state.renderedWidth = targetWidth;
+        state.renderedHeight = targetHeight;
 
         // Brief delay to allow UI thread to process
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -517,9 +546,12 @@ function renderBathymetry(width, height) {
         id: 'bathymetry',
         // Native LngLat bounds are sufficient because images are axis-aligned
         bounds: [state.bounds.west, state.bounds.south, state.bounds.east, state.bounds.north],
-        image: canvas.toDataURL(),
-        opacity: 0.9
+        image: canvas,
+        opacity: 0.9,
+        beforeId: 'route-line-layer' // Render beneath the route line
     });
+
+    state.bathymetryLayer = bitmapLayer;
 
     if (!state.deckOverlay) {
         state.deckOverlay = new deck.MapboxOverlay({
@@ -532,6 +564,7 @@ function renderBathymetry(width, height) {
             layers: [bitmapLayer]
         });
     }
+    // Route line z-order handled by beforeId on the BitmapLayer
 }
 
 // ============================================
@@ -640,6 +673,9 @@ function initializeLegend() {
 }
 
 function formatCoordinates(lng, lat) {
+    if (lng === undefined || lng === null || lat === undefined || lat === null) {
+        return { gmaps: 'N/A', display: 'N/A' };
+    }
     const gmaps = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     const latM = (Math.abs(lat) % 1) * 60;
     const lngM = (Math.abs(lng) % 1) * 60;
@@ -658,7 +694,7 @@ function updateCursorDepth(depth, lng, lat, labelOverride = null) {
         labelEl.style.color = labelOverride ? '#eab308' : ''; // Yellow when on profile
     }
 
-    if (depth !== null) {
+    if (depth !== null && depth !== undefined) {
         const r = formatCoordinates(lng, lat);
         valueEl.textContent = depth.toFixed(1);
         coordsEl.innerHTML = `<span class="copyable" title="Copy decimal">${r.gmaps}</span><br><span class="copyable" title="Copy DM">${r.display}</span>`;
@@ -798,28 +834,124 @@ function updateUserLocation(pos) {
 }
 
 // ============================================
+// Data Structures
+// ============================================
+
+class MinHeap {
+    constructor() {
+        this.heap = [];
+    }
+
+    push(node) {
+        this.heap.push(node);
+        this.bubbleUp(this.heap.length - 1);
+    }
+
+    pop() {
+        if (this.heap.length === 0) return null;
+        const min = this.heap[0];
+        const last = this.heap.pop();
+        if (this.heap.length > 0) {
+            this.heap[0] = last;
+            this.bubbleDown(0);
+        }
+        return min;
+    }
+
+    isEmpty() {
+        return this.heap.length === 0;
+    }
+
+    bubbleUp(index) {
+        while (index > 0) {
+            const parentIndex = Math.floor((index - 1) / 2);
+            if (this.heap[parentIndex].f <= this.heap[index].f) break;
+            [this.heap[parentIndex], this.heap[index]] = [this.heap[index], this.heap[parentIndex]];
+            index = parentIndex;
+        }
+    }
+
+    bubbleDown(index) {
+        while (true) {
+            let leftChild = 2 * index + 1;
+            let rightChild = 2 * index + 2;
+            let smallest = index;
+
+            if (leftChild < this.heap.length && this.heap[leftChild].f < this.heap[smallest].f) {
+                smallest = leftChild;
+            }
+            if (rightChild < this.heap.length && this.heap[rightChild].f < this.heap[smallest].f) {
+                smallest = rightChild;
+            }
+
+            if (smallest === index) break;
+
+            [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
+            index = smallest;
+        }
+    }
+}
+
+// ============================================
 // Route Profiler
 // ============================================
 
 class RouteProfiler {
-    constructor() {
+    constructor(points = []) {
         this.isActive = false;
-        this.points = [];
+        this.points = points; // User-defined waypoints [lng, lat]
         this.markers = [];
-        this.legTypes = []; // 'bearing' or 'contour' for each leg
+        this.legData = []; // [{ type: 'bearing', path: [...] }, ...] - Length of points - 1
+        this.suggestedPaths = []; // Contour suggestions for each leg
+        this.currentProfileData = null;
         this.chart = null;
-        this.speed = 40; // Default speed value
-        this.speedUnit = 'mmin'; // 'mmin', 'knots', or 'ms'
-
-        // Contour mode state
-        this.contourMode = false;
-        this.contourTolerance = 2;
+        this.speed = 40; // m/min
+        this.speedUnit = 'mmin';
+        this.waypointDists = [];
+        this.editMode = true; // Default to edit mode
+        this.hoverMarker = null;
+        this.hoverDistance = null; // For chart sync
+        this.contourTolerance = 1.0; // +/- 1 meter default
         this.contourTargetDepth = null;
-
-        // Edit mode state (on by default)
-        this.editMode = true;
+        this.profileSampleMarkers = []; // Visualization of sample points along route
+        this.isFinished = false; // Track if route has been completed
+        this.isManualDragging = false; // Track manual drag state for midpoint insertion
+        this.hoveredMarkerIndex = null; // Track which waypoint is being hovered for delete
 
         this.initUI();
+
+        // Global keyboard listener for delete
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'Backspace' || e.key === 'Delete') && this.hoveredMarkerIndex !== null && this.editMode) {
+                e.preventDefault();
+                this.deleteWaypoint(this.hoveredMarkerIndex);
+            }
+        });
+
+        // Initialize leg data for any existing points
+        this.initializeLegData();
+
+        // Defer marker/line build until map is ready if needed, 
+        // but typically instance created on load.
+        // We'll call these, but safeguards in methods should handle empty state.
+        this.rebuildMarkers();
+        this.updateLineLayer();
+
+        if (this.points.length >= 2) {
+        // Don't generate profile in constructor - wait for user to complete
+        }
+    }
+
+    initializeLegData() {
+        this.legData = [];
+        for (let i = 0; i < this.points.length - 1; i++) {
+            this.legData.push({
+                type: 'bearing',
+                path: [this.points[i], this.points[i + 1]],
+                bearingPath: [this.points[i], this.points[i + 1]],
+                hasContour: false
+            });
+        }
     }
 
     initUI() {
@@ -925,7 +1057,24 @@ class RouteProfiler {
         const editBtnInit = document.getElementById('edit-toggle-btn');
         if (editBtnInit) {
             editBtnInit.classList.add('active');
-            editBtnInit.querySelector('.edit-label').textContent = 'editing';
+            const label = editBtnInit.querySelector('.edit-label');
+            if (label) label.textContent = 'Editing';
+        }
+
+        // Contour Assist checkbox listener
+        const contourAssistCheckbox = document.getElementById('contour-assist-checkbox');
+        if (contourAssistCheckbox) {
+            contourAssistCheckbox.addEventListener('change', async (e) => {
+                if (e.target.checked && this.points.length >= 2) {
+                    // Calculate contour suggestions for all legs when enabled
+                    for (let i = 0; i < this.points.length; i++) {
+                        await this.calculateContourSuggestions(i);
+                    }
+                } else if (!e.target.checked) {
+                    // Hide all suggestions when disabled
+                    this.hideAllSuggestedPaths();
+                }
+            });
         }
 
         // Mid-line insertion marker
@@ -951,8 +1100,10 @@ class RouteProfiler {
             // Find closest segment and distance
             const { segmentIndex, distance, t } = this.findClosestSegment(e.lngLat);
 
-            // Midpoint Marker Logic (Only in Edit Mode)
-            if (this.editMode && distance < 40 && segmentIndex !== null) {
+            // Midpoint Marker Logic (Only in Edit Mode, not on contour legs)
+            const leg = this.legData[segmentIndex];
+            const isContourLeg = leg && leg.type === 'contour';
+            if (this.editMode && distance < 40 && segmentIndex !== null && !isContourLeg) {
                 // Place marker at segment midpoint, not cursor position
                 const p1 = this.points[segmentIndex];
                 const p2 = this.points[segmentIndex + 1];
@@ -982,17 +1133,19 @@ class RouteProfiler {
     syncChartHover(distanceM) {
         if (!this.chart || !this.currentProfileData) return;
 
+        const data = this.chart.data?.datasets?.[0]?.data;
+        if (!data || data.length === 0) return;
+
         if (distanceM === null) {
             this.hoverDistance = null; // Clear line
             this.chart.setActiveElements([], { x: 0, y: 0 });
-            this.chart.update();
+            this.chart.update('none'); // Skip animation to avoid profile "disappearing"
             return;
         }
 
         // Find closest data point
         let closestIdx = 0;
         let minDiff = Infinity;
-        const data = this.chart.data.datasets[0].data;
 
         // Binary search optional, linear scan fine for small datasets (~150 points)
         for (let i = 0; i < data.length; i++) {
@@ -1016,10 +1169,13 @@ class RouteProfiler {
             const activeElements = [{ datasetIndex: 0, index: closestIdx }];
             this.chart.setActiveElements(activeElements);
             this.chart.tooltip.setActiveElements(activeElements, { x: point.x, y: point.y });
-            this.chart.update();
+            this.chart.update('none'); // Skip animation to avoid profile flickering
 
-            // Update top bar to show profile depth
-            updateCursorDepth(point.depth, point.lng, point.lat, 'On Profile:');
+            // Update top bar to show profile depth (get data from currentProfileData, not chart element)
+            const profilePoint = this.currentProfileData[closestIdx];
+            if (profilePoint) {
+                updateCursorDepth(profilePoint.depth, profilePoint.lng, profilePoint.lat, 'On Profile:');
+            }
         }
     }
 
@@ -1103,16 +1259,77 @@ class RouteProfiler {
 
         // Insert point at segmentIndex + 1
         const insertIndex = segmentIndex + 1;
-        this.points.splice(insertIndex, 0, [lngLat.lng, lngLat.lat]);
-        this.legTypes.splice(segmentIndex, 0, 'bearing'); // Insert a new bearing leg
+        const newPoint = [lngLat.lng, lngLat.lat];
+        this.points.splice(insertIndex, 0, newPoint);
+
+        // Preserve leg data: split the affected leg, keep others intact
+        const newLegData = [];
+        for (let i = 0; i < this.legData.length; i++) {
+            if (i === segmentIndex) {
+                // Split this leg into two
+                const startPoint = this.points[segmentIndex];
+                const endPoint = this.points[insertIndex + 1];
+
+                // First half: from original start to new point
+                newLegData.push({
+                    type: 'bearing', // Reset to bearing for the split legs
+                    path: [startPoint, newPoint],
+                    bearingPath: [startPoint, newPoint],
+                    hasContour: false
+                });
+
+                // Second half: from new point to original end
+                newLegData.push({
+                    type: 'bearing',
+                    path: [newPoint, endPoint],
+                    bearingPath: [newPoint, endPoint],
+                    hasContour: false
+                });
+            } else if (i > segmentIndex) {
+                // Legs after the split: preserve type and contour paths
+                const leg = this.legData[i];
+                if (leg.type === 'contour' && leg.hasContour && leg.path && leg.path.length > 2) {
+                    // For contour legs, preserve the full calculated path
+                    // Only update bearingPath endpoints for reference
+                    newLegData.push({
+                        ...leg,
+                        bearingPath: [this.points[i + 1], this.points[i + 2]]
+                    });
+                } else {
+                    // For bearing legs, update path to new endpoints
+                    newLegData.push({
+                        ...leg,
+                        path: [this.points[i + 1], this.points[i + 2]],
+                        bearingPath: [this.points[i + 1], this.points[i + 2]]
+                    });
+                }
+            } else {
+                // Legs before the split: keep as-is
+                newLegData.push(this.legData[i]);
+            }
+        }
+        this.legData = newLegData;
+
+        // Update suggested paths array (insert null for the new leg)
+        this.suggestedPaths.splice(segmentIndex, 1, null, null);
+        this.hideSuggestedPath(segmentIndex);
+        this.hideSuggestedPath(segmentIndex + 1);
 
         // Recreate all markers to maintain correct indices
         this.rebuildMarkers();
         this.updateLineLayer();
 
-        // Regenerate profile if we have one (unless skipped)
-        if (!skipProfile && this.currentProfileData) {
+        // Regenerate profile if route is finished (unless skipped)
+        if (!skipProfile && this.isFinished) {
             await this.generateProfile();
+
+            // Recalculate contour suggestions for all legs if Contour Assist is enabled
+            const contourAssistEnabled = document.getElementById('contour-assist-checkbox')?.checked;
+            if (contourAssistEnabled) {
+                for (let i = 0; i < this.points.length; i++) {
+                    await this.calculateContourSuggestions(i);
+                }
+            }
         }
     }
 
@@ -1131,6 +1348,15 @@ class RouteProfiler {
         const onDragMove = (e) => {
             const lngLat = e.lngLat;
             this.points[pointIndex] = [lngLat.lng, lngLat.lat];
+
+            // Update legData paths for connected legs (so updateLineLayer works correctly)
+            if (pointIndex < this.points.length - 1 && this.legData[pointIndex]) {
+                this.legData[pointIndex].path = [this.points[pointIndex], this.points[pointIndex + 1]];
+            }
+            if (pointIndex > 0 && this.legData[pointIndex - 1]) {
+                this.legData[pointIndex - 1].path = [this.points[pointIndex - 1], this.points[pointIndex]];
+            }
+
             this.updateLineLayer();
             if (this.markers[pointIndex]) {
                 this.markers[pointIndex].setLngLat(lngLat);
@@ -1142,6 +1368,37 @@ class RouteProfiler {
             map.dragPan.enable();
             map.off('mousemove', onDragMove);
             map.off('mouseup', onDragEnd);
+
+            // Update leg data fully for connected legs
+            if (pointIndex < this.points.length - 1) {
+                this.legData[pointIndex] = {
+                    type: 'bearing',
+                    path: [this.points[pointIndex], this.points[pointIndex + 1]],
+                    bearingPath: [this.points[pointIndex], this.points[pointIndex + 1]],
+                    hasContour: false
+                };
+                this.suggestedPaths[pointIndex] = null;
+                this.hideSuggestedPath(pointIndex);
+            }
+            if (pointIndex > 0) {
+                const legIdx = pointIndex - 1;
+                this.legData[legIdx] = {
+                    type: 'bearing',
+                    path: [this.points[legIdx], this.points[pointIndex]],
+                    bearingPath: [this.points[legIdx], this.points[pointIndex]],
+                    hasContour: false
+                };
+                this.suggestedPaths[legIdx] = null;
+                this.hideSuggestedPath(legIdx);
+            }
+
+            this.updateLineLayer();
+
+            // Calculate contour suggestions if enabled
+            const contourAssistEnabled = document.getElementById('contour-assist-checkbox')?.checked;
+            if (contourAssistEnabled) {
+                await this.calculateContourSuggestions(pointIndex);
+            }
 
             if (this.currentProfileData) {
                 await this.generateProfile();
@@ -1157,12 +1414,13 @@ class RouteProfiler {
 
         const editBtn = document.getElementById('edit-toggle-btn');
         if (editBtn) {
+            const label = editBtn.querySelector('.edit-label');
             if (this.editMode) {
                 editBtn.classList.add('active');
-                editBtn.querySelector('.edit-label').textContent = 'Lock';
+                if (label) label.textContent = 'Editing';
             } else {
                 editBtn.classList.remove('active');
-                editBtn.querySelector('.edit-label').textContent = 'Edit';
+                if (label) label.textContent = 'Edit';
                 this.hideMidpointMarker();
             }
         }
@@ -1206,9 +1464,21 @@ class RouteProfiler {
                 }
             });
 
-            marker.on('drag', () => {
+            marker.on('drag', async () => {
                 const lngLat = marker.getLngLat();
-                this.points[marker._pointIndex] = [lngLat.lng, lngLat.lat];
+                const idx = marker._pointIndex;
+
+                // Update points array
+                this.points[idx] = [lngLat.lng, lngLat.lat];
+
+                // Update legData paths for connected legs (so updateLineLayer works correctly)
+                if (idx < this.points.length - 1 && this.legData[idx]) {
+                    this.legData[idx].path = [this.points[idx], this.points[idx + 1]];
+                }
+                if (idx > 0 && this.legData[idx - 1]) {
+                    this.legData[idx - 1].path = [this.points[idx - 1], this.points[idx]];
+                }
+
                 this.updateLineLayer();
 
                 // Redundant cleanup just in case
@@ -1216,19 +1486,173 @@ class RouteProfiler {
                     this.hoverMarker.remove();
                     this.hoverMarker = null;
                 }
-            });
 
+                // Contour Assist: Show depth contours during drag
+                const contourAssistEnabled = document.getElementById('contour-assist-checkbox')?.checked;
+                if (contourAssistEnabled) {
+                    const depth = await queryDepth(lngLat.lng, lngLat.lat);
+                    if (depth !== null) {
+                        await this.showContourHighlight(lngLat.lng, lngLat.lat, depth);
+                    }
+                }
+            });
             marker.on('dragend', async () => {
                 const lngLat = marker.getLngLat();
+                // Now that drag is done, update point and leg data
                 this.points[marker._pointIndex] = [lngLat.lng, lngLat.lat];
+
+                // Update leg data for connected legs
+                if (marker._pointIndex < this.points.length - 1) {
+                    this.legData[marker._pointIndex] = {
+                        type: 'bearing',
+                        path: [this.points[marker._pointIndex], this.points[marker._pointIndex + 1]],
+                        bearingPath: [this.points[marker._pointIndex], this.points[marker._pointIndex + 1]],
+                        hasContour: false
+                    };
+                    this.suggestedPaths[marker._pointIndex] = null;
+                    this.hideSuggestedPath(marker._pointIndex);
+                }
+                if (marker._pointIndex > 0) {
+                    const legIdx = marker._pointIndex - 1;
+                    this.legData[legIdx] = {
+                        type: 'bearing',
+                        path: [this.points[legIdx], this.points[marker._pointIndex]],
+                        bearingPath: [this.points[legIdx], this.points[marker._pointIndex]],
+                        hasContour: false
+                    };
+                    this.suggestedPaths[legIdx] = null;
+                    this.hideSuggestedPath(legIdx);
+                }
+
                 this.updateLineLayer();
+
+                // Hide contour highlight when drag ends
+                this.hideContourHighlight();
+
+                // Calculate contour path suggestions if Contour Assist is enabled
+                const contourAssistEnabled = document.getElementById('contour-assist-checkbox')?.checked;
+                if (contourAssistEnabled) {
+                    await this.calculateContourSuggestions(marker._pointIndex);
+                }
+
                 if (this.points.length >= 2 && this.currentProfileData) {
                     await this.generateProfile();
                 }
             });
 
+            // Hover tracking for delete
+            el.addEventListener('mouseenter', () => {
+                this.hoveredMarkerIndex = index;
+                if (this.editMode) {
+                    el.style.outline = '2px solid #dc2626';
+                    el.title = 'Press Backspace or right-click to delete';
+                }
+            });
+
+            el.addEventListener('mouseleave', () => {
+                this.hoveredMarkerIndex = null;
+                el.style.outline = '';
+                el.title = '';
+            });
+
+            // Right-click to delete
+            el.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (this.editMode) {
+                    this.deleteWaypoint(index);
+                }
+            });
+
             this.markers.push(marker);
         });
+    }
+
+    async deleteWaypoint(index) {
+        if (index < 0 || index >= this.points.length) return;
+        if (this.points.length <= 2) {
+            // Can't delete if only 2 points left
+            console.warn('Cannot delete: minimum 2 waypoints required');
+            return;
+        }
+
+        // Clear hover state
+        this.hoveredMarkerIndex = null;
+
+        // Remove the point
+        this.points.splice(index, 1);
+
+        // Rebuild leg data - merge the two legs that were connected to this point
+        const newLegData = [];
+        for (let i = 0; i < this.legData.length; i++) {
+            if (i === index - 1 && index > 0) {
+                // Merge with next leg: this leg now goes to the point after the deleted one
+                const nextEndPoint = this.points[index]; // After deletion, this is the new endpoint
+                newLegData.push({
+                    type: 'bearing',
+                    path: [this.points[index - 1], nextEndPoint],
+                    bearingPath: [this.points[index - 1], nextEndPoint],
+                    hasContour: false
+                });
+            } else if (i === index) {
+                // Skip this leg (it was connected to the deleted point)
+                continue;
+            } else if (i > index) {
+                // Legs after: update indices, preserve contour paths
+                const leg = this.legData[i];
+                const newIdx = i - 1;
+                if (leg.type === 'contour' && leg.hasContour && leg.path && leg.path.length > 2) {
+                    // For contour legs, preserve the full calculated path
+                    newLegData.push({
+                        ...leg,
+                        bearingPath: [this.points[newIdx], this.points[newIdx + 1]]
+                    });
+                } else {
+                    // For bearing legs, update path to new endpoints
+                    newLegData.push({
+                        ...leg,
+                        path: [this.points[newIdx], this.points[newIdx + 1]],
+                        bearingPath: [this.points[newIdx], this.points[newIdx + 1]]
+                    });
+                }
+            } else {
+                // Legs before the deleted point: keep as-is
+                newLegData.push(this.legData[i]);
+            }
+        }
+
+        // Handle edge case: deleting first point
+        if (index === 0 && this.legData.length > 0) {
+            // The first leg is removed, shift everything
+            this.legData = this.legData.slice(1).map((leg, i) => ({
+                ...leg,
+                path: [this.points[i], this.points[i + 1]],
+                bearingPath: [this.points[i], this.points[i + 1]]
+            }));
+        } else {
+            this.legData = newLegData;
+        }
+
+        // Clean up suggested paths
+        this.hideAllSuggestedPaths();
+        this.suggestedPaths = this.suggestedPaths.filter((_, i) => i !== index && i !== index - 1);
+
+        // Rebuild markers and update
+        this.rebuildMarkers();
+        this.updateLineLayer();
+
+        // Regenerate profile if route is finished (same as finishRoute behavior)
+        if (this.points.length >= 2 && this.isFinished) {
+            await this.generateProfile();
+
+            // Recalculate contour suggestions for all legs if Contour Assist is enabled
+            const contourAssistEnabled = document.getElementById('contour-assist-checkbox')?.checked;
+            if (contourAssistEnabled) {
+                for (let i = 0; i < this.points.length; i++) {
+                    await this.calculateContourSuggestions(i);
+                }
+            }
+        }
     }
 
     startDrawing() {
@@ -1254,6 +1678,7 @@ class RouteProfiler {
 
     stopDrawing() {
         this.isActive = false;
+        this.isFinished = false;
 
         // Reset overlay state
         this.startOverlay.classList.remove('hidden');
@@ -1268,81 +1693,250 @@ class RouteProfiler {
     }
 
     addPoint(lngLat) {
-        const pointIndex = this.points.length;
-        this.points.push([lngLat.lng, lngLat.lat]);
+        // Handle MapLibre LngLat object or array
+        const lng = lngLat.lng !== undefined ? lngLat.lng : lngLat[0];
+        const lat = lngLat.lat !== undefined ? lngLat.lat : lngLat[1];
 
-        // Record leg type for this leg (the leg from previous point to this one)
-        // First point has no leg, subsequent points create legs
+        this.points.push([lng, lat]);
+
+        // Add default bearing leg if we have >= 2 points
         if (this.points.length > 1) {
-            this.legTypes.push(this.contourMode ? 'contour' : 'bearing');
+            const prev = this.points[this.points.length - 2];
+            this.legData.push({
+                type: 'bearing',
+                path: [prev, [lng, lat]],
+                bearingPath: [prev, [lng, lat]],
+                hasContour: false
+            });
         }
 
-        // Add visual marker with WP label (draggable)
-        const el = document.createElement('div');
-        el.className = 'wp-marker';
-        el.setAttribute('data-label', `WP${pointIndex}`);
-
-        const marker = new maplibregl.Marker({ element: el, draggable: true })
-            .setLngLat(lngLat)
-            .addTo(map);
-
-        // Store index on marker for reference in handlers
-        marker._pointIndex = pointIndex;
-
-        // Live update during drag
-        marker.on('drag', () => {
-            const lngLat = marker.getLngLat();
-            this.points[marker._pointIndex] = [lngLat.lng, lngLat.lat];
-            this.updateLineLayer();
-        });
-
-        // Regenerate profile after drag ends
-        marker.on('dragend', async () => {
-            const lngLat = marker.getLngLat();
-            this.points[marker._pointIndex] = [lngLat.lng, lngLat.lat];
-            this.updateLineLayer();
-            // Only regenerate if we have a complete route
-            if (this.points.length >= 2 && this.currentProfileData) {
-                await this.generateProfile();
-            }
-        });
-
-        this.markers.push(marker);
+        this.rebuildMarkers();
         this.updateLineLayer();
+
+        if (this.points.length >= 2 && this.currentProfileData) {
+            this.generateProfile();
+        }
+    }
+
+    updatePoint(index, lng, lat) {
+        this.points[index] = [lng, lat];
+
+        // Update connected legs to simple bearing (reset geometry)
+        // Leg starting at this index (if exists)
+        if (index < this.points.length - 1) {
+            this.legData[index] = {
+                type: 'bearing',
+                path: [this.points[index], this.points[index + 1]],
+                bearingPath: [this.points[index], this.points[index + 1]],
+                hasContour: false
+            };
+            this.suggestedPaths[index] = null; // Clear suggestion
+            this.hideSuggestedPath(index);
+        }
+
+        // Leg ending at this index (if exists)
+        if (index > 0) {
+            const legIdx = index - 1;
+            this.legData[legIdx] = {
+                type: 'bearing',
+                path: [this.points[legIdx], this.points[index]],
+                bearingPath: [this.points[legIdx], this.points[index]],
+                hasContour: false
+            };
+            this.suggestedPaths[legIdx] = null; // Clear suggestion
+            this.hideSuggestedPath(legIdx);
+        }
+
+        if (this.markers[index]) {
+            this.markers[index].setLngLat([lng, lat]);
+        }
+        this.updateLineLayer(); // Updates route line geometry
+        // Profile update is triggered by dragend usually, but called here for completeness if needed
+    }
+
+    removePoint(index) {
+        this.points.splice(index, 1);
+
+        // Rebuild leg data completely to be safe (easier than splicing legData)
+        this.initializeLegData();
+        this.hideAllSuggestedPaths();
+        this.suggestedPaths = [];
+
+        this.rebuildMarkers();
+        this.updateLineLayer();
+
+        if (this.points.length >= 2 && this.currentProfileData) {
+            this.generateProfile();
+        } else if (this.currentProfileData) {
+            this.currentProfileData = null;
+            this.updateWaypointTable([], []);
+            this.clearProfileChart();
+        }
+    }
+
+
+    async generateProfile() {
+        if (!this.chart) this.initChart();
+
+        if (this.points.length < 2) {
+            this.updateWaypointTable([], []);
+            return [];
+        }
+
+        // Construct full path from leg data
+        let fullPath = [];
+        let dists = [0];
+        let totalDist = 0;
+
+        for (let i = 0; i < this.legData.length; i++) {
+            const leg = this.legData[i];
+            // For the very first leg, include the start point
+            // For subsequent legs, skip the first point to avoid duplicates
+            const pathSegment = (i === 0) ? leg.path : leg.path.slice(1);
+            fullPath = fullPath.concat(pathSegment);
+
+            // Keep track of waypoint distances for the table
+            let legDist = 0;
+            for (let j = 0; j < leg.path.length - 1; j++) {
+                legDist += this.haversineDistance(leg.path[j], leg.path[j + 1]);
+            }
+            totalDist += legDist;
+            dists.push(totalDist);
+        }
+
+        this.waypointDists = dists;
+
+        // Generate profile along the geometry
+        // Calculate total length again accurately for sampling ratio
+        let totalPathLen = 0;
+        for (let i = 0; i < fullPath.length - 1; i++) {
+            totalPathLen += this.haversineDistance(fullPath[i], fullPath[i + 1]);
+        }
+
+        const numSamples = 300; // Good resolution
+        const profileData = [];
+
+        // Start point
+        profileData.push({
+            dist: 0,
+            depth: await queryDepth(fullPath[0][0], fullPath[0][1]),
+            lng: fullPath[0][0],
+            lat: fullPath[0][1]
+        });
+
+        let currentDist = 0;
+
+        for (let i = 0; i < fullPath.length - 1; i++) {
+            const p1 = fullPath[i];
+            const p2 = fullPath[i + 1];
+            const segLen = this.haversineDistance(p1, p2);
+
+            // Use at least 2 samples per segment if it's long enough, or proportional
+            // For very short segments (contour parts), proportional might be 0.
+            // Ensure at least one sample at the end of segment (or close to it)
+            // But fullPath has many points.
+
+            const samplesInSeg = Math.max(1, Math.round((segLen / totalPathLen) * numSamples));
+
+            for (let j = 1; j <= samplesInSeg; j++) {
+                const t = j / samplesInSeg;
+                const lng = p1[0] + (p2[0] - p1[0]) * t;
+                const lat = p1[1] + (p2[1] - p1[1]) * t;
+
+                // Get depth
+                const depth = await queryDepth(lng, lat);
+
+                profileData.push({
+                    dist: currentDist + (segLen * t),
+                    depth: depth,
+                    lng: lng,
+                    lat: lat
+                });
+            }
+            currentDist += segLen;
+        }
+
+        this.currentProfileData = profileData;
+
+        this.updateChart();
+        this.updateWaypointTable(profileData, dists);
+
+        // Render sample point markers along route
+        this.renderProfileSampleMarkers(profileData);
+
+        return profileData;
+    }
+
+    renderProfileSampleMarkers(profileData) {
+        // Clear existing
+        if (this.profileSampleMarkers) {
+            this.profileSampleMarkers.forEach(m => m.remove());
+        }
+        this.profileSampleMarkers = [];
+
+        // Sample points to avoid too many DOM elements
+        const step = profileData.length > 100 ? 15 : 1;
+
+        for (let i = 0; i < profileData.length; i += step) {
+            const p = profileData[i];
+            const el = document.createElement('div');
+            el.className = 'debug-marker-dot';
+            el.style.width = '4px';
+            el.style.height = '4px';
+            el.style.background = '#facc15'; // Yellow-400
+            el.style.borderRadius = '50%';
+            el.style.pointerEvents = 'none';
+
+            const marker = new maplibregl.Marker({ element: el, offset: [0, 0] })
+                .setLngLat([p.lng, p.lat])
+                .addTo(map);
+
+            this.profileSampleMarkers.push(marker);
+        }
     }
 
     updateLineLayer() {
+        if (this.points.length < 2) {
+            const source = map.getSource('route-line');
+            if (source) {
+                source.setData({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: [] }
+                });
+            }
+            if (map.getLayer('route-arrows')) {
+                map.removeLayer('route-arrows');
+            }
+            return;
+        }
+
+        // Use legData for complex paths if available and valid, otherwise use simple points
+        let allCoords = [];
+        if (this.legData && this.legData.length === this.points.length - 1) {
+            // Concatenate all leg paths
+            this.legData.forEach((leg, i) => {
+                const segment = (i === 0) ? leg.path : leg.path.slice(1);
+                allCoords = allCoords.concat(segment);
+            });
+        } else {
+            // Fallback to simple point-to-point line (for real-time drag updates)
+            allCoords = this.points;
+        }
+
         const geojson = {
             type: 'Feature',
             geometry: {
                 type: 'LineString',
-                coordinates: this.points
+                coordinates: allCoords
             }
         };
 
+        // Source is created on map load, just update the data
         const source = map.getSource('route-line');
         if (source) {
             source.setData(geojson);
-        } else {
-            map.addSource('route-line', {
-                type: 'geojson',
-                data: geojson
-            });
-            map.addLayer({
-                id: 'route-line-layer',
-                type: 'line',
-                source: 'route-line',
-                layout: {
-                    'line-join': 'round',
-                    'line-cap': 'round'
-                },
-                paint: {
-                    'line-color': '#dc2626',
-                    'line-width': 3,
-                    'line-dasharray': [2, 1]
-                }
-            });
         }
+        // Route line z-order handled by beforeId on deck.gl layers
     }
 
     async finishRoute() {
@@ -1352,6 +1946,7 @@ class RouteProfiler {
         }
 
         this.isActive = false;
+        this.isFinished = true; // Mark route as finished
         map.getCanvas().style.cursor = '';
         this.finishBtn.classList.add('hidden');
 
@@ -1370,112 +1965,513 @@ class RouteProfiler {
 
         // Generate Profile
         await this.generateProfile();
+
+        // Calculate contour suggestions for all legs if Contour Assist is enabled
+        const contourAssistEnabled = document.getElementById('contour-assist-checkbox')?.checked;
+        if (contourAssistEnabled) {
+            for (let i = 0; i < this.points.length; i++) {
+                await this.calculateContourSuggestions(i);
+            }
+        }
     }
 
-    clearRoute() {
-        this.points = [];
-        this.markers.forEach(m => m.remove());
-        this.markers = [];
-        this.legTypes = [];
-        this.currentProfileData = null;
-        this.contourTargetDepth = null;
+    // ============================================
+    // Contour Path Suggestions
+    // ============================================
 
-        const source = map.getSource('route-line');
-        if (source) {
-            source.setData({
+    /**
+     * Calculate contour path suggestions for legs adjacent to a moved waypoint
+     */
+    async calculateContourSuggestions(pointIndex) {
+        if (!this.points || this.points.length < 2) return;
+
+        // Check both adjacent legs
+        const legsToCheck = [];
+        if (pointIndex > 0) legsToCheck.push(pointIndex - 1); // Previous leg
+        if (pointIndex < this.points.length - 1) legsToCheck.push(pointIndex); // Next leg
+
+        for (const legIndex of legsToCheck) {
+            const start = this.points[legIndex];
+            const end = this.points[legIndex + 1];
+
+            // Get depth at start point
+            const startDepth = await queryDepth(start[0], start[1]);
+            if (startDepth === null) {
+                continue;
+            }
+
+            // Try to find contour path
+            const contourPath = await this.findContourPath(
+                start[0], start[1],
+                end[0], end[1],
+                startDepth,
+                this.contourTolerance
+            );
+
+            if (contourPath && contourPath.length > 2) {
+                // Store path in leg data for toggling
+                this.legData[legIndex].contourPath = contourPath;
+                this.legData[legIndex].hasContour = true;
+                this.legData[legIndex].bearingPath = [start, end]; // Always valid straight line
+
+                this.suggestedPaths[legIndex] = contourPath;
+
+                // Only show suggestion if we are NOT already in contour mode
+                if (this.legData[legIndex].type !== 'contour') {
+                    this.showSuggestedPath(legIndex, contourPath);
+                }
+            } else {
+                this.legData[legIndex].hasContour = false;
+                this.suggestedPaths[legIndex] = null;
+                this.hideSuggestedPath(legIndex);
+            }
+
+            // Refresh table to show toggle button
+            if (this.currentProfileData) this.generateProfile();
+        }
+    }
+
+    /**
+     * Display a suggested contour path on the map
+     */
+    showSuggestedPath(legIndex, path) {
+        const sourceId = `suggested-path-${legIndex}`;
+        const layerId = `suggested-path-layer-${legIndex}`;
+
+        // Remove existing suggestion for this leg
+        if (map.getLayer(layerId)) map.removeLayer(layerId);
+        if (map.getLayer(`${layerId}-casing`)) map.removeLayer(`${layerId}-casing`);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+        // Add source
+        map.addSource(sourceId, {
+            type: 'geojson',
+            data: {
                 type: 'Feature',
-                geometry: { type: 'LineString', coordinates: [] }
+                geometry: {
+                    type: 'LineString',
+                    coordinates: path
+                }
+            }
+        });
+
+        // Add layer (black casing for contrast)
+        // No beforeId -> Render on top!
+
+        map.addLayer({
+            id: `${layerId}-casing`,
+            type: 'line',
+            source: sourceId,
+            paint: {
+                'line-color': '#000000',
+                'line-width': 5,
+                'line-opacity': 0.4
+            }
+        });
+
+        // Add layer (white dotted line on top)
+        map.addLayer({
+            id: layerId,
+            type: 'line',
+            source: sourceId,
+            paint: {
+                'line-color': '#ffffff',
+                'line-width': 2.5,
+                'line-dasharray': [2, 2], // Tighter dots
+                'line-opacity': 1.0
+            }
+        });
+
+        // Subtle animation (fade in)
+        let opacity = 0;
+        const animateIn = () => {
+            opacity += 0.05;
+            if (map.getLayer(layerId)) {
+                map.setPaintProperty(layerId, 'line-opacity', Math.min(1.0, opacity));
+                if (opacity < 1.0) requestAnimationFrame(animateIn);
+            }
+        };
+        requestAnimationFrame(animateIn);
+    }
+
+    /**
+     * Hide suggested path for a leg
+     */
+    hideSuggestedPath(legIndex) {
+        const sourceId = `suggested-path-${legIndex}`;
+        const layerId = `suggested-path-layer-${legIndex}`;
+        const casingId = `${layerId}-casing`;
+
+        if (map.getLayer(layerId)) map.removeLayer(layerId);
+        if (map.getLayer(casingId)) map.removeLayer(casingId);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+    }
+
+    hideAllSuggestedPaths() {
+        // Hide all suggestion overlays
+        for (let i = 0; i < this.points.length; i++) {
+            this.hideSuggestedPath(i);
+        }
+    }
+
+    /**
+     * Set the type of a leg (contour vs bearing)
+     * @param {number} legIndex - Index of the leg
+     * @param {string} type - 'bearing' or 'contour'
+     */
+    async setLegType(legIndex, type) {
+        const leg = this.legData[legIndex];
+        if (!leg) return;
+
+        console.log(`[Leg] Setting leg ${legIndex} to ${type}`);
+
+        if (type === 'contour') {
+            if (leg.hasContour && leg.contourPath) {
+                leg.type = 'contour';
+                leg.path = leg.contourPath;
+                this.hideSuggestedPath(legIndex); // Hide suggestion as applied
+            }
+        } else {
+            // Revert to bearing
+            leg.type = 'bearing';
+            // Ensure we have a valid bearing path (start/end points)
+            leg.path = [this.points[legIndex], this.points[legIndex + 1]];
+
+            // If we have a contour available, show it as suggestion again
+            if (leg.hasContour) {
+                this.showSuggestedPath(legIndex, leg.contourPath);
+            }
+        }
+
+        // Update map and profile
+        this.updateLineLayer();
+        if (this.points.length >= 2 && this.currentProfileData) {
+            await this.generateProfile();
+        }
+    }
+
+    // ============================================
+    // Contour Pathfinding
+    // ============================================
+
+    /**
+     * Find a path that follows depth contours between two points
+     * Uses A* search on a grid sampled from bathymetry data
+     */
+    async findContourPath(startLng, startLat, endLng, endLat, targetDepth, tolerance) {
+        if (!state.rasterData || !state.renderedWidth || !state.renderedHeight) return null;
+
+        const data = state.rasterData[0]; // Int16Array
+        const width = state.renderedWidth;
+        const height = state.renderedHeight;
+        const totalPixels = width * height;
+        const { mercatorBbox } = state.bounds;
+
+        // Convert lng/lat to grid coordinates
+        const toGrid = (lng, lat) => {
+            const [mx, my] = lngLatToMercator(lng, lat);
+            const x = Math.floor((mx - mercatorBbox[0]) / (mercatorBbox[2] - mercatorBbox[0]) * width);
+            const y = Math.floor((mercatorBbox[3] - my) / (mercatorBbox[3] - mercatorBbox[1]) * height);
+            return [x, y];
+        };
+
+        const fromGrid = (x, y) => {
+            const mx = mercatorBbox[0] + (x / width) * (mercatorBbox[2] - mercatorBbox[0]);
+            const my = mercatorBbox[3] - (y / height) * (mercatorBbox[3] - mercatorBbox[1]);
+            return mercatorToLngLat(mx, my);
+        };
+
+        const [startX, startY] = toGrid(startLng, startLat);
+        const [endX, endY] = toGrid(endLng, endLat);
+
+        // Bounds checking
+        if (startX < 0 || startX >= width || startY < 0 || startY >= height ||
+            endX < 0 || endX >= width || endY < 0 || endY >= height) {
+            return null;
+        }
+
+        // Calculate straight-line distance for iteration limit
+        const straightDist = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
+        // Increased multiplier (50x) and max (20k) for long winding contour paths
+        const maxIterations = Math.min(50000, Math.max(5000, Math.ceil(straightDist * 100)));
+
+        // OPTIMIZATION: Use TypedArrays instead of Map/Set for O(1) access and no GC
+        // visited: 0 = unvisited, 1 = closed, 2 = open (optional, mostly track closed)
+        const visited = new Uint8Array(totalPixels);
+        const gScores = new Float32Array(totalPixels);
+        gScores.fill(Infinity);
+
+        // Pre-convert constants
+        const tolerance100 = tolerance * 100;
+        const targetDepth100 = targetDepth * 100;
+        const startIdx = startY * width + startX;
+
+        gScores[startIdx] = 0;
+
+        // MinHeap for Open Set
+        const minHeap = new MinHeap();
+        minHeap.push({ x: startX, y: startY, idx: startIdx, g: 0, f: 0, parent: null });
+
+        let iterations = 0;
+
+        // Helper arrays for neighbors (8-direction)
+        // dx: -1, 0, 1 ...
+        // cost: 1 or 1.414
+        const neighborOffsets = [
+            { dx: -1, dy: -1, cost: 1.414 }, { dx: 0, dy: -1, cost: 1 }, { dx: 1, dy: -1, cost: 1.414 },
+            { dx: -1, dy: 0, cost: 1 }, { dx: 1, dy: 0, cost: 1 },
+            { dx: -1, dy: 1, cost: 1.414 }, { dx: 0, dy: 1, cost: 1 }, { dx: 1, dy: 1, cost: 1.414 }
+        ];
+
+        while (!minHeap.isEmpty() && iterations++ < maxIterations) {
+            const current = minHeap.pop();
+
+            // Lazy deletion check
+            if (visited[current.idx] === 1) continue;
+            visited[current.idx] = 1; // Mark closed
+
+            // Goal reached? (Within 2 grid units)
+            if (Math.abs(current.x - endX) <= 2 && Math.abs(current.y - endY) <= 2) {
+                // Reconstruct path
+                const path = [];
+                let node = current;
+                while (node) {
+                    const [lng, lat] = fromGrid(node.x, node.y);
+                    path.unshift([lng, lat]);
+                    node = node.parent;
+                }
+                return this.simplifyPath(path);
+            }
+
+            // Neighbors
+            for (let i = 0; i < 8; i++) {
+                const { dx, dy, cost } = neighborOffsets[i];
+                const nx = current.x + dx;
+                const ny = current.y + dy;
+
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+
+                const nIdx = ny * width + nx;
+                if (visited[nIdx] === 1) continue; // Already closed
+
+                const depth = data[nIdx];
+                const diff = Math.abs(depth - targetDepth100);
+
+                // Check depth tolerance
+                if (diff > tolerance100) continue;
+
+                // Calculate G cost
+                // Add penalty for deviation from target depth to encourage staying "on contour"
+                const depthPenalty = (diff / tolerance100) * 2.0;
+                const g = current.g + cost + depthPenalty;
+
+                if (g < gScores[nIdx]) {
+                    gScores[nIdx] = g;
+                    const h = Math.sqrt((nx - endX) ** 2 + (ny - endY) ** 2);
+                    minHeap.push({ x: nx, y: ny, idx: nIdx, g, f: g + h, parent: current });
+                }
+            }
+        }
+
+        // No path found
+        return null;
+    }
+
+    /**
+     * Simplify path using Ramer-Douglas-Peucker algorithm
+     */
+    simplifyPath(path, epsilon = 0.00005) {
+        if (path.length <= 2) return path;
+
+        // Find point with max distance from line
+        let maxDist = 0;
+        let maxIndex = 0;
+        const start = path[0];
+        const end = path[path.length - 1];
+
+        for (let i = 1; i < path.length - 1; i++) {
+            const dist = this.pointToLineDistance(path[i], start, end);
+            if (dist > maxDist) {
+                maxDist = dist;
+                maxIndex = i;
+            }
+        }
+
+        // If max distance is greater than epsilon, recursively simplify
+        if (maxDist > epsilon) {
+            const left = this.simplifyPath(path.slice(0, maxIndex + 1), epsilon);
+            const right = this.simplifyPath(path.slice(maxIndex), epsilon);
+            return left.slice(0, -1).concat(right);
+        }
+
+        return [start, end];
+    }
+
+    pointToLineDistance(point, lineStart, lineEnd) {
+        const [px, py] = point;
+        const [x1, y1] = lineStart;
+        const [x2, y2] = lineEnd;
+
+        const A = px - x1;
+        const B = py - y1;
+        const C = x2 - x1;
+        const D = y2 - y1;
+
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        let param = -1;
+
+        if (lenSq !== 0) param = dot / lenSq;
+
+        let xx, yy;
+
+        if (param < 0) {
+            xx = x1;
+            yy = y1;
+        } else if (param > 1) {
+            xx = x2;
+            yy = y2;
+        } else {
+            xx = x1 + param * C;
+            yy = y1 + param * D;
+        }
+
+        const dx = px - xx;
+        const dy = py - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    async showContourHighlight(lng, lat, depth) {
+        if (!state.rasterData || !state.bounds || depth === null || isNaN(depth)) return;
+        if (!state.renderedWidth || !state.renderedHeight) return;
+
+        const data = state.rasterData[0];
+        // Use actual rendered dimensions, not original TIFF dimensions
+        const width = state.renderedWidth;
+        const height = state.renderedHeight;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.createImageData(width, height);
+
+        const tolerance = this.contourTolerance * 100;
+        const targetDepth = depth * 100;
+
+        // Fill matching depth pixels with transparent blue
+        for (let y = 0; y < height; y++) {
+            const rowOffset = y * width;
+            for (let x = 0; x < width; x++) {
+                const i = rowOffset + x;
+                const value = data[i];
+
+                // Highlight pixels within depth tolerance
+                if (Math.abs(value - targetDepth) <= tolerance) {
+                    const px = i * 4;
+                    imageData.data[px] = 30;        // R - blue tint
+                    imageData.data[px + 1] = 144;   // G
+                    imageData.data[px + 2] = 255;   // B - bright blue
+                    imageData.data[px + 3] = 128;   // Semi-transparent (50%)
+                }
+            }
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+
+        if (!state.bathymetryLayer) return;
+
+        const contourLayer = new deck.BitmapLayer({
+            id: 'contour-highlight',
+            bounds: [state.bounds.west, state.bounds.south, state.bounds.east, state.bounds.north],
+            image: canvas,
+            opacity: 1.0,
+            beforeId: 'route-line-layer' // Render beneath the route line
+        });
+
+        // Render contour on top of bathymetry (both beneath route line via beforeId)
+        state.deckOverlay.setProps({
+            layers: [state.bathymetryLayer, contourLayer]
+        });
+
+        // Add blue glow to waypoints within depth tolerance
+        for (let i = 0; i < this.points.length; i++) {
+            const point = this.points[i];
+            const pointDepth = await queryDepth(point[0], point[1]);
+
+            if (pointDepth !== null && Math.abs(pointDepth * 100 - targetDepth) <= tolerance) {
+                // This waypoint is within tolerance - add blue glow
+                if (this.markers[i]) {
+                    const el = this.markers[i].getElement();
+                    el.style.filter = 'drop-shadow(0 0 12px rgba(30, 144, 255, 1)) drop-shadow(0 0 24px rgba(30, 144, 255, 0.6))';
+                    // Don't set transform - it interferes with MapLibre marker positioning
+                    el.style.transition = 'filter 0.2s ease';
+                }
+            }
+        }
+    }
+
+    hideContourHighlight() {
+        if (state.bathymetryLayer && state.deckOverlay) {
+            // Restore just the bathymetry layer
+            state.deckOverlay.setProps({
+                layers: [state.bathymetryLayer]
             });
         }
 
-        // Remove debug markers
-        if (this.debugMarkers) {
-            this.debugMarkers.forEach(m => m.remove());
-            this.debugMarkers = [];
+        // Remove blue glow from all waypoints (don't touch transform - MapLibre uses it for positioning!)
+        for (let i = 0; i < this.markers.length; i++) {
+            if (this.markers[i]) {
+                const el = this.markers[i].getElement();
+                el.style.filter = '';
+                // Don't reset transform - MapLibre uses it to position the marker on the map
+            }
+        }
+        // Route line z-order handled by beforeId on deck.gl layers
+    }
+
+    clearRoute() {
+        // Clean up contour suggestions
+        if (this.hideAllSuggestedPaths) {
+            this.hideAllSuggestedPaths();
+        }
+        this.suggestedPaths = [];
+
+        this.points = [];
+        this.legData = [];
+
+        this.markers.forEach(m => m.remove());
+        this.markers = [];
+
+        this.updateLineLayer();
+        this.clearProfileChart();
+        this.updateWaypointTable([], []);
+        this.currentProfileData = null;
+        this.waypointDists = [];
+
+        if (this.midpointMarker) {
+            this.midpointMarker.remove();
+            this.midpointMarker = null;
+        }
+        if (this.hoverMarker) {
+            this.hoverMarker.remove();
+            this.hoverMarker = null;
         }
 
+        // Clear chart data
         if (this.chart) {
             this.chart.data.datasets[0].data = [];
             this.chart.update();
         }
+
+        // Remove profile sample markers
+        if (this.profileSampleMarkers) {
+            this.profileSampleMarkers.forEach(m => m.remove());
+            this.profileSampleMarkers = [];
+        }
     }
 
-    // ----------------------------------------------------------------
-    // Profiling Logic
-    // ----------------------------------------------------------------
 
-    async generateProfile() {
-        if (!this.chart) this.initChart();
-
-        // Clear previous debug markers
-        if (this.debugMarkers) {
-            this.debugMarkers.forEach(m => m.remove());
-        }
-        this.debugMarkers = [];
-
-        const samples = [];
-        const numSamples = 150; // increased samples
-
-        // Calculate total distance and segment lengths
-        let totalLenM = 0;
-        const dists = [0];
-
-        for (let i = 0; i < this.points.length - 1; i++) {
-            const d = this.haversineDistance(this.points[i], this.points[i + 1]);
-            totalLenM += d;
-            dists.push(totalLenM);
-        }
-
-        // Walk segments
-        const profileData = [];
-
-        // Always include start
-        profileData.push({ dist: 0, depth: await queryDepth(this.points[0][0], this.points[0][1]) });
-
-        // Walk segments to populate profileData
-        for (let i = 0; i < this.points.length - 1; i++) {
-            const p1 = this.points[i];
-            const p2 = this.points[i + 1];
-            const segLen = this.haversineDistance(p1, p2);
-            const numSegSamples = Math.max(2, Math.floor((segLen / totalLenM) * numSamples));
-
-            for (let j = 1; j <= numSegSamples; j++) {
-                const t = j / numSegSamples;
-                const lng = p1[0] + (p2[0] - p1[0]) * t;
-                const lat = p1[1] + (p2[1] - p1[1]) * t;
-
-                const distFromStart = dists[i] + (segLen * t);
-                let depth = await queryDepth(lng, lat);
-
-                // Visual Debug: Add yellow dots at sampled locations
-                const el = document.createElement('div');
-                el.className = 'debug-sample-marker';
-                el.style.width = '4px';
-                el.style.height = '4px';
-                el.style.background = '#facc15'; // Yellow-400
-                el.style.borderRadius = '50%';
-                el.style.pointerEvents = 'none';
-
-                // Only show every 5th point to save DOM
-                if (j % 5 === 0) {
-                    const m = new maplibregl.Marker({ element: el })
-                        .setLngLat([lng, lat])
-                        .addTo(map);
-                    this.debugMarkers.push(m);
-                }
-
-                profileData.push({ dist: distFromStart, depth: depth, lat: lat, lng: lng });
-            }
-        }
-
-        this.currentProfileData = profileData;
-
-        // Save waypoint distances for chart rendering
-        this.waypointDists = dists;
-
-        this.updateChart();
-        this.updateWaypointTable(profileData, dists);
-    }
 
     updateWaypointTable(profileData, dists) {
         // Elements
@@ -1487,7 +2483,7 @@ class RouteProfiler {
 
         if (!sidebar || !tableBody) return;
 
-        // Show sidebar if hidden
+        // Show sidebar if we have points
         if (this.points.length > 0) {
             sidebar.classList.remove('hidden');
         } else {
@@ -1528,27 +2524,26 @@ class RouteProfiler {
 
         let totalDistNM = 0;
 
-        // Iterate through segments (points)
+        // Iterate through waypoints - each row shows the OUTGOING leg from that waypoint
         for (let i = 0; i < this.points.length; i++) {
             const p = this.points[i];
-            const isStart = i === 0;
             const isEnd = i === this.points.length - 1;
+            const hasOutgoingLeg = i < this.points.length - 1;
 
-            // Calculate leg stats
+            // Calculate leg stats for the leg DEPARTING from this point (to next point)
             let distM = 0;
             let legTimeMin = 0;
             let bearing = 0;
             let depthMin = null;
             let depthMax = null;
 
-            if (i < this.points.length - 1) {
-                // Leg to next point
+            if (hasOutgoingLeg) {
+                // Leg from this point to next point
                 distM = this.haversineDistance(this.points[i], this.points[i + 1]);
                 legTimeMin = distM / speedMetersPerMin;
                 bearing = this.calculateBearing(this.points[i], this.points[i + 1]);
 
                 // Find depth range for this segment in profileData
-                // Approximate range by distance
                 const startDist = dists[i];
                 const endDist = dists[i + 1];
 
@@ -1559,44 +2554,51 @@ class RouteProfiler {
                 }
             }
 
-            // Format time
+            // Format time (cumulative time when at this waypoint)
             const hours = Math.floor(cumulativeTimeMin / 60);
             const mins = Math.floor(cumulativeTimeMin % 60);
             const timeStr = `${hours}:${mins.toString().padStart(2, '0')}`;
 
-            // Format Pos as signed decimal degrees (Google Maps compatible)
             const lat = p[1].toFixed(4);
             const lon = p[0].toFixed(4);
+            const distStr = hasOutgoingLeg ? `${(distM / 1852).toFixed(2)} NM` : '--';
 
-            // Row HTML
+            let depthStr = '--';
+            if (depthMin !== null) {
+                depthStr = `${Math.abs(depthMin).toFixed(1)}m`;
+            }
+
+            const durMin = hasOutgoingLeg ? Math.round(legTimeMin) : '--';
+
             const tr = document.createElement('tr');
 
             if (isEnd) {
+                // Last point - END badge with total runtime, no outgoing leg
                 tr.innerHTML = `
-                    <td class="wp-time">${timeStr} <span style="font-size:0.6em; color:red">END</span></td>
+                    <td class="wp-time">${timeStr} <span style="font-size:0.65em; color:#dc2626; font-weight:bold">END</span></td>
                     <td class="wp-pos">${lat}<br>${lon}</td>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
+                    <td class="wp-val">--</td>
+                    <td class="wp-val">--</td>
+                    <td class="wp-val">--</td>
+                    <td>--</td>
+                    <td></td>
                 `;
             } else {
-                // Format distance based on selected unit
-                const distUnitEl = document.getElementById('dist-unit');
-                const distUnit = distUnitEl ? distUnitEl.value : 'm';
-                let distStr;
-                if (distUnit === 'm') {
-                    distStr = `${Math.round(distM)} m`;
-                } else if (distUnit === 'km') {
-                    distStr = `${(distM / 1000).toFixed(2)} km`;
-                } else {
-                    distStr = `${(distM / 1852).toFixed(2)} nm`;
-                }
+                // Has outgoing leg - show stats and contour toggle for leg DEPARTING from this point
+                const legIdx = i; // Leg index = waypoint index for outgoing leg
+                const leg = this.legData[legIdx];
+                const hasContour = leg && leg.hasContour;
+                const isContourMode = leg && leg.type === 'contour';
 
-                const durMin = Math.round(legTimeMin);
-                const depthStr = (depthMin !== null && depthMax !== null)
-                    ? `<span class="wp-depth">${Math.abs(depthMin).toFixed(0)}-${Math.abs(depthMax).toFixed(0)}m</span>`
-                    : '-';
+                const toggleHtml = `
+                    <label class="switch">
+                        <input type="checkbox"
+                            ${!hasContour ? 'disabled' : ''}
+                            ${isContourMode ? 'checked' : ''}
+                            onchange="profiler.setLegType(${legIdx}, this.checked ? 'contour' : 'bearing')">
+                        <span class="slider"></span>
+                    </label>
+                `;
 
                 tr.innerHTML = `
                     <td class="wp-time">${timeStr}</td>
@@ -1605,15 +2607,24 @@ class RouteProfiler {
                     <td class="wp-val">${Math.round(bearing)}°</td>
                     <td class="wp-val">${durMin} min</td>
                     <td>${depthStr}</td>
+                    <td>${toggleHtml}</td>
                 `;
             }
 
+            // Add click handler to pan to point
+            tr.onclick = (e) => {
+                // Ignore clicks on checkbox
+                if (e.target.tagName.toLowerCase() === 'input' || e.target.classList.contains('slider')) return;
+
+                map.flyTo({ center: p, zoom: 14 });
+            };
+
             tableBody.appendChild(tr);
 
+            // Add this leg's time for the next waypoint
             cumulativeTimeMin += legTimeMin;
-            if (!isEnd) totalDistNM += distM / 1852;
+            totalDistNM += (distM / 1852);
         }
-
         // Update total distance display in waypoint sidebar
         const totalDistDisplayEl = document.getElementById('total-dist-display');
         const distUnitEl = document.getElementById('dist-unit');
@@ -1669,6 +2680,13 @@ class RouteProfiler {
     // Chart Logic
     // ----------------------------------------------------------------
 
+    clearProfileChart() {
+        if (this.chart) {
+            this.chart.data.datasets[0].data = [];
+            this.chart.update();
+        }
+    }
+
     initChart() {
         const ctx = document.getElementById('profile-chart').getContext('2d');
 
@@ -1692,7 +2710,7 @@ class RouteProfiler {
                     label: 'Depth',
                     data: [],
                     borderColor: '#1e40af',
-                    backgroundColor: 'rgba(30, 64, 175, 0.2)',
+                    backgroundColor: 'rgba(30, 64, 175, 0.35)',
                     borderWidth: 2,
                     fill: true,
                     pointRadius: 0,
@@ -1709,6 +2727,26 @@ class RouteProfiler {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: {
+                    x: {
+                        type: 'number',
+                        easing: 'easeInOutQuart',
+                        duration: 1500,
+                        from: NaN, // Start from left
+                        delay(ctx) {
+                            // Stagger animation from left to right
+                            return ctx.type === 'data' && ctx.mode === 'default'
+                                ? ctx.dataIndex * 3
+                                : 0;
+                        }
+                    },
+                    y: {
+                        type: 'number',
+                        easing: 'easeInOutQuart',
+                        duration: 1500,
+                        from: 0
+                    }
+                },
                 interaction: {
                     intersect: false,
                     mode: 'index',

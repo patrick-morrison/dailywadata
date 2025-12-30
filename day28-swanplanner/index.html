@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Day 28 — Swan River Bathymetry</title>
+    <title>Day 29 — Swan River Bathymetry</title>
     <meta name="description" content="High-resolution multibeam bathymetry of the Swan and Canning river channels.">
 
     <!-- External Dependencies -->
@@ -23,7 +23,7 @@
         rel="stylesheet">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="styles.css?v=34">
+    <link rel="stylesheet" href="styles.css?v=38">
     <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
         src="https://umami.padmorrison.com/umami.js"></script>
 </head>
@@ -87,6 +87,7 @@
                         <th>Dir</th>
                         <th>Dur</th>
                         <th>Depth</th>
+                        <th>Con</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -124,6 +125,12 @@
                         <option value="knots">knots</option>
                         <option value="ms">m/s</option>
                     </select>
+                </div>
+                <div class="control-group">
+                    <label for="contour-assist-checkbox">
+                        <input type="checkbox" id="contour-assist-checkbox">
+                        Contour Assist
+                    </label>
                 </div>
                 <button class="finish-btn hidden" id="finish-btn">Stop</button>
                 <button class="shelf-btn" id="clear-btn" title="Clear Route" style="margin-left: 8px;">Clear</button>
@@ -164,8 +171,8 @@
             <div class="legend-title">Depth Scale</div>
             <div class="legend-bar" id="legend-gradient"></div>
             <div class="legend-labels">
-                <span>-2m</span>
-                <span>-12m</span>
+                <span>0m</span>
+                <span>-11m</span>
                 <span>-22m</span>
             </div>
         </div>
@@ -186,7 +193,7 @@
     </script>
 
     <!-- Application Script -->
-    <script src="main.js?v=34"></script>
+    <script src="main.js?v=89"></script>
 </body>
 
 </html>
