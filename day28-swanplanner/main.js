@@ -792,9 +792,18 @@ class RouteProfiler {
         this.isActive = false;
         this.points = [];
         this.markers = [];
+        this.legTypes = []; // 'bearing' or 'contour' for each leg
         this.chart = null;
         this.speed = 40; // Default speed value
         this.speedUnit = 'mmin'; // 'mmin', 'knots', or 'ms'
+
+        // Contour mode state
+        this.contourMode = false;
+        this.contourTolerance = 2;
+        this.contourTargetDepth = null;
+
+        // Edit mode state (on by default)
+        this.editMode = true;
 
         this.initUI();
     }
@@ -875,6 +884,217 @@ class RouteProfiler {
                 this.stopDrawing(); // Cancel without saving
             }
         });
+
+        // Edit Toggle Button
+        const editBtn = document.getElementById('edit-toggle-btn');
+        if (editBtn) {
+            editBtn.addEventListener('click', () => {
+                this.toggleEditMode();
+            });
+        }
+
+        // Start Profile Link (in empty state) - dynamic text
+        this.startLink = document.getElementById('start-profile-link');
+        this.emptyState = document.getElementById('empty-state');
+        if (this.startLink) {
+            this.startLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (this.isActive) {
+                    this.finishRoute();
+                } else {
+                    this.startDrawing();
+                }
+            });
+        }
+
+        // Set initial edit button state (since editMode is true by default)
+        const editBtnInit = document.getElementById('edit-toggle-btn');
+        if (editBtnInit) {
+            editBtnInit.classList.add('active');
+            editBtnInit.querySelector('.edit-label').textContent = 'editing';
+        }
+
+        // Mid-line insertion marker
+        this.midpointMarker = null;
+        this.pendingInsertSegment = null;
+
+        // Detect hover near route line for mid-line insertion
+        map.on('mousemove', (e) => {
+            // Only show if we have at least 2 points and edit mode is on
+            if (this.points.length < 2 || !this.editMode) {
+                this.hideMidpointMarker();
+                return;
+            }
+
+            // Find closest segment and distance
+            const { segmentIndex, distance } = this.findClosestSegment(e.lngLat);
+
+            if (distance < 25 && segmentIndex !== null) { // 25 pixels threshold
+                // Place marker at segment midpoint, not cursor position
+                const p1 = this.points[segmentIndex];
+                const p2 = this.points[segmentIndex + 1];
+                const midpoint = { lng: (p1[0] + p2[0]) / 2, lat: (p1[1] + p2[1]) / 2 };
+                this.showMidpointMarker(midpoint, segmentIndex);
+            } else {
+                this.hideMidpointMarker();
+            }
+        });
+    }
+
+    findClosestSegment(lngLat) {
+        const point = map.project([lngLat.lng, lngLat.lat]);
+        let minDist = Infinity;
+        let closestPoint = null;
+        let segmentIndex = null;
+        let closestT = 0;
+
+        for (let i = 0; i < this.points.length - 1; i++) {
+            const p1 = map.project(this.points[i]);
+            const p2 = map.project(this.points[i + 1]);
+
+            // Find closest point on segment
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const lenSq = dx * dx + dy * dy;
+
+            let t = 0;
+            if (lenSq > 0) {
+                t = Math.max(0, Math.min(1, ((point.x - p1.x) * dx + (point.y - p1.y) * dy) / lenSq));
+            }
+
+            const closest = { x: p1.x + t * dx, y: p1.y + t * dy };
+            const dist = Math.sqrt((point.x - closest.x) ** 2 + (point.y - closest.y) ** 2);
+
+            // Only consider if in middle 90% of segment (avoid endpoints)
+            if (dist < minDist && t >= 0.05 && t <= 0.95) {
+                minDist = dist;
+                closestPoint = map.unproject([closest.x, closest.y]);
+                segmentIndex = i;
+                closestT = t;
+            }
+        }
+
+        return { segmentIndex, closestPoint, distance: minDist, t: closestT };
+    }
+
+    showMidpointMarker(lngLat, segmentIndex) {
+        if (!this.midpointMarker) {
+            const el = document.createElement('div');
+            el.className = 'midpoint-marker';
+            el.innerHTML = '+';
+
+            // Use click for reliable insertion
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.insertWaypointAtSegment(this.pendingInsertSegment);
+            });
+
+            this.midpointMarker = new maplibregl.Marker({ element: el })
+                .setLngLat(lngLat)
+                .addTo(map);
+        } else {
+            this.midpointMarker.setLngLat(lngLat);
+        }
+        this.pendingInsertSegment = segmentIndex;
+    }
+
+    hideMidpointMarker() {
+        if (this.midpointMarker) {
+            this.midpointMarker.remove();
+            this.midpointMarker = null;
+        }
+        this.pendingInsertSegment = null;
+    }
+
+    async insertWaypointAtSegment(segmentIndex) {
+        if (segmentIndex === null || segmentIndex >= this.points.length - 1) return;
+
+        const lngLat = this.midpointMarker.getLngLat();
+        this.hideMidpointMarker();
+
+        // Insert point at segmentIndex + 1
+        const insertIndex = segmentIndex + 1;
+        this.points.splice(insertIndex, 0, [lngLat.lng, lngLat.lat]);
+        this.legTypes.splice(segmentIndex, 0, 'bearing'); // Insert a new bearing leg
+
+        // Recreate all markers to maintain correct indices
+        this.rebuildMarkers();
+        this.updateLineLayer();
+
+        // Regenerate profile if we have one
+        if (this.currentProfileData) {
+            await this.generateProfile();
+        }
+    }
+
+    async insertWaypointAtSegmentAndDrag(segmentIndex, mouseEvent) {
+        // Just insert the waypoint (simulating drag caused position issues)
+        await this.insertWaypointAtSegment(segmentIndex);
+    }
+
+    toggleEditMode() {
+        this.editMode = !this.editMode;
+
+        const editBtn = document.getElementById('edit-toggle-btn');
+        if (editBtn) {
+            if (this.editMode) {
+                editBtn.classList.add('active');
+                editBtn.querySelector('.edit-label').textContent = 'Lock';
+            } else {
+                editBtn.classList.remove('active');
+                editBtn.querySelector('.edit-label').textContent = 'Edit';
+                this.hideMidpointMarker();
+            }
+        }
+
+        // Update marker draggability
+        this.markers.forEach(marker => {
+            const el = marker.getElement();
+            if (this.editMode) {
+                marker.setDraggable(true);
+                el.style.cursor = 'grab';
+            } else {
+                marker.setDraggable(false);
+                el.style.cursor = 'default';
+            }
+        });
+    }
+
+    rebuildMarkers() {
+        // Remove all existing markers
+        this.markers.forEach(m => m.remove());
+        this.markers = [];
+
+        // Recreate markers for all points
+        this.points.forEach((point, index) => {
+            const el = document.createElement('div');
+            el.className = 'wp-marker';
+            el.setAttribute('data-label', `WP${index}`);
+            el.style.cursor = this.editMode ? 'grab' : 'default';
+
+            const marker = new maplibregl.Marker({ element: el, draggable: this.editMode })
+                .setLngLat(point)
+                .addTo(map);
+
+            marker._pointIndex = index;
+
+            marker.on('drag', () => {
+                const lngLat = marker.getLngLat();
+                this.points[marker._pointIndex] = [lngLat.lng, lngLat.lat];
+                this.updateLineLayer();
+            });
+
+            marker.on('dragend', async () => {
+                const lngLat = marker.getLngLat();
+                this.points[marker._pointIndex] = [lngLat.lng, lngLat.lat];
+                this.updateLineLayer();
+                if (this.points.length >= 2 && this.currentProfileData) {
+                    await this.generateProfile();
+                }
+            });
+
+            this.markers.push(marker);
+        });
     }
 
     startDrawing() {
@@ -888,6 +1108,11 @@ class RouteProfiler {
 
         this.startBtn.textContent = 'Complete Profile';
         this.startBtn.classList.add('complete-mode');
+
+        // Update sidebar link text
+        if (this.startLink) {
+            this.startLink.textContent = 'Complete Profile';
+        }
 
         this.finishBtn.classList.remove('hidden'); // Show Stop/Finish button in header too for clarity
         map.getCanvas().style.cursor = 'crosshair';
@@ -909,18 +1134,46 @@ class RouteProfiler {
     }
 
     addPoint(lngLat) {
+        const pointIndex = this.points.length;
         this.points.push([lngLat.lng, lngLat.lat]);
 
-        // Add visual marker
-        const el = document.createElement('div');
-        el.className = 'click-marker'; // Reuse existing style
-        el.style.background = '#dc2626'; // Red for route
+        // Record leg type for this leg (the leg from previous point to this one)
+        // First point has no leg, subsequent points create legs
+        if (this.points.length > 1) {
+            this.legTypes.push(this.contourMode ? 'contour' : 'bearing');
+        }
 
-        const marker = new maplibregl.Marker({ element: el })
+        // Add visual marker with WP label (draggable)
+        const el = document.createElement('div');
+        el.className = 'wp-marker';
+        el.setAttribute('data-label', `WP${pointIndex}`);
+
+        const marker = new maplibregl.Marker({ element: el, draggable: true })
             .setLngLat(lngLat)
             .addTo(map);
-        this.markers.push(marker);
 
+        // Store index on marker for reference in handlers
+        marker._pointIndex = pointIndex;
+
+        // Live update during drag
+        marker.on('drag', () => {
+            const lngLat = marker.getLngLat();
+            this.points[marker._pointIndex] = [lngLat.lng, lngLat.lat];
+            this.updateLineLayer();
+        });
+
+        // Regenerate profile after drag ends
+        marker.on('dragend', async () => {
+            const lngLat = marker.getLngLat();
+            this.points[marker._pointIndex] = [lngLat.lng, lngLat.lat];
+            this.updateLineLayer();
+            // Only regenerate if we have a complete route
+            if (this.points.length >= 2 && this.currentProfileData) {
+                await this.generateProfile();
+            }
+        });
+
+        this.markers.push(marker);
         this.updateLineLayer();
     }
 
@@ -976,6 +1229,11 @@ class RouteProfiler {
         this.startBtn.textContent = 'Start Profile';
         this.startBtn.classList.remove('complete-mode');
 
+        // Hide the sidebar empty state since we now have a profile
+        if (this.emptyState) {
+            this.emptyState.style.display = 'none';
+        }
+
         // Generate Profile
         await this.generateProfile();
     }
@@ -984,7 +1242,9 @@ class RouteProfiler {
         this.points = [];
         this.markers.forEach(m => m.remove());
         this.markers = [];
+        this.legTypes = [];
         this.currentProfileData = null;
+        this.contourTargetDepth = null;
 
         const source = map.getSource('route-line');
         if (source) {

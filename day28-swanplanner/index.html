@@ -23,7 +23,7 @@
         rel="stylesheet">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="styles.css?v=18">
+    <link rel="stylesheet" href="styles.css?v=23">
     <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
         src="https://umami.padmorrison.com/umami.js"></script>
 </head>
@@ -53,18 +53,25 @@
     </button>
 
     <!-- Waypoint Table (Right Sidebar) -->
-    <div class="waypoint-sidebar hidden" id="waypoint-sidebar">
+    <div class="waypoint-sidebar" id="waypoint-sidebar">
         <div class="waypoint-header">
             <h3>Route Plan</h3>
-            <div class="dist-display">
-                <span id="total-dist-display">0</span>
-                <select id="dist-unit-sidebar" class="dist-unit-select">
-                    <option value="m" selected>m</option>
-                    <option value="nm">nm</option>
-                    <option value="km">km</option>
-                </select>
+            <div class="header-controls">
+                <button class="edit-toggle-btn" id="edit-toggle-btn" title="Toggle Edit Mode">
+                    <span class="edit-icon">✏️</span>
+                    <span class="edit-label">Edit</span>
+                </button>
+                <div class="dist-display">
+                    <span id="total-dist-display">0</span>
+                    <select id="dist-unit-sidebar" class="dist-unit-select">
+                        <option value="m" selected>m</option>
+                        <option value="nm">nm</option>
+                        <option value="km">km</option>
+                    </select>
+                </div>
             </div>
         </div>
+
         <div class="depth-stats" id="depth-stats">
             <span><strong>Min:</strong> <span id="depth-min">--</span>m</span>
             <span><strong>Max:</strong> <span id="depth-max">--</span>m</span>
@@ -86,6 +93,10 @@
                     <!-- Rows injected via JS -->
                 </tbody>
             </table>
+            <div class="empty-state" id="empty-state">
+                <p>Click <a href="#" id="start-profile-link" class="start-profile-link">Start Profile</a> to begin
+                    planning</p>
+            </div>
         </div>
     </div>
 
@@ -100,7 +111,7 @@
     <div class="shelf" id="shelf">
         <div class="shelf-header">
             <div class="shelf-title">
-                <h3>Day 28 — Swan River Bathymetry</h3>
+                <h3>Day 28 — Swan River Route Planning</h3>
                 <span class="shelf-subtitle">Department of Transport Multibeam · <a href="../sources.html">Methods
                         →</a></span>
             </div>
@@ -175,7 +186,7 @@
     </script>
 
     <!-- Application Script -->
-    <script src="main.js?v=18"></script>
+    <script src="main.js?v=23"></script>
 </body>
 
 </html>

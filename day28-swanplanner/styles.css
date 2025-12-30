@@ -290,6 +290,52 @@ body {
     transform: scale(0.9);
 }
 
+/* Waypoint Markers with Labels */
+.wp-marker {
+    width: 14px;
+    height: 14px;
+    background: #dc2626;
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    cursor: grab;
+    z-index: 1000;
+}
+
+.wp-marker:active {
+    cursor: grabbing;
+}
+
+.wp-marker::before {
+    content: attr(data-label);
+    position: absolute;
+    top: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #dc2626;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/* Mid-line Insertion Button */
+.midpoint-marker {
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 20px;
+    font-weight: bold;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    transition: color 0.15s, transform 0.15s;
+    user-select: none;
+}
+
+.midpoint-marker:hover {
+    color: rgba(255, 255, 255, 0.9);
+    transform: scale(1.3);
+}
+
 /* POI markers */
 .poi-marker {
     pointer-events: none;
@@ -913,7 +959,7 @@ body {
     backdrop-filter: blur(8px);
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 600;
+    z-index: 1100;
     max-height: calc(100vh - 300px);
     display: flex;
     flex-direction: column;
@@ -937,6 +983,58 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.edit-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: transparent;
+    border: 1.5px solid rgba(100, 116, 139, 0.4);
+    border-radius: 16px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #64748b;
+    transition: all 0.2s ease;
+}
+
+.edit-toggle-btn:hover {
+    border-color: #dc2626;
+    color: #dc2626;
+}
+
+.edit-toggle-btn.active {
+    background: #dc2626;
+    color: white;
+    border-color: #dc2626;
+}
+
+.edit-toggle-btn .edit-icon {
+    display: none;
+}
+
+.edit-toggle-btn .edit-label {
+    text-transform: lowercase;
+}
+
+.start-profile-link {
+    color: #1e40af;
+    text-decoration: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.start-profile-link:hover {
+    text-decoration: underline;
 }
 
 .dist-display {
@@ -1056,4 +1154,92 @@ body {
 .wp-depth {
     color: #0284c7;
     font-weight: 600;
+}
+
+/* Contour Mode Controls */
+.contour-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, rgba(30, 64, 175, 0.08), rgba(4, 120, 87, 0.08));
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.contour-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.contour-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #1e40af;
+    cursor: pointer;
+}
+
+.toggle-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #334155;
+}
+
+.tolerance-control {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: #64748b;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.contour-controls:has(#contour-mode-toggle:checked) .tolerance-control {
+    opacity: 1;
+}
+
+.tolerance-control input {
+    width: 48px;
+    padding: 4px 6px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+.tolerance-control input:focus {
+    outline: none;
+    border-color: #1e40af;
+}
+
+/* Empty State */
+.empty-state {
+    padding: 24px 16px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+
+.empty-state p {
+    margin: 0;
+}
+
+.empty-state strong {
+    color: #1e40af;
+}
+
+/* Hide empty state when table has content */
+#waypoint-table tbody:not(:empty)~.empty-state {
+    display: none;
+}
+
+/* Leg Type Icon */
+.wp-type {
+    font-size: 0.9rem;
+    text-align: center;
+    width: 20px;
 }
