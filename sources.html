@@ -176,6 +176,40 @@
                 </div>
             </div>
 
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">29</span>
+                    <h3 class="day-name"><a href="day29-swanplanner/index.html">Swan River Route Planning</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">An interactive route planner for scooter diving in the Swan River. Plan waypoints, visualise depth profiles and get automatic time estimates based on speed. Aren Leishman also suggested contour navigation, which I implemented with a path finding algorithm. You can share plans via URL.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text">Swan-Canning Multibeam Survey (SC2010) from the <a
+                                href="https://catalogue.data.wa.gov.au/dataset/bathymetry-catalogue">Department
+                                of Transport WA</a>. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">BAG file hole-filled in QGIS, exported as GeoTIFF. Optimized for web
+                            by converting Float32 to Int16 (×100) at 25% resolution as a DEFLATE COG (731MB → 3.2MB).</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">MapLibre GL + deck.gl for rendering, Chart.js for depth profiles,
+                            GeoTIFF.js for COG streaming. A* pathfinding with depth tolerance for contour-following
+                            routes. Shareable URLs encode waypoints and configuration.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Patrick Morrison</div>
+                    </div>
+                </div>
+            </div>
+
             <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each
                 day is published.</p>
 
