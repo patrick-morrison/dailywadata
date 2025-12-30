@@ -194,7 +194,7 @@ body {
     bottom: 300px;
     /* Above the 280px shelf */
     left: 20px;
-    z-index: 600;
+    z-index: 3000;
     /* Ensure above POIs (500) */
 }
 
@@ -329,6 +329,7 @@ body {
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
     transition: color 0.15s, transform 0.15s;
     user-select: none;
+    z-index: 2000;
 }
 
 .midpoint-marker:hover {

@@ -198,6 +198,12 @@ async function checkHashLocation() {
 
 // Interactions
 map.on('mousemove', async (e) => {
+    // If profile sync is active, do NOT overwrite the display
+    // We check if the profiler has a hover distance set
+    if (window.profiler && window.profiler.hoverDistance !== null) {
+        return;
+    }
+
     const depth = await queryDepth(e.lngLat.lng, e.lngLat.lat);
     updateCursorDepth(depth, e.lngLat.lng, e.lngLat.lat);
 });
@@ -641,9 +647,17 @@ function formatCoordinates(lng, lat) {
     return { gmaps, display: dm };
 }
 
-function updateCursorDepth(depth, lng, lat) {
+function updateCursorDepth(depth, lng, lat, labelOverride = null) {
     const valueEl = document.getElementById('cursor-depth-value');
     const coordsEl = document.getElementById('cursor-coords');
+    const labelEl = document.getElementById('cursor-depth-label');
+
+    // Update label if element exists
+    if (labelEl) {
+        labelEl.textContent = labelOverride || 'At cursor:';
+        labelEl.style.color = labelOverride ? '#eab308' : ''; // Yellow when on profile
+    }
+
     if (depth !== null) {
         const r = formatCoordinates(lng, lat);
         valueEl.textContent = depth.toFixed(1);
@@ -918,18 +932,27 @@ class RouteProfiler {
         this.midpointMarker = null;
         this.pendingInsertSegment = null;
 
-        // Detect hover near route line for mid-line insertion
+        // Detect hover near route line for mid-line insertion and chart sync
         map.on('mousemove', (e) => {
-            // Only show if we have at least 2 points and edit mode is on
-            if (this.points.length < 2 || !this.editMode) {
+            // Check for manual dragging
+            if (this.isManualDragging) {
                 this.hideMidpointMarker();
+                this.syncChartHover(null); // Ensure chart sync is cleared
+                return;
+            }
+
+            // Only proceed if we have at least 2 points
+            if (this.points.length < 2) {
+                this.hideMidpointMarker();
+                this.syncChartHover(null);
                 return;
             }
 
             // Find closest segment and distance
-            const { segmentIndex, distance } = this.findClosestSegment(e.lngLat);
+            const { segmentIndex, distance, t } = this.findClosestSegment(e.lngLat);
 
-            if (distance < 25 && segmentIndex !== null) { // 25 pixels threshold
+            // Midpoint Marker Logic (Only in Edit Mode)
+            if (this.editMode && distance < 40 && segmentIndex !== null) {
                 // Place marker at segment midpoint, not cursor position
                 const p1 = this.points[segmentIndex];
                 const p2 = this.points[segmentIndex + 1];
@@ -938,7 +961,66 @@ class RouteProfiler {
             } else {
                 this.hideMidpointMarker();
             }
+
+            // Chart Sync Logic (Always active if profile exists)
+            if (distance < 30 && segmentIndex !== null && this.currentProfileData) {
+                // Calculate total distance to the cursor point on the line
+                let distSum = 0;
+                for (let i = 0; i < segmentIndex; i++) {
+                    distSum += this.haversineDistance(this.points[i], this.points[i + 1]);
+                }
+                const segLen = this.haversineDistance(this.points[segmentIndex], this.points[segmentIndex + 1]);
+                const currentDist = distSum + (segLen * (t || 0));
+
+                this.syncChartHover(currentDist);
+            } else {
+                this.syncChartHover(null);
+            }
         });
+    }
+
+    syncChartHover(distanceM) {
+        if (!this.chart || !this.currentProfileData) return;
+
+        if (distanceM === null) {
+            this.hoverDistance = null; // Clear line
+            this.chart.setActiveElements([], { x: 0, y: 0 });
+            this.chart.update();
+            return;
+        }
+
+        // Find closest data point
+        let closestIdx = 0;
+        let minDiff = Infinity;
+        const data = this.chart.data.datasets[0].data;
+
+        // Binary search optional, linear scan fine for small datasets (~150 points)
+        for (let i = 0; i < data.length; i++) {
+            const diff = Math.abs(data[i].x - distanceM);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestIdx = i;
+            }
+        }
+
+        // Snap the vertical line to the exact data point location
+        this.hoverDistance = data[closestIdx].x;
+
+        // Activate tooltip
+        const meta = this.chart.getDatasetMeta(0);
+        const rect = this.chart.canvas.getBoundingClientRect();
+        const point = meta.data[closestIdx];
+
+        if (point) {
+            // Trigger tooltip AND highlight the point on the chart
+            const activeElements = [{ datasetIndex: 0, index: closestIdx }];
+            this.chart.setActiveElements(activeElements);
+            this.chart.tooltip.setActiveElements(activeElements, { x: point.x, y: point.y });
+            this.chart.update();
+
+            // Update top bar to show profile depth
+            updateCursorDepth(point.depth, point.lng, point.lat, 'On Profile:');
+        }
     }
 
     findClosestSegment(lngLat) {
@@ -983,10 +1065,17 @@ class RouteProfiler {
             el.className = 'midpoint-marker';
             el.innerHTML = '+';
 
-            // Use click for reliable insertion
-            el.addEventListener('click', (e) => {
+            // Use mousedown to insert and immediately start dragging
+            el.addEventListener('mousedown', (e) => {
                 e.stopPropagation();
-                this.insertWaypointAtSegment(this.pendingInsertSegment);
+                e.preventDefault(); // Prevent map pan
+
+                // Insert point (skip profile generation for now)
+                const newIndex = segmentIndex + 1;
+                this.insertWaypointAtSegment(this.pendingInsertSegment, true);
+
+                // Start dragging the new point immediately
+                this.startManualDrag(newIndex);
             });
 
             this.midpointMarker = new maplibregl.Marker({ element: el })
@@ -1006,7 +1095,7 @@ class RouteProfiler {
         this.pendingInsertSegment = null;
     }
 
-    async insertWaypointAtSegment(segmentIndex) {
+    async insertWaypointAtSegment(segmentIndex, skipProfile = false) {
         if (segmentIndex === null || segmentIndex >= this.points.length - 1) return;
 
         const lngLat = this.midpointMarker.getLngLat();
@@ -1021,15 +1110,46 @@ class RouteProfiler {
         this.rebuildMarkers();
         this.updateLineLayer();
 
-        // Regenerate profile if we have one
-        if (this.currentProfileData) {
+        // Regenerate profile if we have one (unless skipped)
+        if (!skipProfile && this.currentProfileData) {
             await this.generateProfile();
         }
     }
 
-    async insertWaypointAtSegmentAndDrag(segmentIndex, mouseEvent) {
-        // Just insert the waypoint (simulating drag caused position issues)
-        await this.insertWaypointAtSegment(segmentIndex);
+    startManualDrag(pointIndex) {
+        this.isManualDragging = true;
+        this.syncChartHover(null); // Clear chart sync
+
+        // Explicitly remove hover marker to prevent orphans
+        if (this.hoverMarker) {
+            this.hoverMarker.remove();
+            this.hoverMarker = null;
+        }
+
+        map.dragPan.disable();
+
+        const onDragMove = (e) => {
+            const lngLat = e.lngLat;
+            this.points[pointIndex] = [lngLat.lng, lngLat.lat];
+            this.updateLineLayer();
+            if (this.markers[pointIndex]) {
+                this.markers[pointIndex].setLngLat(lngLat);
+            }
+        };
+
+        const onDragEnd = async () => {
+            this.isManualDragging = false;
+            map.dragPan.enable();
+            map.off('mousemove', onDragMove);
+            map.off('mouseup', onDragEnd);
+
+            if (this.currentProfileData) {
+                await this.generateProfile();
+            }
+        };
+
+        map.on('mousemove', onDragMove);
+        map.on('mouseup', onDragEnd);
     }
 
     toggleEditMode() {
@@ -1078,10 +1198,24 @@ class RouteProfiler {
 
             marker._pointIndex = index;
 
+            marker.on('dragstart', () => {
+                this.syncChartHover(null); // Clear chart sync
+                if (this.hoverMarker) {
+                    this.hoverMarker.remove();
+                    this.hoverMarker = null;
+                }
+            });
+
             marker.on('drag', () => {
                 const lngLat = marker.getLngLat();
                 this.points[marker._pointIndex] = [lngLat.lng, lngLat.lat];
                 this.updateLineLayer();
+
+                // Redundant cleanup just in case
+                if (this.hoverMarker) {
+                    this.hoverMarker.remove();
+                    this.hoverMarker = null;
+                }
             });
 
             marker.on('dragend', async () => {
@@ -1679,7 +1813,7 @@ class RouteProfiler {
 
                                 if (point && point.lat && point.lng) {
                                     // Update cursor depth display in legend
-                                    updateCursorDepth(point.depth, point.lng, point.lat);
+                                    updateCursorDepth(point.depth, point.lng, point.lat, 'On Profile:');
 
                                     // Create/Update marker on map
                                     const el = document.createElement('div');
@@ -1689,6 +1823,7 @@ class RouteProfiler {
                                     el.style.border = '2px solid white';
                                     el.style.borderRadius = '50%';
                                     el.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+                                    el.style.zIndex = '500'; // Keep behind midpoint marker (2000) and WPs (1000)
 
                                     if (!this.hoverMarker) {
                                         this.hoverMarker = new maplibregl.Marker({ element: el })
@@ -1757,7 +1892,48 @@ class RouteProfiler {
                     ctx.stroke();
                     ctx.restore();
                 }
-            }]
+            }, {
+                    // Plugin to draw subtle blue line on hover
+                    id: 'hoverLine',
+                    afterDraw: (chart) => {
+                        if (this.hoverDistance === null || this.hoverDistance === undefined) return;
+
+                        const ctx = chart.ctx;
+                        const xAxis = chart.scales.x;
+                        const yAxis = chart.scales.y;
+
+                        // Get selected distance unit
+                        const distUnitEl = document.getElementById('dist-unit');
+                        const distUnit = distUnitEl ? distUnitEl.value : 'm';
+
+                        // Convert hover distance to chart units
+                        let xVal;
+                        if (distUnit === 'nm') {
+                            xVal = this.hoverDistance * 0.000539957;
+                        } else if (distUnit === 'km') {
+                            xVal = this.hoverDistance / 1000;
+                        } else {
+                            xVal = this.hoverDistance;
+                        }
+
+                        const x = xAxis.getPixelForValue(xVal);
+
+                        // Ensure line is within chart area
+                        if (x < xAxis.left || x > xAxis.right) return;
+
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.lineWidth = 0.5; // Thinner line
+                        ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)'; // Blue-500, higher opacity
+                        ctx.setLineDash([]); // Solid line
+
+                        ctx.moveTo(x, yAxis.top);
+                        ctx.lineTo(x, yAxis.bottom);
+
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }]
         });
     }
 
