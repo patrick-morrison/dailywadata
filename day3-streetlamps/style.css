@@ -208,11 +208,11 @@ body {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.toggle-label input[type="checkbox"]:checked + .toggle-slider {
+.toggle-label input[type="checkbox"]:checked+.toggle-slider {
     background: #d97706;
 }
 
-.toggle-label input[type="checkbox"]:checked + .toggle-slider::before {
+.toggle-label input[type="checkbox"]:checked+.toggle-slider::before {
     transform: translateX(16px);
 }
 

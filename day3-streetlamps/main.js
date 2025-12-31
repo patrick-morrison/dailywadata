@@ -321,8 +321,7 @@ function calculateBounds(geojson) {
     let minLng = Infinity, maxLng = -Infinity;
     let minLat = Infinity, maxLat = -Infinity;
 
-    for (const feature of geojson.features)
-    {
+    for (const feature of geojson.features) {
         const [lng, lat] = feature.geometry.coordinates;
         minLng = Math.min(minLng, lng);
         maxLng = Math.max(maxLng, lng);
@@ -395,8 +394,7 @@ function queryNearestLight(lng, lat) {
     // Simple distance check (only check if within reasonable range)
     const maxDist = 0.001; // roughly 100m in degrees
 
-    for (const feature of state.geojsonData.features)
-        {
+    for (const feature of state.geojsonData.features) {
         // Only consider lights that are currently visible
         const bulbType = normalizeBulbType(feature.properties.bulb_type);
         if (state.visibleBulbTypes[bulbType] === false) {
