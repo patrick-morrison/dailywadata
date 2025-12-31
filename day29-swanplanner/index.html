@@ -23,7 +23,7 @@
         rel="stylesheet">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="styles.css?v=41">
+    <link rel="stylesheet" href="styles.css?v=60">
     <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
         src="https://umami.padmorrison.com/umami.js"></script>
 </head>
@@ -110,6 +110,12 @@
 
     <!-- Bottom Shelf -->
     <div class="shelf" id="shelf">
+        <!-- Tab Bar (Mobile Only) -->
+        <div class="shelf-tabs" id="shelf-tabs">
+            <button class="shelf-tab active" data-tab="profile">Profile</button>
+            <button class="shelf-tab" data-tab="planner">Planner</button>
+        </div>
+
         <div class="shelf-header">
             <div class="shelf-title">
                 <h3>Day 29 — Swan River Route Planning</h3>
@@ -118,49 +124,65 @@
             </div>
             <div class="shelf-controls">
                 <div class="control-group">
-                    <span id="speed-desc" class="speed-desc"></span>
-                    <label>Speed</label>
+                    <label><span class="speed-full"></span>Speed</span><span class="speed-short">Sp.</span></label>
                     <input type="number" id="speed-input" value="40" min="1" max="100" step="1">
                     <select id="speed-unit">
                         <option value="mmin" selected>m/min</option>
                         <option value="knots">knots</option>
                         <option value="ms">m/s</option>
                     </select>
+                    <span id="speed-desc" class="speed-desc"></span>
                 </div>
                 <div class="control-group">
                     <label for="contour-assist-checkbox">
                         <input type="checkbox" id="contour-assist-checkbox" checked>
-                        Contour Assist
+                        Contour<span class="assist-text"> Assist</span>
                     </label>
                 </div>
                 <button class="finish-btn hidden" id="finish-btn">Stop</button>
-                <button class="shelf-btn" id="clear-btn" title="Clear Route" style="margin-left: 8px;">Clear</button>
+                <button class="shelf-btn" id="clear-btn" title="Clear Route" style="margin-left: 8px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                    <span class="btn-text">Clear</span>
+                </button>
                 <button class="share-btn" id="share-btn" title="Copy link to route">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                     </svg>
-                    Share
+                    <span class="btn-text">Share</span>
                 </button>
                 <button class="shelf-close-btn" id="shelf-close-btn" style="display: none;"
                     title="Close Profile">×</button>
             </div>
         </div>
-        <div class="chart-container">
-            <canvas id="profile-chart"></canvas>
+        <!-- Profile Tab Panel -->
+        <div class="shelf-tab-panel active" data-panel="profile">
+            <div class="chart-container">
+                <canvas id="profile-chart"></canvas>
 
-            <!-- Distance Unit Selector -->
-            <div class="chart-dist-unit">
-                <select id="dist-unit">
-                    <option value="m" selected>m</option>
-                    <option value="nm">nm</option>
-                    <option value="km">km</option>
-                </select>
+                <!-- Distance Unit Selector -->
+                <div class="chart-dist-unit">
+                    <select id="dist-unit">
+                        <option value="m" selected>m</option>
+                        <option value="nm">nm</option>
+                        <option value="km">km</option>
+                    </select>
+                </div>
+
+                <!-- Start Overlay -->
+                <div class="start-overlay" id="start-overlay">
+                    <button class="start-btn" id="start-btn">Start Profile</button>
+                </div>
             </div>
+        </div>
 
-            <!-- Start Overlay -->
-            <div class="start-overlay" id="start-overlay">
-                <button class="start-btn" id="start-btn">Start Profile</button>
+        <!-- Planner Tab Panel (Mobile Only) -->
+        <div class="shelf-tab-panel" data-panel="planner">
+            <div class="planner-mobile-content" id="planner-mobile-content">
+                <!--  Waypoint table cloned here on mobile -->
             </div>
         </div>
     </div>
@@ -201,7 +223,7 @@
     </script>
 
     <!-- Application Script -->
-    <script src="main.js?v=102"></script>
+    <script src="main.js?v=110"></script>
 </body>
 
 </html>

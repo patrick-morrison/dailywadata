@@ -239,8 +239,8 @@ map.on('click', async (e) => {
 
     // Only show popup for touch events, not mouse clicks
     const isTouch = e.originalEvent?.pointerType === 'touch' ||
-                    e.originalEvent?.touches !== undefined ||
-                    e.originalEvent?.type?.startsWith('touch');
+        e.originalEvent?.touches !== undefined ||
+        e.originalEvent?.type?.startsWith('touch');
     if (!isTouch) return;
 
     const depth = await queryDepth(e.lngLat.lng, e.lngLat.lat);
@@ -974,7 +974,7 @@ class RouteProfiler {
         this.updateLineLayer();
 
         if (this.points.length >= 2) {
-        // Don't generate profile in constructor - wait for user to complete
+            // Don't generate profile in constructor - wait for user to complete
         }
     }
 
@@ -1275,8 +1275,8 @@ class RouteProfiler {
             el.className = 'midpoint-marker';
             el.innerHTML = '+';
 
-            // Use mousedown to insert and immediately start dragging
-            el.addEventListener('mousedown', (e) => {
+            // Handle both mouse and touch for insertion
+            const handleInsert = (e) => {
                 e.stopPropagation();
                 e.preventDefault(); // Prevent map pan
 
@@ -1286,7 +1286,10 @@ class RouteProfiler {
 
                 // Start dragging the new point immediately
                 this.startManualDrag(newIndex);
-            });
+            };
+
+            el.addEventListener('mousedown', handleInsert);
+            el.addEventListener('touchstart', handleInsert, { passive: false });
 
             this.midpointMarker = new maplibregl.Marker({ element: el })
                 .setLngLat(lngLat)
@@ -3448,3 +3451,219 @@ const syncAxesPlugin = {
     }
 };
 Chart.register(syncAxesPlugin);
+
+// ============================================
+// Mobile Tab Navigation
+// ============================================
+
+function initializeMobileTabs() {
+    const tabs = document.querySelectorAll('.shelf-tab');
+    const panels = document.querySelectorAll('.shelf-tab-panel');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetPanel = tab.dataset.tab;
+
+            // Update tab active states
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            // Update panel active states
+            panels.forEach(p => {
+                if (p.dataset.panel === targetPanel) {
+                    p.classList.add('active');
+                } else {
+                    p.classList.remove('active');
+                }
+            });
+        });
+    });
+
+    // Clone waypoint sidebar content to mobile planner panel
+    function syncMobilePlanner() {
+        const sidebar = document.getElementById('waypoint-sidebar');
+        const mobileContent = document.getElementById('planner-mobile-content');
+
+        if (sidebar && mobileContent && window.innerWidth <= 768) {
+            // Clone the waypoint content
+            const waypointHeader = sidebar.querySelector('.waypoint-header');
+            const depthStats = sidebar.querySelector('.depth-stats');
+            const waypointContent = sidebar.querySelector('.waypoint-content');
+
+            // Clear mobile content
+            mobileContent.innerHTML = '';
+
+            // Clone elements
+            if (waypointHeader) {
+                const headerClone = waypointHeader.cloneNode(true);
+                mobileContent.appendChild(headerClone);
+
+                // Re-attach event listeners for cloned buttons
+                const editBtn = headerClone.querySelector('#edit-toggle-btn');
+                if (editBtn && window.profiler) {
+                    editBtn.addEventListener('click', () => window.profiler.toggleEditMode());
+                }
+
+                const distUnitSelect = headerClone.querySelector('#dist-unit-sidebar');
+                if (distUnitSelect && window.profiler) {
+                    distUnitSelect.addEventListener('change', (e) => {
+                        const mainSelect = document.getElementById('dist-unit');
+                        if (mainSelect) {
+                            mainSelect.value = e.target.value;
+                            mainSelect.dispatchEvent(new Event('change'));
+                        }
+                    });
+                }
+            }
+
+            if (depthStats) {
+                mobileContent.appendChild(depthStats.cloneNode(true));
+            }
+
+            if (waypointContent) {
+                const contentClone = waypointContent.cloneNode(true);
+                mobileContent.appendChild(contentClone);
+
+                // Re-attach start profile link event listener
+                const startLink = contentClone.querySelector('#start-profile-link');
+                if (startLink && window.profiler) {
+                    startLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        if (window.profiler.isActive) {
+                            window.profiler.finishRoute();
+                        } else {
+                            window.profiler.startDrawing();
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    // Sync on initialization and window resize
+    syncMobilePlanner();
+    window.addEventListener('resize', syncMobilePlanner);
+
+    // Also sync when waypoint table updates (use MutationObserver)
+    const sidebar = document.getElementById('waypoint-sidebar');
+    if (sidebar) {
+        const observer = new MutationObserver(syncMobilePlanner);
+        observer.observe(sidebar, { childList: true, subtree: true });
+    }
+}
+
+// ============================================
+// Touch Optimizations
+// ============================================
+
+function initializeTouchOptimizations() {
+    // Improve touch behavior for chart
+    const canvas = document.getElementById('profile-chart');
+    if (canvas) {
+        // Allow touch events to work with Chart.js tooltips
+        canvas.style.touchAction = 'none';
+
+        let touchTimeout;
+        canvas.addEventListener('touchstart', (e) => {
+            // Show tooltip on touch
+            if (e.touches.length === 1 && window.profiler && window.profiler.chart) {
+                const touch = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+
+                // Create a synthetic mousemove event for Chart.js
+                const mouseEvent = new MouseEvent('mousemove', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    bubbles: true
+                });
+                canvas.dispatchEvent(mouseEvent);
+            }
+        });
+
+        canvas.addEventListener('touchend', () => {
+            // Clear tooltip after a delay
+            touchTimeout = setTimeout(() => {
+                if (window.profiler && window.profiler.chart) {
+                    window.profiler.chart.setActiveElements([]);
+                    window.profiler.chart.tooltip.setActiveElements([]);
+                    window.profiler.chart.update('none');
+                }
+            }, 2000);
+        });
+    }
+
+    // Improve waypoint marker touch targets
+    function enhanceWaypointTouch() {
+        const wpMarkers = document.querySelectorAll('.wp-marker');
+        wpMarkers.forEach(marker => {
+            marker.style.cursor = 'grab';
+
+            // Add touch event listeners for dragging
+            let isDragging = false;
+
+            marker.addEventListener('touchstart', (e) => {
+                isDragging = true;
+                marker.style.cursor = 'grabbing';
+                e.preventDefault(); // Prevent scroll while dragging
+            });
+
+            marker.addEventListener('touchend', () => {
+                isDragging = false;
+                marker.style.cursor = 'grab';
+            });
+        });
+    }
+
+    // Run on load and periodically (markers are added dynamically)
+    enhanceWaypointTouch();
+    setInterval(enhanceWaypointTouch, 1000);
+}
+
+// ============================================
+// Swipe Gesture for Tab Switching
+// ============================================
+
+function initializeSwipeGestures() {
+    const shelf = document.getElementById('shelf');
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    if (!shelf || window.innerWidth > 768) return;
+
+    shelf.addEventListener('touchstart', (e) => {
+        touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    shelf.addEventListener('touchend', (e) => {
+        touchEndX = e.changedTouches[0].screenX;
+        handleSwipe();
+    }, { passive: true });
+
+    function handleSwipe() {
+        const swipeThreshold = 50;
+        const diff = touchStartX - touchEndX;
+
+        if (Math.abs(diff) < swipeThreshold) return;
+
+        const tabs = document.querySelectorAll('.shelf-tab');
+        const activeTab = document.querySelector('.shelf-tab.active');
+        const activeIndex = Array.from(tabs).indexOf(activeTab);
+
+        if (diff > 0 && activeIndex < tabs.length - 1) {
+            // Swipe left - next tab
+            tabs[activeIndex + 1].click();
+        } else if (diff < 0 && activeIndex > 0) {
+            // Swipe right - previous tab
+            tabs[activeIndex - 1].click();
+        }
+    }
+}
+
+// Initialize all mobile features
+document.addEventListener('DOMContentLoaded', () => {
+    initializeMobileTabs();
+    initializeTouchOptimizations();
+    initializeSwipeGestures();
+});

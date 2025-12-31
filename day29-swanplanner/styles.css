@@ -825,6 +825,15 @@ body {
     margin-right: 8px;
 }
 
+/* Desktop: show full 'Speed', hide 'Sp.' */
+.speed-full {
+    display: inline;
+}
+
+.speed-short {
+    display: none;
+}
+
 .shelf-close-btn {
     background: none;
     border: none;
@@ -881,22 +890,308 @@ body {
     content: 'Distance:';
 }
 
+/* ============================================
+   Tab Navigation (Mobile)
+   ============================================ */
+
+.shelf-tabs {
+    display: none;
+    /* Hidden on desktop */
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background: #f8fafc;
+}
+
+.shelf-tab {
+    flex: 1;
+    padding: 14px 20px;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 44px;
+    /* Touch-friendly */
+}
+
+.shelf-tab.active {
+    color: #1e40af;
+    border-bottom-color: #1e40af;
+    background: rgba(30, 64, 175, 0.05);
+}
+
+.shelf-tab-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.shelf-tab-panel.active {
+    opacity: 1;
+    pointer-events: auto;
+    position: relative;
+}
+
+/* Hide inactive panels on mobile */
 @media (max-width: 768px) {
-    .draw-btn {
-        bottom: 220px;
-        /* Higher on mobile */
+    .shelf-tab-panel:not(.active) {
+        display: none;
+    }
+}
+
+.planner-mobile-content {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Desktop: ensure button text is visible, hide icons */
+.btn-text {
+    display: inline;
+}
+
+.shelf-btn svg,
+.share-btn svg {
+    display: none;
+}
+
+
+@media (max-width: 768px) {
+
+    /* Show tab navigation on mobile */
+    .shelf-tabs {
+        display: flex;
     }
 
+    /* Hide desktop sidebar on mobile */
+    .waypoint-sidebar {
+        display: none !important;
+    }
+
+    /* Map takes more space on mobile */
+    #map {
+        height: calc(100% - 400px);
+        /* Account for taller shelf */
+    }
+
+    /* Shelf adjustments for mobile */
     .shelf {
-        height: 320px;
+        height: 400px;
+        /* Taller for better content area */
     }
 
     .shelf-header {
-        padding: 12px 16px;
+        padding: 8px 10px;
+        flex-wrap: wrap;
+        gap: 6px;
     }
 
+    .shelf-title h3 {
+        font-size: 0.95rem;
+    }
+
+    .shelf-subtitle {
+        font-size: 0.6rem;
+    }
+
+    .shelf-controls {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .control-group {
+        font-size: 0.7rem;
+    }
+
+    .control-group label {
+        white-space: nowrap;
+        /* Keep on one line */
+        font-size: 0.7rem;
+    }
+
+    .control-group input,
+    .control-group select {
+        font-size: 0.8rem;
+        padding: 3px 6px;
+    }
+
+    /* Smaller speed input on mobile */
+    #speed-input {
+        width: 50px;
+        /* Slightly wider for better usability */
+    }
+
+    /* Hide 'Assist' text on mobile */
+    .assist-text {
+        display: none;
+    }
+
+    /* Abbreviated speed label on mobile */
+    .speed-full {
+        display: none;
+    }
+
+    .speed-short {
+        display: inline;
+    }
+
+    /* Icon-only square buttons on mobile */
+    .shelf-btn,
+    .finish-btn {
+        min-height: 32px;
+        width: 32px;
+        padding: 6px;
+        font-size: 0.7rem;
+        margin-left: 0 !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .shelf-btn .btn-text,
+    .share-btn .btn-text {
+        display: none;
+        /* Hide text on mobile, show icon only */
+    }
+
+    .shelf-btn svg {
+        display: inline-block;
+        /* Show icon on mobile */
+        width: 14px;
+        height: 14px;
+        margin: 0;
+    }
+
+    .share-btn {
+        min-height: 32px;
+        width: 32px;
+        padding: 6px;
+        font-size: 0.7rem;
+        gap: 0;
+        margin-left: 0 !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .share-btn svg {
+        display: inline-block;
+        /* Show icon on mobile */
+        width: 14px;
+        height: 14px;
+        margin: 0;
+    }
+
+    .start-btn {
+        min-height: 44px;
+        padding: 14px 28px;
+        font-size: 1.2rem;
+    }
+
+    /* Chart in mobile */
     .chart-container {
-        padding: 10px;
+        padding: 8px;
+        padding-bottom: 32px;
+        /* Space for distance unit */
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Distance unit positioning on mobile */
+    .chart-dist-unit {
+        bottom: 8px;
+        /* Closer to bottom on mobile */
+        font-size: 0.65rem;
+    }
+
+    .chart-dist-unit select {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+    }
+
+    /* Loading overlay centered on visible map area */
+    .loading-overlay {
+        top: calc((100% - 400px) / 2);
+        /* Center vertically in map area */
+        transform: translate(-50%, -50%);
+    }
+
+    /* Legend positioning on mobile */
+    .legend {
+        bottom: 420px;
+        /* Above taller shelf */
+        left: 10px;
+    }
+
+    .legend-bar {
+        width: 140px;
+    }
+
+    /* Location button positioning */
+    .location-btn {
+        top: 12px;
+        right: 12px;
+        width: 40px;
+        height: 40px;
+    }
+
+    /* Very compact speed description on mobile */
+    .speed-desc {
+        display: block;
+        font-size: 0.6rem;
+        width: auto;
+        text-align: left;
+        margin-right: 4px;
+        opacity: 0.7;
+    }
+
+    /* Improve waypoint markers for touch */
+    .wp-marker {
+        width: 18px;
+        height: 18px;
+    }
+
+    .midpoint-marker {
+        font-size: 28px;
+        /* Bigger touch target */
+    }
+
+    /* Mobile planner panel styles */
+    .planner-mobile-content {
+        padding: 0;
+    }
+
+    .planner-mobile-content .waypoint-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #f8fafc;
+    }
+
+    .planner-mobile-content .waypoint-content {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .planner-mobile-content #waypoint-table {
+        font-size: 0.7rem;
+    }
+
+    .planner-mobile-content .depth-stats {
+        font-size: 0.7rem;
     }
 }
 
@@ -957,6 +1252,11 @@ body {
 .finish-btn.hidden,
 .shelf-btn.hidden {
     display: none;
+}
+
+/* Hide finish button - redundant with Complete Route button */
+.finish-btn {
+    display: none !important;
 }
 
 /* Start Overlay */
@@ -1193,19 +1493,47 @@ body {
 
 /* Column widths: Time, Pos, Dist, Dir, Dur, Depth, Con */
 #waypoint-table th:nth-child(1),
-#waypoint-table td:nth-child(1) { width: 42px; } /* Time */
+#waypoint-table td:nth-child(1) {
+    width: 42px;
+}
+
+/* Time */
 #waypoint-table th:nth-child(2),
-#waypoint-table td:nth-child(2) { width: 68px; } /* Pos */
+#waypoint-table td:nth-child(2) {
+    width: 68px;
+}
+
+/* Pos */
 #waypoint-table th:nth-child(3),
-#waypoint-table td:nth-child(3) { width: 50px; } /* Dist */
+#waypoint-table td:nth-child(3) {
+    width: 50px;
+}
+
+/* Dist */
 #waypoint-table th:nth-child(4),
-#waypoint-table td:nth-child(4) { width: 38px; } /* Dir */
+#waypoint-table td:nth-child(4) {
+    width: 38px;
+}
+
+/* Dir */
 #waypoint-table th:nth-child(5),
-#waypoint-table td:nth-child(5) { width: 38px; } /* Dur */
+#waypoint-table td:nth-child(5) {
+    width: 38px;
+}
+
+/* Dur */
 #waypoint-table th:nth-child(6),
-#waypoint-table td:nth-child(6) { width: 45px; } /* Depth */
+#waypoint-table td:nth-child(6) {
+    width: 45px;
+}
+
+/* Depth */
 #waypoint-table th:nth-child(7),
-#waypoint-table td:nth-child(7) { width: 32px; } /* Con */
+#waypoint-table td:nth-child(7) {
+    width: 32px;
+}
+
+/* Con */
 
 #waypoint-table th {
     background: #f1f5f9;
