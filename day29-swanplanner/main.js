@@ -150,6 +150,9 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom
 // ============================================
 
 // Map Load
+// Track when bathymetry data is ready
+let bathymetryReady = null;
+
 map.on('load', () => {
     initializeLegend();
 
@@ -173,7 +176,8 @@ map.on('load', () => {
         }
     });
 
-    loadBathymetry();
+    // Store promise so we can await it elsewhere
+    bathymetryReady = loadBathymetry();
 
     // Add POIs
     const pois = window.PAGE_CONFIG?.pois || [];
@@ -921,10 +925,17 @@ class MinHeap {
         return this.heap.length === 0;
     }
 
+    // Deterministic comparison: compare f-score, then h-score (heuristic) as tie-breaker
+    compare(a, b) {
+        if (a.f !== b.f) return a.f < b.f;
+        // Tie-breaker: prefer node closer to goal (lower h)
+        return a.h < b.h;
+    }
+
     bubbleUp(index) {
         while (index > 0) {
             const parentIndex = Math.floor((index - 1) / 2);
-            if (this.heap[parentIndex].f <= this.heap[index].f) break;
+            if (!this.compare(this.heap[index], this.heap[parentIndex])) break;
             [this.heap[parentIndex], this.heap[index]] = [this.heap[index], this.heap[parentIndex]];
             index = parentIndex;
         }
@@ -936,10 +947,10 @@ class MinHeap {
             let rightChild = 2 * index + 2;
             let smallest = index;
 
-            if (leftChild < this.heap.length && this.heap[leftChild].f < this.heap[smallest].f) {
+            if (leftChild < this.heap.length && this.compare(this.heap[leftChild], this.heap[smallest])) {
                 smallest = leftChild;
             }
-            if (rightChild < this.heap.length && this.heap[rightChild].f < this.heap[smallest].f) {
+            if (rightChild < this.heap.length && this.compare(this.heap[rightChild], this.heap[smallest])) {
                 smallest = rightChild;
             }
 
@@ -2546,7 +2557,8 @@ class RouteProfiler {
 
         // MinHeap for Open Set
         const minHeap = new MinHeap();
-        minHeap.push({ x: startX, y: startY, idx: startIdx, g: 0, f: 0, parent: null });
+        const startH = Math.sqrt((startX - endX) ** 2 + (startY - endY) ** 2);
+        minHeap.push({ x: startX, y: startY, idx: startIdx, g: 0, h: startH, f: startH, parent: null });
 
         let iterations = 0;
 
@@ -2620,7 +2632,7 @@ class RouteProfiler {
                 if (g < gScores[nIdx]) {
                     gScores[nIdx] = g;
                     const h = Math.sqrt((nx - endX) ** 2 + (ny - endY) ** 2);
-                    minHeap.push({ x: nx, y: ny, idx: nIdx, g, f: g + h, parent: current });
+                    minHeap.push({ x: nx, y: ny, idx: nIdx, g, h, f: g + h, parent: current });
                 }
             }
         }
@@ -3561,8 +3573,13 @@ class RouteProfiler {
             this.updateLineLayer();
             this.updateSpeedDescription();
 
-            // Generate profile and calculate contours after a short delay for map to settle
-            setTimeout(async () => {
+            // Wait for bathymetry data to be ready before processing route
+            (async () => {
+                // Ensure bathymetry is loaded
+                if (bathymetryReady) {
+                    await bathymetryReady;
+                }
+
                 // Fit map to route bounds with padding for UI elements
                 const bounds = this.points.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(this.points[0], this.points[0]));
 
@@ -3591,7 +3608,7 @@ class RouteProfiler {
 
                 // Generate profile with correct paths
                 await this.generateProfile();
-            }, 500);
+            })();
 
             return true;
         } catch (err) {
@@ -3635,10 +3652,10 @@ class RouteProfiler {
 }
 
 // Initialize Profiler when map loads
-map.on('load', () => {
+map.on('load', async () => {
     window.profiler = new RouteProfiler();
-    // Load route from URL if present
-    window.profiler.loadFromUrl();
+    // Load route from URL if present (this will wait for bathymetry internally)
+    await window.profiler.loadFromUrl();
 });
 
 // Hook into updateChart to sync axis ranges BEFORE tick generation
