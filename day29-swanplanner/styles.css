@@ -146,6 +146,38 @@ body {
     border-color: rgba(30, 64, 175, 0.3);
 }
 
+/* Lock Zoom Button */
+.lock-zoom-btn {
+    position: absolute;
+    top: 64px;
+    right: 20px;
+    z-index: 601;
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(0, 0, 0, 0.6);
+    transition: all 0.2s ease;
+}
+
+.lock-zoom-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    color: #1e40af;
+}
+
+.lock-zoom-btn.active {
+    color: #1e40af;
+    border-color: rgba(30, 64, 175, 0.3);
+    background: rgba(30, 64, 175, 0.1);
+}
+
 /* User location marker */
 .user-location-marker {
     position: relative;
@@ -1169,6 +1201,14 @@ body {
         height: 40px;
     }
 
+    /* Lock zoom button positioning */
+    .lock-zoom-btn {
+        top: 60px;
+        right: 12px;
+        width: 40px;
+        height: 40px;
+    }
+
     /* Very compact speed description on mobile */
     .speed-desc {
         display: block;
@@ -1564,6 +1604,7 @@ body {
     color: #64748b;
     position: sticky;
     top: 0;
+    z-index: 20;
     font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;

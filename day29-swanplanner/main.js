@@ -382,6 +382,29 @@ map.getCanvas().addEventListener('touchend', () => {
 
 document.getElementById('location-btn').addEventListener('click', toggleGeolocation);
 
+// Lock Zoom functionality
+let isZoomLocked = false;
+document.getElementById('lock-zoom-btn').addEventListener('click', () => {
+    isZoomLocked = !isZoomLocked;
+    const lockBtn = document.getElementById('lock-zoom-btn');
+
+    if (isZoomLocked) {
+        // Disable zoom controls
+        map.scrollZoom.disable();
+        map.doubleClickZoom.disable();
+        map.touchZoomRotate.disableZoom();
+        lockBtn.classList.add('active');
+        lockBtn.title = 'Unlock zoom';
+    } else {
+        // Enable zoom controls
+        map.scrollZoom.enable();
+        map.doubleClickZoom.enable();
+        map.touchZoomRotate.enableZoom();
+        lockBtn.classList.remove('active');
+        lockBtn.title = 'Lock zoom';
+    }
+});
+
 // ============================================
 // Data Loading & Processing
 // ============================================
@@ -1075,7 +1098,7 @@ class RouteProfiler {
         // Escape Key to Cancel
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && this.isActive) {
-                this.stopDrawing(); // Cancel without saving
+                this.stopDrawing(true); // Cancel without saving, don't auto-restart
             }
         });
 
@@ -1667,6 +1690,151 @@ class RouteProfiler {
                 }
             });
 
+            // Long press to show context menu (mobile)
+            let longPressTimer = null;
+            let touchStartPos = null;
+            const LONG_PRESS_DURATION = 600; // ms
+            const TOUCH_MOVE_THRESHOLD = 10; // pixels
+
+            el.addEventListener('touchstart', (e) => {
+                const touch = e.touches[0];
+                touchStartPos = {
+                    x: touch.clientX,
+                    y: touch.clientY
+                };
+
+                longPressTimer = setTimeout(async () => {
+                    // Long press detected - show context menu with delete option
+                    if (navigator.vibrate) {
+                        navigator.vibrate(50); // Haptic feedback
+                    }
+
+                    // Remove any existing context menu
+                    const existing = document.getElementById('context-menu');
+                    if (existing) existing.remove();
+
+                    // Get waypoint coordinates and depth
+                    const waypointPos = point;
+                    const coords = formatCoordinates(waypointPos[0], waypointPos[1]);
+                    const depth = await queryDepth(waypointPos[0], waypointPos[1]);
+
+                    // Create context menu
+                    const menu = document.createElement('div');
+                    menu.id = 'context-menu';
+                    menu.className = 'context-menu';
+                    menu.style.left = `${touch.clientX}px`;
+                    menu.style.top = `${touch.clientY}px`;
+
+                    // Menu Items - Delete first, then copy options
+                    let menuHtml = `
+                        <div class="context-menu-item" id="delete-waypoint" style="color: #dc2626;">
+                            <span>Delete Waypoint</span>
+                        </div>
+                        <div class="context-menu-separator"></div>
+                    `;
+
+                    if (depth !== null) {
+                        menuHtml += `
+                            <div class="context-menu-item" id="copy-depth">
+                                <span>Copy Depth</span>
+                                <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${depth.toFixed(1)}m</span>
+                            </div>
+                            <div class="context-menu-separator"></div>
+                        `;
+                    }
+
+                    menuHtml += `
+                        <div class="context-menu-item" id="copy-dd">
+                            <span>Copy Decimal Degrees</span>
+                            <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${coords.gmaps}</span>
+                        </div>
+                        <div class="context-menu-separator"></div>
+                        <div class="context-menu-item" id="copy-dm">
+                            <span>Copy Decimal Minutes</span>
+                            <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${coords.display}</span>
+                        </div>
+                        <div class="context-menu-separator"></div>
+                        <div class="context-menu-item" id="copy-link">
+                            <span>Copy Link</span>
+                        </div>
+                    `;
+
+                    menu.innerHTML = menuHtml;
+                    document.body.appendChild(menu);
+
+                    // Click Handlers
+                    document.getElementById('delete-waypoint').addEventListener('click', () => {
+                        this.deleteWaypoint(index);
+                        menu.remove();
+                    });
+
+                    document.getElementById('copy-dd').addEventListener('click', () => {
+                        navigator.clipboard.writeText(coords.gmaps);
+                        menu.remove();
+                    });
+
+                    document.getElementById('copy-dm').addEventListener('click', () => {
+                        navigator.clipboard.writeText(coords.display);
+                        menu.remove();
+                    });
+
+                    document.getElementById('copy-link').addEventListener('click', () => {
+                        const url = `${window.location.origin}${window.location.pathname}#${waypointPos[1].toFixed(6)},${waypointPos[0].toFixed(6)}`;
+                        navigator.clipboard.writeText(url);
+                        menu.remove();
+                    });
+
+                    if (depth !== null) {
+                        document.getElementById('copy-depth').addEventListener('click', () => {
+                            navigator.clipboard.writeText(`${depth.toFixed(1)}m`);
+                            menu.remove();
+                        });
+                    }
+
+                    // Close on map click/move
+                    const removeMenu = () => {
+                        menu.remove();
+                        map.off('click', removeMenu);
+                        map.off('move', removeMenu);
+                    };
+                    map.on('click', removeMenu);
+                    map.on('move', removeMenu);
+                    map.on('zoom', removeMenu);
+
+                    longPressTimer = null;
+                }, LONG_PRESS_DURATION);
+            }, { passive: true });
+
+            el.addEventListener('touchmove', (e) => {
+                if (!longPressTimer || !touchStartPos) return;
+
+                const touch = e.touches[0];
+                const deltaX = Math.abs(touch.clientX - touchStartPos.x);
+                const deltaY = Math.abs(touch.clientY - touchStartPos.y);
+
+                // Cancel long press if moved too much
+                if (deltaX > TOUCH_MOVE_THRESHOLD || deltaY > TOUCH_MOVE_THRESHOLD) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+            }, { passive: true });
+
+            el.addEventListener('touchend', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+                touchStartPos = null;
+            }, { passive: true });
+
+            el.addEventListener('touchcancel', () => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+                touchStartPos = null;
+            }, { passive: true });
+
             this.markers.push(marker);
         });
     }
@@ -1768,6 +1936,14 @@ class RouteProfiler {
                     await this.calculateContourSuggestions(i);
                 }
             }
+        } else if (this.points.length < 2) {
+            // If we're down to less than 2 points, clear the table
+            this.updateWaypointTable([], []);
+        }
+
+        // Explicitly sync mobile planner after deletion
+        if (window.syncMobilePlanner) {
+            window.syncMobilePlanner();
         }
     }
 
@@ -1792,7 +1968,7 @@ class RouteProfiler {
         map.getCanvas().style.cursor = 'crosshair';
     }
 
-    stopDrawing() {
+    stopDrawing(skipAutoRestart = false) {
         this.isActive = false;
         this.isFinished = false;
 
@@ -1812,6 +1988,13 @@ class RouteProfiler {
         this.finishBtn.classList.add('hidden');
         map.getCanvas().style.cursor = '';
         this.clearRoute();
+
+        // Automatically restart drawing mode after clearing (unless skipped)
+        if (!skipAutoRestart) {
+            setTimeout(() => {
+                this.startDrawing();
+            }, 100);
+        }
     }
 
     addPoint(lngLat) {
@@ -2072,7 +2255,7 @@ class RouteProfiler {
 
     async finishRoute() {
         if (this.points.length < 2) {
-            this.stopDrawing();
+            this.stopDrawing(true); // Error case, don't auto-restart
             return;
         }
 
@@ -2652,11 +2835,31 @@ class RouteProfiler {
 
         if (!sidebar || !tableBody) return;
 
-        // Show sidebar if we have points
-        if (this.points.length > 0) {
-            sidebar.classList.remove('hidden');
-        } else {
-            sidebar.classList.add('hidden');
+        // Save scroll position before updating
+        const waypointContent = sidebar.querySelector('.waypoint-content');
+        const scrollTop = waypointContent ? waypointContent.scrollTop : 0;
+
+        // Always show sidebar (empty state will be visible when no points)
+        sidebar.classList.remove('hidden');
+
+        // If no points, clear table and show empty state
+        if (this.points.length === 0) {
+            tableBody.innerHTML = '';
+
+            // Reset depth stats
+            if (depthMinEl) depthMinEl.textContent = '--';
+            if (depthMaxEl) depthMaxEl.textContent = '--';
+            if (depthAvgEl) depthAvgEl.textContent = '--';
+
+            // Reset total distance
+            const totalDistDisplayEl = document.getElementById('total-dist-display');
+            if (totalDistDisplayEl) totalDistDisplayEl.textContent = '0';
+
+            // Sync mobile planner to show empty state
+            if (window.syncMobilePlanner) {
+                window.syncMobilePlanner();
+            }
+
             return;
         }
 
@@ -2839,6 +3042,11 @@ class RouteProfiler {
 
         if (totalDistDisplayEl) {
             totalDistDisplayEl.textContent = distValue;
+        }
+
+        // Restore scroll position after updating table
+        if (waypointContent) {
+            waypointContent.scrollTop = scrollTop;
         }
     }
 
@@ -3357,8 +3565,15 @@ class RouteProfiler {
             setTimeout(async () => {
                 // Fit map to route bounds with padding for UI elements
                 const bounds = this.points.reduce((b, p) => b.extend(p), new maplibregl.LngLatBounds(this.points[0], this.points[0]));
+
+                // Adjust padding for mobile vs desktop
+                const isMobile = window.innerWidth <= 768;
+                const padding = isMobile
+                    ? { top: 40, bottom: 40, left: 40, right: 40 }
+                    : { top: 40, bottom: 40, left: 40, right: 280 };
+
                 map.fitBounds(bounds, {
-                    padding: { top: 40, bottom: 40, left: 40, right: 280 },
+                    padding: padding,
                     maxZoom: 16
                 });
 
@@ -3485,6 +3700,10 @@ function initializeMobileTabs() {
         const mobileContent = document.getElementById('planner-mobile-content');
 
         if (sidebar && mobileContent && window.innerWidth <= 768) {
+            // Save scroll position before cloning
+            const existingContent = mobileContent.querySelector('.waypoint-content');
+            const savedScrollTop = existingContent ? existingContent.scrollTop : 0;
+
             // Clone the waypoint content
             const waypointHeader = sidebar.querySelector('.waypoint-header');
             const depthStats = sidebar.querySelector('.depth-stats');
@@ -3536,9 +3755,15 @@ function initializeMobileTabs() {
                         }
                     });
                 }
+
+                // Restore scroll position after cloning
+                contentClone.scrollTop = savedScrollTop;
             }
         }
     }
+
+    // Expose globally for manual syncing
+    window.syncMobilePlanner = syncMobilePlanner;
 
     // Sync on initialization and window resize
     syncMobilePlanner();
