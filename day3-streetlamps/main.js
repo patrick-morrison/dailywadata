@@ -12,7 +12,6 @@ const CONFIG = {
     GEOJSON_URL: 'streetlights.geojson',
 
     // Visualization settings
-    CIRCLE_RADIUS: 50, // meters
     CIRCLE_OPACITY: 0.8, // 80% opacity
 
     // Color mapping for different bulb types
@@ -25,6 +24,20 @@ const CONFIG = {
         'Compact Fluorescent': [255, 255, 220],        // #FFFFDC - Light yellow (default for CFL)
         ' ': [200, 200, 200],                          // Gray for unknown/empty
         'default': [200, 200, 200]                     // Gray fallback
+    },
+
+    // Radius scaling configuration - Linear formula: radius = wattage * scale
+    // Manually tune the scale factor for each bulb type
+    RADIUS_SCALES: {
+        'Light-Emitting Diode': 0.3,         
+        'Mercury Vapour/Universal': 0.2,     
+        'High Pressure Sodium': 0.15,        
+        'Compact Fluorescent': 0.25,         
+        'Metal Halide': 0.2,                 
+        'Low Pressure Sodium': 0.1,          
+        ' ': 0.3,                            
+        'null': 0.3,                         
+        'default': 0.3                       
     },
 
     // Map bounds (will be calculated from data)
@@ -284,7 +297,21 @@ function renderStreetlights(geojson) {
         id: 'streetlights',
         data: geojson.features,
         getPosition: d => d.geometry.coordinates,
-        getRadius: CONFIG.CIRCLE_RADIUS,
+        getRadius: d => {
+            const bulbType = d.properties.bulb_type;
+            const wattage = parseFloat(d.properties.bulb_watts);
+
+            // Get scale factor for this bulb type
+            const scale = CONFIG.RADIUS_SCALES[bulbType] || CONFIG.RADIUS_SCALES.default;
+
+            // Calculate radius using linear formula: radius = wattage * scale
+            // Default to 10m if wattage is null/invalid
+            if (isNaN(wattage) || wattage === null) {
+                return 10;
+            }
+
+            return wattage * scale;
+        },
         getFillColor: d => {
             const bulbType = d.properties.bulb_type;
             const color = CONFIG.BULB_COLORS[bulbType] || CONFIG.BULB_COLORS.default;
