@@ -1,0 +1,573 @@
+/**
+ * Western Australia Streetlights Visualization
+ * Styles for the interactive streetlights map
+ */
+
+/* ============================================
+   Reset & Base
+   ============================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'JetBrains Mono', monospace;
+    background: #f5f5f0;
+    color: #1a1a1a;
+    overflow: hidden;
+}
+
+/* ============================================
+   Map Container
+   ============================================ */
+
+#map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* ============================================
+   Overlay System
+   ============================================ */
+
+.overlay {
+    position: absolute;
+    z-index: 100;
+    pointer-events: none;
+}
+
+/* ============================================
+   Back Link
+   ============================================ */
+
+.back-link {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 101;
+    font-size: 0.75rem;
+    color: rgba(0, 0, 0, 0.5);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.back-link:hover {
+    color: #d97706;
+}
+
+/* ============================================
+   Header & Title Card
+   ============================================ */
+
+.header {
+    top: 50px;
+    left: 20px;
+    right: 20px;
+    z-index: 600;
+}
+
+.title-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: inline-block;
+    pointer-events: auto;
+}
+
+.title-card h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    margin-bottom: 4px;
+    color: #d97706;
+}
+
+.title-card .subtitle {
+    font-size: 0.75rem;
+    color: rgba(0, 0, 0, 0.5);
+    font-weight: 300;
+}
+
+.title-meta {
+    margin-top: 8px;
+}
+
+.attribution {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.4);
+    margin-right: 12px;
+}
+
+.methods-link {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.4);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.methods-link:hover {
+    color: #d97706;
+}
+
+/* ============================================
+   Location Button
+   ============================================ */
+
+.location-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 601;
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(0, 0, 0, 0.6);
+    transition: all 0.2s ease;
+}
+
+.location-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    color: #d97706;
+}
+
+.location-btn.active {
+    color: #d97706;
+    border-color: rgba(217, 119, 6, 0.3);
+}
+
+/* User location marker */
+.user-location-marker {
+    position: relative;
+    width: 24px;
+    height: 24px;
+}
+
+.location-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    background: #d97706;
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.location-heading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 60px;
+    height: 60px;
+    background: conic-gradient(from -30deg,
+            transparent 0deg,
+            rgba(217, 119, 6, 0.25) 0deg,
+            rgba(217, 119, 6, 0.15) 30deg,
+            rgba(217, 119, 6, 0.25) 60deg,
+            transparent 60deg);
+    border-radius: 50%;
+    transform-origin: center center;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    display: none;
+    pointer-events: none;
+}
+
+/* ============================================
+   Legend
+   ============================================ */
+
+.legend {
+    bottom: 30px;
+    left: 20px;
+    z-index: 600;
+}
+
+.legend-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    padding: 16px 20px;
+    pointer-events: auto;
+}
+
+.legend-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(0, 0, 0, 0.5);
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 10px;
+}
+
+.legend-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.7rem;
+    color: rgba(0, 0, 0, 0.7);
+}
+
+.legend-color {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.legend-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.stats-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(0, 0, 0, 0.5);
+}
+
+.stats-value {
+    font-size: 1.2rem;
+    font-weight: 300;
+    background: linear-gradient(135deg, #d97706, #f59e0b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ============================================
+   Cursor Info (in Legend)
+   ============================================ */
+
+.cursor-info-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.cursor-info-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(0, 0, 0, 0.5);
+}
+
+.cursor-info-value {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #d97706;
+}
+
+.cursor-coords {
+    font-size: 0.6rem;
+    color: rgba(0, 0, 0, 0.45);
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============================================
+   Click Marker
+   ============================================ */
+
+.click-marker {
+    width: 14px;
+    height: 14px;
+    background: #d97706;
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 1000;
+}
+
+.click-marker:active {
+    transform: scale(0.9);
+}
+
+/* ============================================
+   MapLibre Popup Styles
+   ============================================ */
+
+.maplibregl-popup {
+    z-index: 1000 !important;
+}
+
+.maplibregl-popup-content {
+    background: #ffffff !important;
+    border-radius: 8px !important;
+    padding: 12px 16px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.maplibregl-popup-close-button {
+    font-size: 16px;
+    color: rgba(0, 0, 0, 0.4);
+    padding: 4px 8px;
+}
+
+.popup-light-info {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    margin-bottom: 8px;
+}
+
+.popup-label {
+    font-size: 0.7rem;
+    color: rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.popup-value {
+    font-size: 0.75rem;
+    color: #d97706;
+    font-weight: 400;
+}
+
+.popup-coords {
+    font-size: 0.7rem;
+    color: #d97706;
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+.popup-coords-dm {
+    font-size: 0.6rem;
+    color: rgba(0, 0, 0, 0.5);
+    margin-top: 2px;
+}
+
+.popup-share-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 6px 12px;
+    background: rgba(217, 119, 6, 0.1);
+    border: 1px solid rgba(217, 119, 6, 0.2);
+    border-radius: 6px;
+    color: #d97706;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.popup-share-btn:hover {
+    background: rgba(217, 119, 6, 0.2);
+}
+
+.popup-share-btn svg {
+    flex-shrink: 0;
+}
+
+/* ============================================
+   Copyable Elements
+   ============================================ */
+
+.copyable {
+    cursor: pointer;
+    user-select: all;
+    transition: background 0.2s ease;
+    padding: 1px 4px;
+    margin: -1px -4px;
+    border-radius: 3px;
+}
+
+.copyable:hover {
+    background: rgba(217, 119, 6, 0.1);
+}
+
+/* ============================================
+   Loading Status
+   ============================================ */
+
+.loading-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.loading-overlay.hidden {
+    opacity: 0;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(217, 119, 6, 0.2);
+    border-top-color: #d97706;
+    border-radius: 50%;
+    animation: spin 1s cubic-bezier(0.55, 0.055, 0.675, 0.19) infinite;
+    margin-bottom: 16px;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.loading-text {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 1.5rem;
+    font-weight: 400;
+    color: #d97706;
+    text-shadow:
+        0 0 20px rgba(255, 255, 255, 0.9),
+        0 0 10px rgba(255, 255, 255, 0.8);
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================
+   Mobile Responsive
+   ============================================ */
+
+@media (max-width: 768px) {
+    .maplibregl-ctrl-attrib.maplibregl-compact {
+        display: block;
+    }
+
+    .maplibregl-ctrl-attrib.maplibregl-compact::after {
+        content: '';
+        display: block;
+    }
+
+    .maplibregl-ctrl-attrib-inner {
+        display: none;
+    }
+
+    .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
+        display: block;
+    }
+
+    .title-card h1 {
+        font-size: 1.2rem;
+    }
+
+    .title-card {
+        padding: 14px 18px;
+    }
+
+    .cursor-info {
+        display: none;
+    }
+
+    .legend-title {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+    }
+
+    .legend-card {
+        padding: 12px 16px;
+    }
+}
+
+/* ============================================
+   MapLibre Attribution - Force Compact
+   ============================================ */
+
+.maplibregl-ctrl-attrib {
+    display: none !important;
+}
+
+.maplibregl-ctrl-attrib.maplibregl-compact {
+    display: block !important;
+    min-height: 20px;
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+}
+
+.maplibregl-ctrl-attrib-button {
+    display: block !important;
+}
+
+.maplibregl-ctrl-attrib:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner {
+    display: none;
+}
+
+/* ============================================
+   Context Menu (Right Click)
+   ============================================ */
+
+.context-menu {
+    position: absolute;
+    z-index: 2000;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 6px 0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    min-width: 180px;
+    font-size: 0.8rem;
+    color: #1a1a1a;
+    pointer-events: auto;
+}
+
+.context-menu-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.context-menu-item:hover {
+    background: rgba(217, 119, 6, 0.1);
+    color: #d97706;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 4px 0;
+}

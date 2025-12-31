@@ -1,0 +1,448 @@
+/**
+ * Western Australia Streetlights Visualization
+ * Interactive map showing public lighting infrastructure
+ */
+
+// ============================================
+// Constants & Configuration
+// ============================================
+
+const CONFIG = {
+    // Data settings
+    GEOJSON_URL: 'streetlights.geojson',
+
+    // Visualization settings
+    CIRCLE_RADIUS: 50, // meters
+    CIRCLE_COLOR: [255, 220, 0], // Yellow
+    CIRCLE_OPACITY: 0.8, // 80% opacity
+
+    // Map bounds (will be calculated from data)
+    INITIAL_VIEW: {
+        lng: 115.8605,
+        lat: -31.9505,
+        zoom: 10
+    }
+};
+
+// ============================================
+// State Management
+// ============================================
+
+const state = {
+    geojsonData: null,
+    deckOverlay: null,
+
+    // Markers
+    clickMarker: null,
+    clickPopup: null,
+
+    // Geolocation
+    userLocationMarker: null,
+    watchId: null,
+    isTracking: false,
+    deviceHeading: null
+};
+
+// ============================================
+// Map Initialization
+// ============================================
+
+const map = new maplibregl.Map({
+    container: 'map',
+    style: {
+        version: 8,
+        sources: {
+            'carto-light': {
+                type: 'raster',
+                tiles: [
+                    'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+                    'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+                    'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png'
+                ],
+                tileSize: 256
+            }
+        },
+        layers: [{
+            id: 'carto-light-layer',
+            type: 'raster',
+            source: 'carto-light',
+            minzoom: 0,
+            maxzoom: 22
+        }]
+    },
+    center: [CONFIG.INITIAL_VIEW.lng, CONFIG.INITIAL_VIEW.lat],
+    zoom: CONFIG.INITIAL_VIEW.zoom,
+    minZoom: 7,
+    maxZoom: 18,
+    maxPitch: 0,
+    dragRotate: false,
+    customAttribution: '© <a href="https://data.wa.gov.au">Data WA</a> © CARTO © OpenStreetMap contributors',
+    attributionControl: {
+        compact: true
+    }
+});
+
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+
+// ============================================
+// Event Handlers
+// ============================================
+
+// Map Load
+map.on('load', () => {
+    loadStreetlights();
+});
+
+// Interactions
+map.on('mousemove', (e) => {
+    const light = queryNearestLight(e.lngLat.lng, e.lngLat.lat);
+    updateCursorInfo(light, e.lngLat.lng, e.lngLat.lat);
+});
+
+map.on('click', async (e) => {
+    const light = queryNearestLight(e.lngLat.lng, e.lngLat.lat);
+    if (light) {
+        showClickPopup(light, e.lngLat.lng, e.lngLat.lat);
+    }
+});
+
+// Context Menu (Right Click)
+map.on('contextmenu', async (e) => {
+    const existing = document.getElementById('context-menu');
+    if (existing) existing.remove();
+
+    const { lng, lat } = e.lngLat;
+    const coords = formatCoordinates(lng, lat);
+
+    // Create menu
+    const menu = document.createElement('div');
+    menu.id = 'context-menu';
+    menu.className = 'context-menu';
+    menu.style.left = `${e.point.x}px`;
+    menu.style.top = `${e.point.y}px`;
+
+    // Menu Items
+    let menuHtml = `
+        <div class="context-menu-item" id="copy-dd">
+            <span>Copy Decimal Degrees</span>
+            <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${coords.gmaps}</span>
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" id="copy-dm">
+            <span>Copy Decimal Minutes</span>
+            <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${coords.display}</span>
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" id="copy-link">
+            <span>Copy Link</span>
+        </div>
+    `;
+
+    menu.innerHTML = menuHtml;
+    document.body.appendChild(menu);
+
+    // Click Handlers
+    document.getElementById('copy-dd').addEventListener('click', () => {
+        navigator.clipboard.writeText(coords.gmaps);
+        menu.remove();
+    });
+
+    document.getElementById('copy-dm').addEventListener('click', () => {
+        navigator.clipboard.writeText(coords.display);
+        menu.remove();
+    });
+
+    document.getElementById('copy-link').addEventListener('click', () => {
+        const url = `${window.location.origin}${window.location.pathname}#${lat.toFixed(6)},${lng.toFixed(6)}`;
+        navigator.clipboard.writeText(url);
+        menu.remove();
+    });
+
+    // Close on map click/move
+    const removeMenu = () => {
+        menu.remove();
+        map.off('click', removeMenu);
+        map.off('move', removeMenu);
+    };
+    map.on('click', removeMenu);
+    map.on('move', removeMenu);
+    map.on('zoom', removeMenu);
+});
+
+document.getElementById('location-btn').addEventListener('click', toggleGeolocation);
+
+// ============================================
+// Data Loading & Processing
+// ============================================
+
+function setLoadingText(text) {
+    const el = document.getElementById('loading-text');
+    if (el) el.textContent = text;
+}
+
+async function loadStreetlights() {
+    try {
+        setLoadingText('Loading streetlight data...');
+
+        const response = await fetch(CONFIG.GEOJSON_URL);
+        const geojson = await response.json();
+
+        state.geojsonData = geojson;
+
+        // Update light count
+        document.getElementById('light-count').textContent = geojson.features.length.toLocaleString();
+
+        // Calculate bounds
+        const bounds = calculateBounds(geojson);
+
+        // Render streetlights
+        renderStreetlights(geojson);
+
+        // Fit map to bounds
+        map.fitBounds(bounds, {
+            padding: { top: 100, bottom: 100, left: 100, right: 100 },
+            duration: 2000
+        });
+
+        // Hide loading
+        setTimeout(() => {
+            document.getElementById('loading').classList.add('hidden');
+        }, 500);
+
+    } catch (error) {
+        console.error('Failed to load streetlights:', error);
+        setLoadingText('Failed to load data');
+    }
+}
+
+function calculateBounds(geojson) {
+    let minLng = Infinity, maxLng = -Infinity;
+    let minLat = Infinity, maxLat = -Infinity;
+
+    geojson.features.forEach(feature => {
+        const [lng, lat] = feature.geometry.coordinates;
+        minLng = Math.min(minLng, lng);
+        maxLng = Math.max(maxLng, lng);
+        minLat = Math.min(minLat, lat);
+        maxLat = Math.max(maxLat, lat);
+    });
+
+    return [[minLng, minLat], [maxLng, maxLat]];
+}
+
+// ============================================
+// Rendering
+// ============================================
+
+function renderStreetlights(geojson) {
+    // Create deck.gl layer
+    const scatterplotLayer = new deck.ScatterplotLayer({
+        id: 'streetlights',
+        data: geojson.features,
+        getPosition: d => d.geometry.coordinates,
+        getRadius: CONFIG.CIRCLE_RADIUS,
+        getFillColor: [...CONFIG.CIRCLE_COLOR, CONFIG.CIRCLE_OPACITY * 255],
+        radiusUnits: 'meters',
+        radiusMinPixels: 1,
+        radiusMaxPixels: 100,
+        pickable: true,
+        autoHighlight: true,
+        highlightColor: [255, 255, 255, 100]
+    });
+
+    if (state.deckOverlay) map.removeControl(state.deckOverlay);
+    state.deckOverlay = new deck.MapboxOverlay({ layers: [scatterplotLayer] });
+    map.addControl(state.deckOverlay);
+}
+
+// ============================================
+// Utilities
+// ============================================
+
+function queryNearestLight(lng, lat) {
+    if (!state.geojsonData) return null;
+
+    let nearest = null;
+    let minDist = Infinity;
+
+    // Simple distance check (only check if within reasonable range)
+    const maxDist = 0.001; // roughly 100m in degrees
+
+    state.geojsonData.features.forEach(feature => {
+        const [fLng, fLat] = feature.geometry.coordinates;
+        const dx = fLng - lng;
+        const dy = fLat - lat;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < maxDist && dist < minDist) {
+            minDist = dist;
+            nearest = feature;
+        }
+    });
+
+    return nearest;
+}
+
+function formatCoordinates(lng, lat) {
+    const gmaps = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    const latM = (Math.abs(lat) % 1) * 60;
+    const lngM = (Math.abs(lng) % 1) * 60;
+    const dm = `${Math.floor(Math.abs(lat))}° ${latM.toFixed(3)}' ${lat >= 0 ? 'N' : 'S'}, ${Math.floor(Math.abs(lng))}° ${lngM.toFixed(3)}' ${lng >= 0 ? 'E' : 'W'}`;
+    return { gmaps, display: dm };
+}
+
+function updateCursorInfo(light, lng, lat) {
+    const valueEl = document.getElementById('cursor-info-value');
+    const coordsEl = document.getElementById('cursor-coords');
+    if (light) {
+        const r = formatCoordinates(lng, lat);
+        const props = light.properties;
+        valueEl.textContent = `${props.bulb_type} (${props.bulb_watts}W)`;
+        coordsEl.innerHTML = `<span class="copyable" title="Copy decimal">${r.gmaps}</span><br><span class="copyable" title="Copy DM">${r.display}</span>`;
+    } else {
+        valueEl.textContent = '--';
+        coordsEl.textContent = '--';
+    }
+}
+
+function showClickPopup(light, lng, lat) {
+    const r = formatCoordinates(lng, lat);
+    const props = light.properties;
+
+    if (state.clickMarker) state.clickMarker.remove();
+    if (state.clickPopup) state.clickPopup.remove();
+
+    const el = document.createElement('div');
+    el.className = 'click-marker';
+    state.clickMarker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
+
+    state.clickPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, className: 'light-popup', offset: 12 })
+        .setLngLat([lng, lat])
+        .setHTML(`
+            <div class="popup-light-info">
+                <div class="popup-label">Type:</div>
+                <div class="popup-value">${props.bulb_type}</div>
+                <div class="popup-label">Power:</div>
+                <div class="popup-value">${props.bulb_watts}W</div>
+                <div class="popup-label">ID:</div>
+                <div class="popup-value">${props.pick_id}</div>
+            </div>
+            <div class="popup-coords copyable">${r.gmaps}</div>
+            <div class="popup-coords-dm copyable">${r.display}</div>
+            <button class="popup-share-btn" data-lat="${lat}" data-lng="${lng}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                <span>Copy Link</span>
+            </button>
+        `)
+        .addTo(map);
+
+    // Attach share button handler
+    const shareBtn = document.querySelector('.popup-share-btn');
+    if (shareBtn) {
+        shareBtn.addEventListener('click', () => {
+            const url = `${window.location.origin}${window.location.pathname}#${lat.toFixed(6)},${lng.toFixed(6)}`;
+            navigator.clipboard.writeText(url);
+            shareBtn.querySelector('span').textContent = 'Copied!';
+            setTimeout(() => {
+                shareBtn.querySelector('span').textContent = 'Copy Link';
+            }, 2000);
+        });
+    }
+
+    state.clickPopup.on('close', () => {
+        if (state.clickMarker) state.clickMarker.remove();
+        state.clickMarker = null;
+    });
+}
+
+// ============================================
+// Geolocation
+// ============================================
+
+function toggleGeolocation() {
+    if (state.isTracking) {
+        // Stop tracking
+        navigator.geolocation.clearWatch(state.watchId);
+        window.removeEventListener('deviceorientation', handleDeviceOrientation);
+        state.isTracking = false;
+        state.deviceHeading = null;
+        document.getElementById('location-btn').classList.remove('active');
+        if (state.userLocationMarker) state.userLocationMarker.remove();
+        state.userLocationMarker = null;
+    } else {
+        // Start tracking
+        if (!navigator.geolocation) return alert('No Geolocation support');
+        document.getElementById('location-btn').classList.add('active');
+        state.isTracking = true;
+
+        // Request device orientation permission (required on iOS 13+)
+        if (typeof DeviceOrientationEvent !== 'undefined' &&
+            typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+                .then(response => {
+                    if (response === 'granted') {
+                        window.addEventListener('deviceorientation', handleDeviceOrientation);
+                    }
+                })
+                .catch(console.error);
+        } else {
+            // Non-iOS or older iOS - just add listener
+            window.addEventListener('deviceorientation', handleDeviceOrientation);
+        }
+
+        state.watchId = navigator.geolocation.watchPosition(updateUserLocation,
+            () => { alert('Locate failed'); toggleGeolocation(); },
+            { enableHighAccuracy: true }
+        );
+    }
+}
+
+function handleDeviceOrientation(event) {
+    // iOS uses webkitCompassHeading (degrees from true north)
+    // Android uses alpha (degrees from arbitrary reference, needs adjustment)
+    if (event.webkitCompassHeading !== undefined) {
+        state.deviceHeading = event.webkitCompassHeading;
+    } else if (event.alpha !== null) {
+        // Android: alpha is rotation around z-axis, 0-360
+        state.deviceHeading = 360 - event.alpha;
+    }
+    updateHeadingDisplay();
+}
+
+function updateHeadingDisplay() {
+    const hEl = document.querySelector('.location-heading');
+    if (hEl && state.deviceHeading !== null && state.deviceHeading !== undefined) {
+        hEl.style.transform = `translate(-50%, -50%) rotate(${state.deviceHeading - 90}deg)`;
+        hEl.style.display = 'block';
+    }
+}
+
+function updateUserLocation(pos) {
+    const { longitude, latitude, heading } = pos.coords;
+    if (!state.userLocationMarker) {
+        const el = document.createElement('div');
+        el.className = 'user-location-marker';
+        el.innerHTML = '<div class="location-heading"></div><div class="location-dot"></div>';
+        state.userLocationMarker = new maplibregl.Marker({ element: el }).setLngLat([longitude, latitude]).addTo(map);
+    } else {
+        state.userLocationMarker.setLngLat([longitude, latitude]);
+    }
+
+    // Use device compass heading if available, otherwise fall back to GPS heading
+    const hEl = document.querySelector('.location-heading');
+    if (hEl) {
+        if (state.deviceHeading !== null && state.deviceHeading !== undefined) {
+            // Device orientation is handling heading display
+        } else if (heading !== null && heading !== undefined) {
+            // Fall back to GPS heading (only works when moving)
+            hEl.style.transform = `translate(-50%, -50%) rotate(${heading - 90}deg)`;
+            hEl.style.display = 'block';
+        } else {
+            hEl.style.display = 'none';
+        }
+    }
+    map.flyTo({ center: [longitude, latitude], zoom: 14 });
+}

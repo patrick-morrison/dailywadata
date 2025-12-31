@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Western Australia Streetlights</title>
+    <meta name="description"
+        content="Interactive map of Western Australia public streetlights">
+
+    <!-- External Dependencies -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/deck.gl@9.0.16/dist.min.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
+</head>
+
+<body>
+    <!-- Loading State -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Loading streetlight data...</div>
+    </div>
+
+    <!-- Navigation -->
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Header -->
+    <div class="overlay header">
+        <div class="title-card">
+            <h1>Western Australia Streetlights</h1>
+            <div class="subtitle">Public Lighting Infrastructure</div>
+            <div class="title-meta"><span class="attribution">Patrick Morrison 2026</span><a href="../sources.html"
+                    class="methods-link">Show methods notes →</a></div>
+        </div>
+    </div>
+
+    <!-- Location Button -->
+    <button class="location-btn" id="location-btn" title="Show my location">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+        </svg>
+    </button>
+
+    <!-- Legend -->
+    <div class="overlay legend">
+        <div class="legend-card">
+            <div class="cursor-info" id="cursor-info">
+                <div class="cursor-info-row">
+                    <span class="cursor-info-label">At cursor:</span>
+                    <span class="cursor-info-value" id="cursor-info-value">--</span>
+                </div>
+                <div class="cursor-coords" id="cursor-coords">--</div>
+            </div>
+            <div class="legend-title">Coverage Radius</div>
+            <div class="legend-content">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(255, 220, 0, 0.8);"></div>
+                    <span>50m radius per light</span>
+                </div>
+                <div class="legend-stats" id="legend-stats">
+                    <span class="stats-label">Total lights:</span>
+                    <span class="stats-value" id="light-count">--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="main.js"></script>
+</body>
+
+</html>
