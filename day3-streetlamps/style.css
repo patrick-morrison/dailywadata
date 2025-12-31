@@ -308,6 +308,27 @@ body {
     gap: 10px;
     font-size: 0.7rem;
     color: rgba(0, 0, 0, 0.7);
+    transition: all 0.2s ease;
+}
+
+.legend-item[data-bulb-type] {
+    cursor: pointer;
+    padding: 4px 6px;
+    margin: -4px -6px;
+    border-radius: 6px;
+}
+
+.legend-item[data-bulb-type]:hover {
+    background: rgba(217, 119, 6, 0.1);
+}
+
+.legend-item[data-bulb-type]:not(.active) {
+    opacity: 0.3;
+}
+
+.legend-item[data-bulb-type]:not(.active) .legend-color {
+    opacity: 0.5;
+    filter: grayscale(50%);
 }
 
 .legend-color {
@@ -315,6 +336,7 @@ body {
     height: 24px;
     border-radius: 50%;
     border: 1px solid rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
 }
 
 .legend-stats {

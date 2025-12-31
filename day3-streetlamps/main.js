@@ -22,22 +22,19 @@ const CONFIG = {
         'Metal Halide': [242, 252, 255],               // #F2FCFF - Very light blue
         'High Pressure Sodium': [255, 184, 76],        // #FFB84C - Orange/amber
         'Compact Fluorescent': [255, 255, 220],        // #FFFFDC - Light yellow (default for CFL)
-        ' ': [200, 200, 200],                          // Gray for unknown/empty
-        'default': [200, 200, 200]                     // Gray fallback
+        'Unknown': [200, 200, 200]                     // Gray for unknown/empty/null
     },
 
     // Radius scaling configuration - Linear formula: radius = wattage * scale
     // Manually tune the scale factor for each bulb type
     RADIUS_SCALES: {
-        'Light-Emitting Diode': 0.3,         
-        'Mercury Vapour/Universal': 0.2,     
-        'High Pressure Sodium': 0.15,        
-        'Compact Fluorescent': 0.25,         
-        'Metal Halide': 0.2,                 
-        'Low Pressure Sodium': 0.1,          
-        ' ': 0.3,                            
-        'null': 0.3,                         
-        'default': 0.3                       
+        'Light-Emitting Diode': 0.3,
+        'Mercury Vapour/Universal': 0.2,
+        'High Pressure Sodium': 0.15,
+        'Compact Fluorescent': 0.25,
+        'Metal Halide': 0.2,
+        'Low Pressure Sodium': 0.1,
+        'Unknown': 0.3
     },
 
     // Map bounds (will be calculated from data)
@@ -47,6 +44,20 @@ const CONFIG = {
         zoom: 10
     }
 };
+
+// ============================================
+// Utility Functions
+// ============================================
+
+/**
+ * Normalize bulb type to handle unknown/null/empty values
+ */
+function normalizeBulbType(bulbType) {
+    if (!bulbType || bulbType === 'null' || bulbType.trim() === '') {
+        return 'Unknown';
+    }
+    return bulbType;
+}
 
 // ============================================
 // State Management
@@ -64,7 +75,18 @@ const state = {
     userLocationMarker: null,
     watchId: null,
     isTracking: false,
-    deviceHeading: null
+    deviceHeading: null,
+
+    // Visibility toggles for each bulb type
+    visibleBulbTypes: {
+        'Light-Emitting Diode': true,
+        'Mercury Vapour/Universal': true,
+        'High Pressure Sodium': true,
+        'Compact Fluorescent': true,
+        'Metal Halide': true,
+        'Low Pressure Sodium': true,
+        'Unknown': true
+    }
 };
 
 // ============================================
@@ -136,7 +158,30 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom
 // Map Load
 map.on('load', () => {
     loadStreetlights();
+    initializeLegendToggles();
 });
+
+// Legend Toggle Functionality
+function initializeLegendToggles() {
+    const legendItems = document.querySelectorAll('.legend-item[data-bulb-type]');
+
+    legendItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const bulbType = item.getAttribute('data-bulb-type');
+
+            // Toggle visibility state
+            state.visibleBulbTypes[bulbType] = !state.visibleBulbTypes[bulbType];
+
+            // Toggle active class
+            item.classList.toggle('active');
+
+            // Re-render with updated visibility
+            if (state.geojsonData) {
+                renderStreetlights(state.geojsonData);
+            }
+        });
+    });
+}
 
 // Interactions
 map.on('mousemove', (e) => {
@@ -292,17 +337,23 @@ function calculateBounds(geojson) {
 // ============================================
 
 function renderStreetlights(geojson) {
+    // Filter features based on visible bulb types
+    const visibleFeatures = geojson.features.filter(feature => {
+        const bulbType = normalizeBulbType(feature.properties.bulb_type);
+        return state.visibleBulbTypes[bulbType] !== false;
+    });
+
     // Create deck.gl layer
     const scatterplotLayer = new deck.ScatterplotLayer({
         id: 'streetlights',
-        data: geojson.features,
+        data: visibleFeatures,
         getPosition: d => d.geometry.coordinates,
         getRadius: d => {
-            const bulbType = d.properties.bulb_type;
+            const bulbType = normalizeBulbType(d.properties.bulb_type);
             const wattage = parseFloat(d.properties.bulb_watts);
 
             // Get scale factor for this bulb type
-            const scale = CONFIG.RADIUS_SCALES[bulbType] || CONFIG.RADIUS_SCALES.default;
+            const scale = CONFIG.RADIUS_SCALES[bulbType] || CONFIG.RADIUS_SCALES.Unknown;
 
             // Calculate radius using linear formula: radius = wattage * scale
             // Default to 10m if wattage is null/invalid
@@ -313,8 +364,8 @@ function renderStreetlights(geojson) {
             return wattage * scale;
         },
         getFillColor: d => {
-            const bulbType = d.properties.bulb_type;
-            const color = CONFIG.BULB_COLORS[bulbType] || CONFIG.BULB_COLORS.default;
+            const bulbType = normalizeBulbType(d.properties.bulb_type);
+            const color = CONFIG.BULB_COLORS[bulbType] || CONFIG.BULB_COLORS.Unknown;
             return [...color, CONFIG.CIRCLE_OPACITY * 255];
         },
         radiusUnits: 'meters',
@@ -344,6 +395,12 @@ function queryNearestLight(lng, lat) {
     const maxDist = 0.001; // roughly 100m in degrees
 
     state.geojsonData.features.forEach(feature => {
+        // Only consider lights that are currently visible
+        const bulbType = normalizeBulbType(feature.properties.bulb_type);
+        if (state.visibleBulbTypes[bulbType] === false) {
+            return; // Skip this feature if its type is hidden
+        }
+
         const [fLng, fLat] = feature.geometry.coordinates;
         const dx = fLng - lng;
         const dy = fLat - lat;
@@ -372,7 +429,8 @@ function updateCursorInfo(light, lng, lat) {
     if (light) {
         const r = formatCoordinates(lng, lat);
         const props = light.properties;
-        valueEl.textContent = `${props.bulb_type} (${props.bulb_watts}W)`;
+        const bulbType = normalizeBulbType(props.bulb_type);
+        valueEl.textContent = `${bulbType} (${props.bulb_watts}W)`;
         coordsEl.innerHTML = `<span class="copyable" title="Copy decimal">${r.gmaps}</span><br><span class="copyable" title="Copy DM">${r.display}</span>`;
     } else {
         valueEl.textContent = '--';
@@ -383,6 +441,7 @@ function updateCursorInfo(light, lng, lat) {
 function showClickPopup(light, lng, lat) {
     const r = formatCoordinates(lng, lat);
     const props = light.properties;
+    const bulbType = normalizeBulbType(props.bulb_type);
 
     if (state.clickMarker) state.clickMarker.remove();
     if (state.clickPopup) state.clickPopup.remove();
@@ -396,7 +455,7 @@ function showClickPopup(light, lng, lat) {
         .setHTML(`
             <div class="popup-light-info">
                 <div class="popup-label">Type:</div>
-                <div class="popup-value">${props.bulb_type}</div>
+                <div class="popup-value">${bulbType}</div>
                 <div class="popup-label">Power:</div>
                 <div class="popup-value">${props.bulb_watts}W</div>
                 <div class="popup-label">ID:</div>
