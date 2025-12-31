@@ -159,6 +159,7 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom
 map.on('load', () => {
     loadStreetlights();
     initializeLegendToggles();
+    initializeDarkMode();
 });
 
 // Legend Toggle Functionality
@@ -262,8 +263,28 @@ map.on('contextmenu', async (e) => {
 document.getElementById('location-btn').addEventListener('click', toggleGeolocation);
 
 // Dark Mode Toggle
+function initializeDarkMode() {
+    // Restore dark mode state from localStorage
+    const isDark = localStorage.getItem('darkMode') === 'true';
+    const checkbox = document.getElementById('dark-mode-checkbox');
+
+    // Set checkbox state
+    checkbox.checked = isDark;
+
+    // Apply dark mode if enabled
+    if (isDark) {
+        map.setLayoutProperty('carto-light-layer', 'visibility', 'none');
+        map.setLayoutProperty('carto-dark-layer', 'visibility', 'visible');
+    }
+}
+
 document.getElementById('dark-mode-checkbox').addEventListener('change', (e) => {
     const isDark = e.target.checked;
+
+    // Save state to localStorage
+    localStorage.setItem('darkMode', isDark.toString());
+
+    // Apply dark mode
     if (isDark) {
         map.setLayoutProperty('carto-light-layer', 'visibility', 'none');
         map.setLayoutProperty('carto-dark-layer', 'visibility', 'visible');
