@@ -165,9 +165,9 @@ map.on('load', () => {
 function initializeLegendToggles() {
     const legendItems = document.querySelectorAll('.legend-item[data-bulb-type]');
 
-    legendItems.forEach(item => {
+    for (const item of legendItems) {
         item.addEventListener('click', () => {
-            const bulbType = item.getAttribute('data-bulb-type');
+            const bulbType = item.dataset.bulbType;
 
             // Toggle visibility state
             state.visibleBulbTypes[bulbType] = !state.visibleBulbTypes[bulbType];
@@ -180,7 +180,7 @@ function initializeLegendToggles() {
                 renderStreetlights(state.geojsonData);
             }
         });
-    });
+    };
 }
 
 // Interactions
@@ -243,7 +243,7 @@ map.on('contextmenu', async (e) => {
     });
 
     document.getElementById('copy-link').addEventListener('click', () => {
-        const url = `${window.location.origin}${window.location.pathname}#${lat.toFixed(6)},${lng.toFixed(6)}`;
+        const url = `${globalThis.location.origin}${globalThis.location.pathname}#${lat.toFixed(6)},${lng.toFixed(6)}`;
         navigator.clipboard.writeText(url);
         menu.remove();
     });
@@ -321,13 +321,14 @@ function calculateBounds(geojson) {
     let minLng = Infinity, maxLng = -Infinity;
     let minLat = Infinity, maxLat = -Infinity;
 
-    geojson.features.forEach(feature => {
+    for (const feature of geojson.features)
+    {
         const [lng, lat] = feature.geometry.coordinates;
         minLng = Math.min(minLng, lng);
         maxLng = Math.max(maxLng, lng);
         minLat = Math.min(minLat, lat);
         maxLat = Math.max(maxLat, lat);
-    });
+    };
 
     return [[minLng, minLat], [maxLng, maxLat]];
 }
@@ -350,14 +351,14 @@ function renderStreetlights(geojson) {
         getPosition: d => d.geometry.coordinates,
         getRadius: d => {
             const bulbType = normalizeBulbType(d.properties.bulb_type);
-            const wattage = parseFloat(d.properties.bulb_watts);
+            const wattage = Number.parseFloat(d.properties.bulb_watts);
 
             // Get scale factor for this bulb type
             const scale = CONFIG.RADIUS_SCALES[bulbType] || CONFIG.RADIUS_SCALES.Unknown;
 
             // Calculate radius using linear formula: radius = wattage * scale
             // Default to 10m if wattage is null/invalid
-            if (isNaN(wattage) || wattage === null) {
+            if (Number.isNaN(wattage) || wattage === null) {
                 return 10;
             }
 
@@ -394,7 +395,8 @@ function queryNearestLight(lng, lat) {
     // Simple distance check (only check if within reasonable range)
     const maxDist = 0.001; // roughly 100m in degrees
 
-    state.geojsonData.features.forEach(feature => {
+    for (const feature of state.geojsonData.features)
+        {
         // Only consider lights that are currently visible
         const bulbType = normalizeBulbType(feature.properties.bulb_type);
         if (state.visibleBulbTypes[bulbType] === false) {
@@ -410,7 +412,7 @@ function queryNearestLight(lng, lat) {
             minDist = dist;
             nearest = feature;
         }
-    });
+    };
 
     return nearest;
 }
