@@ -44,7 +44,7 @@
         <div class="title-card">
             <h1>Western Australia Streetlights</h1>
             <div class="subtitle">Public Lighting Infrastructure</div>
-            <div class="title-meta"><span class="attribution">Patrick Morrison 2026</span><a href="../sources.html"
+            <div class="title-meta"><span class="attribution">Aren Leishman 2026</span><a href="../sources.html"
                     class="methods-link">Show methods notes →</a></div>
         </div>
     </div>
@@ -57,6 +57,15 @@
         </svg>
     </button>
 
+    <!-- Dark Mode Toggle -->
+    <div class="dark-mode-toggle">
+        <label class="toggle-label">
+            <input type="checkbox" id="dark-mode-checkbox">
+            <span class="toggle-slider"></span>
+            <span class="toggle-text">Dark Mode</span>
+        </label>
+    </div>
+
     <!-- Legend -->
     <div class="overlay legend">
         <div class="legend-card">
@@ -67,11 +76,31 @@
                 </div>
                 <div class="cursor-coords" id="cursor-coords">--</div>
             </div>
-            <div class="legend-title">Coverage Radius</div>
+            <div class="legend-title">Bulb Types (50m radius)</div>
             <div class="legend-content">
                 <div class="legend-item">
-                    <div class="legend-color" style="background: rgba(255, 220, 0, 0.8);"></div>
-                    <span>50m radius per light</span>
+                    <div class="legend-color" style="background: rgba(255, 255, 255, 0.8); border: 1px solid rgba(0,0,0,0.2);"></div>
+                    <span>LED</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(255, 184, 76, 0.8);"></div>
+                    <span>High Pressure Sodium</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(216, 247, 255, 0.8);"></div>
+                    <span>Mercury Vapour</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(255, 255, 220, 0.8);"></div>
+                    <span>Compact Fluorescent</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(242, 252, 255, 0.8);"></div>
+                    <span>Metal Halide</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: rgba(255, 209, 178, 0.8);"></div>
+                    <span>Low Pressure Sodium</span>
                 </div>
                 <div class="legend-stats" id="legend-stats">
                     <span class="stats-label">Total lights:</span>

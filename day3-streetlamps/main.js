@@ -13,8 +13,19 @@ const CONFIG = {
 
     // Visualization settings
     CIRCLE_RADIUS: 50, // meters
-    CIRCLE_COLOR: [255, 220, 0], // Yellow
     CIRCLE_OPACITY: 0.8, // 80% opacity
+
+    // Color mapping for different bulb types
+    BULB_COLORS: {
+        'Light-Emitting Diode': [255, 255, 255],       // #FFFFFF - White
+        'Mercury Vapour/Universal': [216, 247, 255],   // #D8F7FF - Light blue
+        'Low Pressure Sodium': [255, 209, 178],        // #FFD1B2 - Light orange/peach
+        'Metal Halide': [242, 252, 255],               // #F2FCFF - Very light blue
+        'High Pressure Sodium': [255, 184, 76],        // #FFB84C - Orange/amber
+        'Compact Fluorescent': [255, 255, 220],        // #FFFFDC - Light yellow (default for CFL)
+        ' ': [200, 200, 200],                          // Gray for unknown/empty
+        'default': [200, 200, 200]                     // Gray fallback
+    },
 
     // Map bounds (will be calculated from data)
     INITIAL_VIEW: {
@@ -60,15 +71,36 @@ const map = new maplibregl.Map({
                     'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png'
                 ],
                 tileSize: 256
+            },
+            'carto-dark': {
+                type: 'raster',
+                tiles: [
+                    'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+                    'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+                    'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
+                ],
+                tileSize: 256
             }
         },
-        layers: [{
-            id: 'carto-light-layer',
-            type: 'raster',
-            source: 'carto-light',
-            minzoom: 0,
-            maxzoom: 22
-        }]
+        layers: [
+            {
+                id: 'carto-light-layer',
+                type: 'raster',
+                source: 'carto-light',
+                minzoom: 0,
+                maxzoom: 22
+            },
+            {
+                id: 'carto-dark-layer',
+                type: 'raster',
+                source: 'carto-dark',
+                minzoom: 0,
+                maxzoom: 22,
+                layout: {
+                    visibility: 'none'
+                }
+            }
+        ]
     },
     center: [CONFIG.INITIAL_VIEW.lng, CONFIG.INITIAL_VIEW.lat],
     zoom: CONFIG.INITIAL_VIEW.zoom,
@@ -171,6 +203,18 @@ map.on('contextmenu', async (e) => {
 
 document.getElementById('location-btn').addEventListener('click', toggleGeolocation);
 
+// Dark Mode Toggle
+document.getElementById('dark-mode-checkbox').addEventListener('change', (e) => {
+    const isDark = e.target.checked;
+    if (isDark) {
+        map.setLayoutProperty('carto-light-layer', 'visibility', 'none');
+        map.setLayoutProperty('carto-dark-layer', 'visibility', 'visible');
+    } else {
+        map.setLayoutProperty('carto-dark-layer', 'visibility', 'none');
+        map.setLayoutProperty('carto-light-layer', 'visibility', 'visible');
+    }
+});
+
 // ============================================
 // Data Loading & Processing
 // ============================================
@@ -241,7 +285,11 @@ function renderStreetlights(geojson) {
         data: geojson.features,
         getPosition: d => d.geometry.coordinates,
         getRadius: CONFIG.CIRCLE_RADIUS,
-        getFillColor: [...CONFIG.CIRCLE_COLOR, CONFIG.CIRCLE_OPACITY * 255],
+        getFillColor: d => {
+            const bulbType = d.properties.bulb_type;
+            const color = CONFIG.BULB_COLORS[bulbType] || CONFIG.BULB_COLORS.default;
+            return [...color, CONFIG.CIRCLE_OPACITY * 255];
+        },
         radiusUnits: 'meters',
         radiusMinPixels: 1,
         radiusMaxPixels: 100,
