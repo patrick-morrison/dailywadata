@@ -1041,11 +1041,11 @@ body {
 
     /* Abbreviated speed label on mobile */
     .speed-full {
-        display: none;
+        display: none !important;
     }
 
     .speed-short {
-        display: inline;
+        display: inline !important;
     }
 
     /* Icon-only square buttons on mobile */
@@ -1129,15 +1129,36 @@ body {
         transform: translate(-50%, -50%);
     }
 
-    /* Legend positioning on mobile */
+    /* Legend positioning and sizing on mobile */
     .legend {
-        bottom: 420px;
+        bottom: 425px;
         /* Above taller shelf */
-        left: 10px;
+        left: 8px;
+    }
+
+    .legend-card {
+        padding: 4px 8px;
+        /* Minimal padding */
+        background: rgba(255, 255, 255, 0.85);
+        /* Slightly more transparent */
+    }
+
+    .legend-title {
+        display: none;
+        /* Hide "Depth Scale" label on mobile */
     }
 
     .legend-bar {
-        width: 140px;
+        width: 70px;
+        /* Tiny bar */
+        height: 8px;
+        /* Very thin */
+        margin-bottom: 2px;
+    }
+
+    .legend-labels {
+        font-size: 0.55rem;
+        /* Tiny text */
     }
 
     /* Location button positioning */
