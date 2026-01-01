@@ -12,11 +12,15 @@ Swan-Canning Multibeam Survey (SC2010) from **Department of Transport Western Au
 
 **Licence:** CC BY 4.0
 
+**Coordinate System:** GDA94 / MGA zone 50 (EPSG:28350)
+
 ---
 
 ## Processing
 
 BAG file was hole-filled in QGIS and exported as a GeoTIFF. Optimized for web streaming by converting Float32 meters to Int16 (×100) at 25% resolution. Reduced from 731MB to 3.2MB.
+
+The GeoTIFF retains the original GDA94 / MGA zone 50 projection. On-the-fly conversion to Web Mercator (EPSG:3857) happens client-side for web map display.
 
 ```bash
 gdal_translate SC20100413_Interpolated.tif SC20100413_optimized.tif \

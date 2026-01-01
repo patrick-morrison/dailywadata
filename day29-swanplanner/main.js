@@ -975,7 +975,7 @@ class RouteProfiler {
         this.suggestedPaths = []; // Contour suggestions for each leg
         this.currentProfileData = null;
         this.chart = null;
-        this.speed = 40; // m/min
+        this.speed = 25; // m/min - safe swimming speed with fins (~1.5 km/h)
         this.speedUnit = 'mmin';
         this.waypointDists = [];
         this.editMode = true; // Default to edit mode
@@ -1021,6 +1021,24 @@ class RouteProfiler {
                 bearingPath: [this.points[i], this.points[i + 1]],
                 hasContour: false
             });
+        }
+    }
+
+    /**
+     * Convert speed to meters per minute (single source of truth for all time calculations)
+     * CRITICAL: This function must be used consistently everywhere for safety
+     * @returns {number} Speed in meters per minute
+     */
+    getSpeedMetersPerMin() {
+        if (this.speedUnit === 'mmin') {
+            return this.speed; // Already in m/min
+        } else if (this.speedUnit === 'ms') {
+            return this.speed * 60; // m/s to m/min (exact)
+        } else {
+            // knots: 1 knot = 1 nautical mile per hour
+            // 1 nautical mile = 1852 meters (exact, by international definition)
+            // 1 hour = 60 minutes
+            return this.speed * (1852 / 60); // = 30.86666... m/min (exact)
         }
     }
 
@@ -1291,8 +1309,8 @@ class RouteProfiler {
             const closest = { x: p1.x + t * dx, y: p1.y + t * dy };
             const dist = Math.sqrt((point.x - closest.x) ** 2 + (point.y - closest.y) ** 2);
 
-            // Only consider if in middle 90% of segment (avoid endpoints)
-            if (dist < minDist && t >= 0.05 && t <= 0.95) {
+            // Always find the truly closest segment for tight hover behavior
+            if (dist < minDist) {
                 minDist = dist;
                 closestPoint = map.unproject([closest.x, closest.y]);
                 segmentIndex = i;
@@ -2122,11 +2140,22 @@ class RouteProfiler {
 
         this.waypointDists = dists;
 
-        // Generate profile along the geometry
-        // Calculate total length again accurately for sampling ratio
+        // Verify data integrity for safety-critical calculations
+        if (dists.length !== this.points.length) {
+            console.error(`[SAFETY] Distance array length mismatch: expected ${this.points.length}, got ${dists.length}`);
+        }
+        if (fullPath.length < this.points.length) {
+            console.error(`[SAFETY] Path construction error: insufficient points for waypoints`);
+        }
+
+        // Verify path distance consistency (10cm tolerance)
         let totalPathLen = 0;
         for (let i = 0; i < fullPath.length - 1; i++) {
             totalPathLen += this.haversineDistance(fullPath[i], fullPath[i + 1]);
+        }
+        const finalDist = dists[dists.length - 1];
+        if (Math.abs(totalPathLen - finalDist) > 0.1) {
+            console.warn(`[SAFETY] Path distance mismatch: ${(totalPathLen - finalDist).toFixed(2)}m difference detected`);
         }
 
         // Progressive rendering: quick low-res first, then full resolution
@@ -2169,6 +2198,51 @@ class RouteProfiler {
                 }
                 currentDist += segLen;
             }
+
+            // Ensure all waypoints appear at exact cumulative distances
+            // Maintains consistency between waypoint table and profile visualization
+            for (let wpIdx = 0; wpIdx < dists.length; wpIdx++) {
+                const exactWpDist = dists[wpIdx];
+                const wpCoords = this.points[wpIdx];
+
+                // Find closest sample to this waypoint distance
+                let closestIdx = -1;
+                let minDiff = Infinity;
+                for (let i = 0; i < data.length; i++) {
+                    const diff = Math.abs(data[i].dist - exactWpDist);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        closestIdx = i;
+                    }
+                }
+
+                if (closestIdx >= 0 && minDiff < 1.0) {
+                    // Sample within 1m - snap it to exact waypoint distance and coordinates
+                    data[closestIdx].dist = exactWpDist;
+                    data[closestIdx].lng = wpCoords[0];
+                    data[closestIdx].lat = wpCoords[1];
+                    data[closestIdx].depth = queryDepthFast(wpCoords[0], wpCoords[1]);
+                } else {
+                    // No sample within 1m - insert exact waypoint sample
+                    const wpSample = {
+                        dist: exactWpDist,
+                        depth: queryDepthFast(wpCoords[0], wpCoords[1]),
+                        lng: wpCoords[0],
+                        lat: wpCoords[1]
+                    };
+
+                    // Find insertion point to maintain sorted order
+                    let insertIdx = data.length;
+                    for (let i = 0; i < data.length; i++) {
+                        if (data[i].dist > exactWpDist) {
+                            insertIdx = i;
+                            break;
+                        }
+                    }
+                    data.splice(insertIdx, 0, wpSample);
+                }
+            }
+
             return data;
         };
 
@@ -2893,18 +2967,8 @@ class RouteProfiler {
 
         tableBody.innerHTML = '';
 
-        let cumulativeTimeMin = 0;
-
-        // Convert speed to meters/min based on unit
-        let speedMetersPerMin;
-        if (this.speedUnit === 'mmin') {
-            speedMetersPerMin = this.speed; // Already in m/min
-        } else if (this.speedUnit === 'ms') {
-            speedMetersPerMin = this.speed * 60; // m/s to m/min
-        } else {
-            // knots: 1 knot = 1852 m/h = 30.866 m/min
-            speedMetersPerMin = this.speed * 30.866;
-        }
+        // Get speed in m/min using single source of truth
+        const speedMetersPerMin = this.getSpeedMetersPerMin();
 
         let totalDistNM = 0;
 
@@ -2938,9 +3002,11 @@ class RouteProfiler {
                 }
             }
 
-            // Format time (cumulative time when at this waypoint)
-            const hours = Math.floor(cumulativeTimeMin / 60);
-            const mins = Math.floor(cumulativeTimeMin % 60);
+            // CRITICAL: Calculate arrival time FROM distance (single source of truth)
+            // Don't accumulate to avoid floating point errors
+            const arrivalTimeMin = dists[i] / speedMetersPerMin;
+            const hours = Math.floor(arrivalTimeMin / 60);
+            const mins = Math.floor(arrivalTimeMin % 60);
             const timeStr = `${hours}:${mins.toString().padStart(2, '0')}`;
 
             const lat = p[1].toFixed(4);
@@ -3030,8 +3096,7 @@ class RouteProfiler {
 
             tableBody.appendChild(tr);
 
-            // Add this leg's time for the next waypoint
-            cumulativeTimeMin += legTimeMin;
+            // Track total distance for summary display
             totalDistNM += (distM / 1852);
         }
         // Update total distance display in waypoint sidebar
@@ -3193,22 +3258,16 @@ class RouteProfiler {
                         title: { display: true, text: 'Time (min)' },
                         grid: { drawOnChartArea: false },
                         ticks: {
-                            // Generate ticks at sensible time intervals
+                            // Tighter time gradations - show more ticks
+                            autoSkip: true,
+                            maxTicksLimit: 15, // Increased from default (~7) for tighter gradations
                             callback: function (val, index, ticks) {
                                 // Get profiler reference
                                 const profiler = window.profiler;
                                 if (!profiler) return '';
 
-                                // Calculate speed in meters per minute
-                                let speedMetersPerMin;
-                                if (profiler.speedUnit === 'mmin') {
-                                    speedMetersPerMin = profiler.speed;
-                                } else if (profiler.speedUnit === 'ms') {
-                                    speedMetersPerMin = profiler.speed * 60;
-                                } else {
-                                    // knots: 1 knot = 1852 m/h = 30.866 m/min
-                                    speedMetersPerMin = profiler.speed * 30.866;
-                                }
+                                // Use single source of truth for speed conversion (CRITICAL for safety)
+                                const speedMetersPerMin = profiler.getSpeedMetersPerMin();
 
                                 // Avoid division by zero
                                 if (!speedMetersPerMin || speedMetersPerMin <= 0) return '';
@@ -3227,9 +3286,11 @@ class RouteProfiler {
                                     distM = val; // already in meters
                                 }
 
-                                // Calculate time in minutes
+                                // Calculate time in minutes (use floor to match table display logic)
                                 const timeMin = distM / speedMetersPerMin;
-                                return Math.round(timeMin);
+                                // Show integer minutes for consistency with waypoint table
+                                const displayMin = Math.floor(timeMin);
+                                return displayMin;
                             }
                         }
                     },
@@ -3332,8 +3393,8 @@ class RouteProfiler {
                         ctx.moveTo(x, yAxis.top);
                         ctx.lineTo(x, yAxis.bottom);
 
-                        // Draw Label
-                        if (index > 0 && index < this.waypointDists.length) {
+                        // Draw Label (skip first and last waypoints - start and end)
+                        if (index > 0 && index < this.waypointDists.length - 1) {
                             ctx.fillStyle = '#dc2626';
                             ctx.textAlign = 'center';
                             ctx.font = '10px JetBrains Mono';
@@ -3432,7 +3493,7 @@ class RouteProfiler {
         });
 
         this.chart.data.datasets[0].data = dataPoints;
-        this.chart.update('none'); // Skip animation for instant render
+        this.chart.update('none');
     }
 
     updateChartTimeLabels() {
@@ -3675,7 +3736,12 @@ const syncAxesPlugin = {
         const minX = Math.min(...xValues);
         const maxX = Math.max(...xValues);
 
-        // Set xTime axis options to match x axis range
+        // Synchronize both distance and time axes to identical ranges
+        // Ensures time labels align precisely with distance positions
+        if (chart.options.scales.x) {
+            chart.options.scales.x.min = minX;
+            chart.options.scales.x.max = maxX;
+        }
         if (chart.options.scales.xTime) {
             chart.options.scales.xTime.min = minX;
             chart.options.scales.xTime.max = maxX;

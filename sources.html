@@ -190,12 +190,12 @@
                         <div class="detail-label">Source</div>
                         <div class="detail-text">Swan-Canning Multibeam Survey (SC2010) from the <a
                                 href="https://catalogue.data.wa.gov.au/dataset/bathymetry-catalogue">Department
-                                of Transport WA</a>. CC BY 4.0.</div>
+                                of Transport WA</a>. CC BY 4.0. Original coordinate system: GDA94 / MGA zone 50 (EPSG:28350).</div>
                     </div>
                     <div class="detail-section">
                         <div class="detail-label">Processing</div>
-                        <div class="detail-text">BAG file hole-filled in QGIS, exported as GeoTIFF. Optimized for web
-                            by converting Float32 to Int16 (×100) at 25% resolution as a DEFLATE COG (731MB → 3.2MB).</div>
+                        <div class="detail-text">BAG file hole-filled in QGIS, exported as GeoTIFF in original projection. Optimized for web
+                            by converting Float32 to Int16 (×100) at 25% resolution as a DEFLATE COG (731MB → 3.2MB). Client-side conversion to Web Mercator (EPSG:3857) for map display.</div>
                     </div>
                     <div class="detail-section">
                         <div class="detail-label">Implementation Details</div>
