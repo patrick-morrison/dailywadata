@@ -188,19 +188,6 @@ function initializeLegendToggles() {
     };
 }
 
-// Interactions
-map.on('mousemove', (e) => {
-    const light = queryNearestLight(e.lngLat.lng, e.lngLat.lat);
-    updateCursorInfo(light, e.lngLat.lng, e.lngLat.lat);
-});
-
-map.on('click', async (e) => {
-    const light = queryNearestLight(e.lngLat.lng, e.lngLat.lat);
-    if (light) {
-        showClickPopup(light, e.lngLat.lng, e.lngLat.lat);
-    }
-});
-
 // Context Menu (Right Click)
 map.on('contextmenu', async (e) => {
     const existing = document.getElementById('context-menu');
@@ -420,6 +407,19 @@ function renderStreetlights(geojson) {
             const color = CONFIG.BULB_COLORS[bulbType] || CONFIG.BULB_COLORS.Unknown;
             return [...color, CONFIG.CIRCLE_OPACITY * 255];
         },
+        onHover: e => {
+            const light = queryNearestLight(e);
+            if (light) {
+                map.getCanvas().style.cursor = 'pointer'; // Change cursor
+            }
+            updateCursorInfo(light, e.coordinate[0], e.coordinate[1]);
+        },
+        onClick: e => {
+            const light = queryNearestLight(e);
+            if (light) {
+                showClickPopup(light, e.coordinate[0], e.coordinate[1]);
+            }
+        },
         radiusUnits: 'meters',
         radiusMinPixels: 1,
         radiusMaxPixels: 100,
@@ -437,34 +437,10 @@ function renderStreetlights(geojson) {
 // Utilities
 // ============================================
 
-function queryNearestLight(lng, lat) {
+function queryNearestLight(e) {
     if (!state.geojsonData) return null;
 
-    let nearest = null;
-    let minDist = Infinity;
-
-    // Simple distance check (only check if within reasonable range)
-    const maxDist = 0.001; // roughly 100m in degrees
-
-    for (const feature of state.geojsonData.features) {
-        // Only consider lights that are currently visible
-        const bulbType = normalizeBulbType(feature.properties.bulb_type);
-        if (state.visibleBulbTypes[bulbType] === false) {
-            return; // Skip this feature if its type is hidden
-        }
-
-        const [fLng, fLat] = feature.geometry.coordinates;
-        const dx = fLng - lng;
-        const dy = fLat - lat;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist < maxDist && dist < minDist) {
-            minDist = dist;
-            nearest = feature;
-        }
-    };
-
-    return nearest;
+    return e?.object;
 }
 
 function formatCoordinates(lng, lat) {
@@ -491,7 +467,6 @@ function updateCursorInfo(light, lng, lat) {
 }
 
 function showClickPopup(light, lng, lat) {
-    const r = formatCoordinates(lng, lat);
     const props = light.properties;
     const bulbType = normalizeBulbType(props.bulb_type);
 
@@ -501,7 +476,10 @@ function showClickPopup(light, lng, lat) {
     const el = document.createElement('div');
     el.className = 'click-marker';
     state.clickMarker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
+    const trueLat = light.geometry.coordinates[0];
+    const trueLon = light.geometry.coordinates[1];
 
+    const r = formatCoordinates(trueLat, trueLon);
     state.clickPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, className: 'light-popup', offset: 12 })
         .setLngLat([lng, lat])
         .setHTML(`
@@ -515,7 +493,7 @@ function showClickPopup(light, lng, lat) {
             </div>
             <div class="popup-coords copyable">${r.gmaps}</div>
             <div class="popup-coords-dm copyable">${r.display}</div>
-            <button class="popup-share-btn" data-lat="${lat}" data-lng="${lng}">
+            <button class="popup-share-btn" data-lat="${trueLat}" data-lng="${trueLon}">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
                     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
