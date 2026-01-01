@@ -39,9 +39,9 @@ const CONFIG = {
 
     // Map bounds (will be calculated from data)
     INITIAL_VIEW: {
-        lng: 115.8605,
-        lat: -31.9505,
-        zoom: 10
+        lng: 115.796008,
+        lat: -32.014970,
+        zoom: 8
     }
 };
 
@@ -123,7 +123,10 @@ const map = new maplibregl.Map({
                 type: 'raster',
                 source: 'carto-light',
                 minzoom: 0,
-                maxzoom: 22
+                maxzoom: 22,
+                layout: {
+                    visibility: 'none'
+                }
             },
             {
                 id: 'carto-dark-layer',
@@ -132,14 +135,14 @@ const map = new maplibregl.Map({
                 minzoom: 0,
                 maxzoom: 22,
                 layout: {
-                    visibility: 'none'
+                    visibility: 'visible'
                 }
             }
         ]
     },
     center: [CONFIG.INITIAL_VIEW.lng, CONFIG.INITIAL_VIEW.lat],
     zoom: CONFIG.INITIAL_VIEW.zoom,
-    minZoom: 7,
+    minZoom: 6,
     maxZoom: 18,
     maxPitch: 0,
     dragRotate: false,
@@ -160,6 +163,7 @@ map.on('load', () => {
     loadStreetlights();
     initializeLegendToggles();
     initializeDarkMode();
+    initializeMobileLegendCollapse();
 });
 
 // Legend Toggle Functionality
@@ -264,8 +268,9 @@ document.getElementById('location-btn').addEventListener('click', toggleGeolocat
 
 // Dark Mode Toggle
 function initializeDarkMode() {
-    // Restore dark mode state from localStorage
-    const isDark = localStorage.getItem('darkMode') === 'true';
+    // Default to dark mode, but allow localStorage to override
+    const savedMode = localStorage.getItem('darkMode');
+    const isDark = savedMode !== null ? savedMode === 'true' : true; // Default to dark mode
     const checkbox = document.getElementById('dark-mode-checkbox');
 
     // Set checkbox state
@@ -273,6 +278,7 @@ function initializeDarkMode() {
 
     // Apply dark mode if enabled
     if (isDark) {
+        document.body.classList.add('dark-mode');
         map.setLayoutProperty('carto-light-layer', 'visibility', 'none');
         map.setLayoutProperty('carto-dark-layer', 'visibility', 'visible');
     }
@@ -286,13 +292,45 @@ document.getElementById('dark-mode-checkbox').addEventListener('change', (e) => 
 
     // Apply dark mode
     if (isDark) {
+        document.body.classList.add('dark-mode');
         map.setLayoutProperty('carto-light-layer', 'visibility', 'none');
         map.setLayoutProperty('carto-dark-layer', 'visibility', 'visible');
     } else {
+        document.body.classList.remove('dark-mode');
         map.setLayoutProperty('carto-dark-layer', 'visibility', 'none');
         map.setLayoutProperty('carto-light-layer', 'visibility', 'visible');
     }
 });
+
+// Mobile Legend Collapse
+function initializeMobileLegendCollapse() {
+    const legendTitle = document.querySelector('.legend-title');
+    const legendContent = document.querySelector('.legend-content');
+
+    // Only collapse on mobile (check viewport width)
+    const isMobile = () => window.innerWidth <= 768;
+
+    // Start collapsed on mobile
+    if (isMobile()) {
+        legendTitle.classList.add('collapsed');
+        legendContent.classList.add('collapsed');
+    }
+
+    legendTitle.addEventListener('click', () => {
+        if (isMobile()) {
+            legendTitle.classList.toggle('collapsed');
+            legendContent.classList.toggle('collapsed');
+        }
+    });
+
+    // Re-check on resize
+    window.addEventListener('resize', () => {
+        if (!isMobile()) {
+            legendTitle.classList.remove('collapsed');
+            legendContent.classList.remove('collapsed');
+        }
+    });
+}
 
 // ============================================
 // Data Loading & Processing
@@ -315,17 +353,10 @@ async function loadStreetlights() {
         // Update light count
         document.getElementById('light-count').textContent = geojson.features.length.toLocaleString();
 
-        // Calculate bounds
-        const bounds = calculateBounds(geojson);
-
         // Render streetlights
         renderStreetlights(geojson);
 
-        // Fit map to bounds
-        map.fitBounds(bounds, {
-            padding: { top: 100, bottom: 100, left: 100, right: 100 },
-            duration: 2000
-        });
+        // Note: Not auto-fitting to bounds to preserve user-specified center coordinates
 
         // Hide loading
         setTimeout(() => {
