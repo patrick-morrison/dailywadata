@@ -32,7 +32,7 @@ body {
 .back-link {
   top: 20px;
   left: 20px;
-  z-index: 101;
+  z-index: 1001;
   font-size: 0.75rem;
   color: rgba(0, 0, 0, 0.5);
   text-decoration: none;
@@ -84,7 +84,10 @@ div.ol-zoom {
 }
 
 .title-meta {
-  margin-top: 8px;
+  margin-top: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
 .attribution,
@@ -180,7 +183,8 @@ div.ol-zoom {
 
 @media (orientation: portrait) {
   .back-link {
-    opacity: 0;
+    left: 5%;
+    top: 30px;
   }
 
   .header {
@@ -206,13 +210,13 @@ div.ol-zoom {
   }
 
   .title-card h1 {
-    font-size: 4rem;
+    font-size: 2rem;
     line-height: 1.1;
   }
 
   .title-card .subtitle {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 2rem;
+    font-size: 1rem;
     margin-bottom: 18px;
     line-height: 1.4;
   }
@@ -229,7 +233,7 @@ div.ol-zoom {
 
   .attribution,
   .methods-link {
-    font-size: 1.5rem;
+    font-size: 1rem;
   }
 
   .ol-popup {
