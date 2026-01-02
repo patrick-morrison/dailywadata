@@ -13,7 +13,7 @@ const CONFIG = {
 
     // Visualization settings
     CIRCLE_OPACITY: 0.7, // 70% opacity
-    DEFAULT_RADIUS: 5, // Default radius in meters
+    DEFAULT_RADIUS: 50, // Default radius in meters
 
     // Color mapping for different feature types
     FEATURE_COLORS: {
@@ -24,7 +24,51 @@ const CONFIG = {
         'Open Stope': [205, 133, 63],        // Peru
         'Waste Dump': [160, 120, 80],        // Medium brown
         'Tailings Dump': [180, 140, 100],    // Light brown
-        'Other': [169, 169, 169]             // Gray for other/unknown
+        'Other': [169, 169, 169],            // Gray for other/unknown
+        '__NULL__': [200, 200, 200]          // Light gray for null
+    },
+
+    // Color mapping for condition (red to green gradient)
+    CONDITION_COLORS: {
+        'Poor': [180, 50, 50],               // Dark red
+        'Fair': [200, 150, 60],              // Amber/orange
+        'Good': [80, 140, 80],               // Green
+        '__NULL__': [150, 150, 150]          // Gray
+    },
+
+    // Color mapping for base condition (subsidence severity)
+    BASE_CONDITION_COLORS: {
+        'Severe Subsidence': [150, 40, 40],      // Deep red
+        'Moderate Subsidence': [190, 80, 60],    // Red-orange
+        'Slight Subsidence': [210, 140, 90],     // Orange-brown
+        'Firm': [100, 130, 100],                 // Green-gray
+        'Undercut/Overhang': [180, 60, 60],      // Red
+        'Cracked': [200, 100, 80],               // Orange-red
+        'Conical Collar': [160, 140, 100],       // Tan
+        'Severely Eroded': [190, 110, 70],       // Orange
+        'Unknown': [140, 140, 140],              // Medium gray
+        '__NULL__': [170, 170, 170]              // Light gray
+    },
+
+    // Color mapping for commodities (top commodities + Other)
+    COMMODITY_COLORS: {
+        'Gold': [218, 165, 32],              // Goldenrod
+        'Iron': [139, 90, 90],               // Dark red-brown
+        'Copper': [184, 115, 51],            // Copper color
+        'Nickel': [192, 192, 192],           // Silver
+        'Tin': [169, 169, 169],              // Gray
+        'Manganese': [80, 60, 80],           // Purple-gray
+        'Lead': [120, 120, 140],             // Blue-gray
+        'Zinc': [160, 170, 180],             // Light blue-gray
+        'Silver': [220, 220, 230],           // Bright silver
+        'Tantalum': [100, 80, 120],          // Purple
+        'Tungsten': [140, 140, 130],         // Warm gray
+        'Coal': [40, 40, 40],                // Near black
+        'Phosphate': [200, 180, 140],        // Beige
+        'Gypsum': [240, 235, 230],           // Off-white
+        'Lithium': [230, 230, 250],          // Lavender
+        'Other': [170, 150, 130],            // Medium brown
+        '__NULL__': [180, 180, 180]          // Light gray
     },
 
     // Map bounds (will be calculated from data)
@@ -40,17 +84,59 @@ const CONFIG = {
 // ============================================
 
 /**
- * Normalize feature type to handle unknown/null/empty values
+ * Field mapping for filter types to CSV column names
  */
-function normalizeFeatureType(featureType) {
-    if (!featureType || featureType === 'null' || featureType.trim() === '') {
-        return 'Other';
+const FILTER_FIELD_MAP = {
+    'feature-type': 'FEATURE_TY',
+    'site-subtype': 'SITE_SUB_T',
+    'base-condition': 'BASE_CONDI',
+    'condition': 'CONDITION',
+    'visibility': 'VISIBILITY',
+    'commodity': 'COMMODITIE',
+    'excavation': 'EXCAVATION'
+};
+
+/**
+ * Normalize filter value to handle null/empty/invalid values
+ */
+function normalizeFilterValue(properties, filterType) {
+    const field = FILTER_FIELD_MAP[filterType];
+    const value = properties[field];
+
+    // Handle null/empty values
+    if (!value || value === 'null' || value.trim() === '' || value === '-9999' || value === '-9999.000000000000000') {
+        return '__NULL__';
     }
-    // Check if the feature type matches one of our known types
-    if (CONFIG.FEATURE_COLORS[featureType]) {
-        return featureType;
+
+    const trimmed = value.trim();
+
+    // Special handling for commodities (may have multiple comma-separated values)
+    if (filterType === 'commodity') {
+        // Take first commodity if multiple
+        return trimmed.split(',')[0].trim();
     }
-    return 'Other';
+
+    return trimmed;
+}
+
+/**
+ * Check if a feature passes all active filters (AND logic)
+ */
+function featurePassesFilters(feature) {
+    // For each filter dimension
+    for (const [filterType, allowedValues] of Object.entries(state.filters)) {
+        // If this dimension has active filters
+        if (allowedValues.size > 0) {
+            const featureValue = normalizeFilterValue(feature.properties, filterType);
+
+            // Check if feature's value is in the allowed set
+            if (!allowedValues.has(featureValue)) {
+                return false; // Fail fast on first non-match
+            }
+        }
+    }
+
+    return true; // Passes all filters
 }
 
 /**
@@ -87,6 +173,109 @@ function parseCSV(csvText) {
     };
 }
 
+/**
+ * Compute filter statistics from loaded data
+ * This runs once when data is loaded and caches results
+ */
+function computeFilterStatistics(geojson) {
+    const stats = {
+        'feature-type': {},
+        'site-subtype': {},
+        'base-condition': {},
+        'condition': {},
+        'visibility': {},
+        'commodity': {},
+        'excavation': {}
+    };
+
+    // Count occurrences of each value in each dimension
+    for (const feature of geojson.features) {
+        for (const [filterType, counts] of Object.entries(stats)) {
+            const value = normalizeFilterValue(feature.properties, filterType);
+            counts[value] = (counts[value] || 0) + 1;
+        }
+    }
+
+    // Sort each dimension by count (descending)
+    for (const filterType of Object.keys(stats)) {
+        const sorted = Object.entries(stats[filterType])
+            .sort((a, b) => b[1] - a[1]);
+
+        stats[filterType] = Object.fromEntries(sorted);
+    }
+
+    return stats;
+}
+
+/**
+ * Identify top commodities for color mapping
+ */
+function getTopCommodities(stats) {
+    const commodities = stats['commodity'];
+    const sorted = Object.entries(commodities)
+        .filter(([value]) => value !== '__NULL__')
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 15)
+        .map(([value]) => value);
+
+    return new Set(sorted);
+}
+
+/**
+ * Get color function for current display mode
+ */
+function getColorFunctionForDisplayMode(displayMode) {
+    const colorMaps = {
+        'feature-type': CONFIG.FEATURE_COLORS,
+        'condition': CONFIG.CONDITION_COLORS,
+        'base-condition': CONFIG.BASE_CONDITION_COLORS,
+        'commodity': CONFIG.COMMODITY_COLORS
+    };
+
+    const colorMap = colorMaps[displayMode];
+    const filterType = displayMode;
+
+    return (d) => {
+        const value = normalizeFilterValue(d.properties, filterType);
+
+        // For commodities, map non-top-15 to "Other"
+        let colorKey = value;
+        if (displayMode === 'commodity' && value !== '__NULL__') {
+            if (!state.topCommodities || !state.topCommodities.has(value)) {
+                colorKey = 'Other';
+            }
+        }
+
+        const color = colorMap[colorKey] || colorMap['Other'] || [169, 169, 169];
+        return [...color, CONFIG.CIRCLE_OPACITY * 255];
+    };
+}
+
+/**
+ * Get color for a specific value (for legend display)
+ */
+function getColorForValue(filterType, value) {
+    const colorMaps = {
+        'feature-type': CONFIG.FEATURE_COLORS,
+        'condition': CONFIG.CONDITION_COLORS,
+        'base-condition': CONFIG.BASE_CONDITION_COLORS,
+        'commodity': CONFIG.COMMODITY_COLORS
+    };
+
+    const colorMap = colorMaps[filterType];
+    if (!colorMap) return [169, 169, 169]; // Default gray
+
+    // For commodities, map non-top-15 to "Other"
+    let colorKey = value;
+    if (filterType === 'commodity' && value !== '__NULL__') {
+        if (!state.topCommodities || !state.topCommodities.has(value)) {
+            colorKey = 'Other';
+        }
+    }
+
+    return colorMap[colorKey] || colorMap['Other'] || [169, 169, 169];
+}
+
 // ============================================
 // State Management
 // ============================================
@@ -105,17 +294,27 @@ const state = {
     isTracking: false,
     deviceHeading: null,
 
-    // Visibility toggles for each feature type
-    visibleFeatureTypes: {
-        'Shaft': true,
-        'Adit': true,
-        'Costean/Trench': true,
-        'Pit/Quarry': true,
-        'Open Stope': true,
-        'Waste Dump': true,
-        'Tailings Dump': true,
-        'Other': true
-    }
+    // Active tab and display mode
+    activeTab: 'feature-type',
+    displayMode: 'feature-type', // 'feature-type' | 'condition' | 'base-condition' | 'commodity'
+
+    // Multi-dimensional filters (Set-based for performance)
+    // Empty Set = all visible (no filter active)
+    filters: {
+        'feature-type': new Set(),
+        'site-subtype': new Set(),
+        'base-condition': new Set(),
+        'condition': new Set(),
+        'visibility': new Set(),
+        'commodity': new Set(),
+        'excavation': new Set()
+    },
+
+    // Cached filter statistics (computed once on load)
+    filterStats: null,
+
+    // Top commodities for color mapping
+    topCommodities: null
 };
 
 // ============================================
@@ -171,32 +370,14 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom
 // Map Load
 map.on('load', () => {
     loadMines();
-    initializeLegendToggles();
+    initializeTabNavigation();
+    initializeDisplayModeSelector();
+    initializeQuickActions();
     initializeMobileLegendCollapse();
+
+    // Wire up clear filters button
+    document.querySelector('.clear-filters-btn').addEventListener('click', clearAllFilters);
 });
-
-// Legend Toggle Functionality
-function initializeLegendToggles() {
-    const legendItems = document.querySelectorAll('.legend-item[data-feature-type]');
-
-    for (const item of legendItems) {
-        item.addEventListener('click', () => {
-            const featureType = item.dataset.featureType;
-
-            // Toggle visibility state
-            state.visibleFeatureTypes[featureType] = !state.visibleFeatureTypes[featureType];
-
-            // Toggle active class
-            item.classList.toggle('active');
-
-            // Re-render with updated visibility
-            if (state.geojsonData) {
-                renderMines(state.geojsonData);
-            }
-        });
-    };
-}
-
 // Context Menu (Right Click)
 map.on('contextmenu', async (e) => {
     const existing = document.getElementById('context-menu');
@@ -311,8 +492,16 @@ async function loadMines() {
 
         state.geojsonData = geojson;
 
+        // Compute filter statistics (once on load)
+        setLoadingText('Computing filter statistics...');
+        state.filterStats = computeFilterStatistics(geojson);
+        state.topCommodities = getTopCommodities(state.filterStats);
+
         // Update mine count
         document.getElementById('mine-count').textContent = geojson.features.length.toLocaleString();
+
+        // Initialize filter panels with data
+        initializeFilterPanels(state.filterStats);
 
         // Render mines
         renderMines(geojson);
@@ -333,11 +522,13 @@ async function loadMines() {
 // ============================================
 
 function renderMines(geojson) {
-    // Filter features based on visible feature types
-    const visibleFeatures = geojson.features.filter(feature => {
-        const featureType = normalizeFeatureType(feature.properties.FEATURE_TY);
-        return state.visibleFeatureTypes[featureType] !== false;
-    });
+    if (!geojson) return;
+
+    // Filter features based on ALL active filters (AND logic)
+    const visibleFeatures = geojson.features.filter(featurePassesFilters);
+
+    // Get color function based on display mode
+    const colorFunction = getColorFunctionForDisplayMode(state.displayMode);
 
     // Create deck.gl layer
     const scatterplotLayer = new deck.ScatterplotLayer({
@@ -345,15 +536,13 @@ function renderMines(geojson) {
         data: visibleFeatures,
         getPosition: d => d.geometry.coordinates,
         getRadius: d => CONFIG.DEFAULT_RADIUS,
-        getFillColor: d => {
-            const featureType = normalizeFeatureType(d.properties.FEATURE_TY);
-            const color = CONFIG.FEATURE_COLORS[featureType] || CONFIG.FEATURE_COLORS.Other;
-            return [...color, CONFIG.CIRCLE_OPACITY * 255];
-        },
+        getFillColor: colorFunction,
         onHover: e => {
             const mine = queryNearestMine(e);
             if (mine) {
-                map.getCanvas().style.cursor = 'pointer'; // Change cursor
+                map.getCanvas().style.cursor = 'pointer';
+            } else {
+                map.getCanvas().style.cursor = '';
             }
             updateCursorInfo(mine, e.coordinate[0], e.coordinate[1]);
         },
@@ -374,6 +563,341 @@ function renderMines(geojson) {
     if (state.deckOverlay) map.removeControl(state.deckOverlay);
     state.deckOverlay = new deck.MapboxOverlay({ layers: [scatterplotLayer] });
     map.addControl(state.deckOverlay);
+
+    // Update visible count
+    updateVisibleCount(visibleFeatures.length);
+}
+
+/**
+ * Initialize filter panels with data from statistics
+ */
+function initializeFilterPanels(stats) {
+    const panels = {
+        'feature-type': document.querySelector('[data-panel="feature-type"]'),
+        'site-subtype': document.querySelector('[data-panel="site-subtype"]'),
+        'base-condition': document.querySelector('[data-panel="base-condition"]'),
+        'condition': document.querySelector('[data-panel="condition"]'),
+        'visibility': document.querySelector('[data-panel="visibility"]'),
+        'commodity': document.querySelector('[data-panel="commodity"]'),
+        'excavation': document.querySelector('[data-panel="excavation"]')
+    };
+
+    for (const [filterType, panel] of Object.entries(panels)) {
+        const counts = stats[filterType];
+
+        // Find the header (keep it)
+        const header = panel.querySelector('.filter-panel-header');
+
+        // Clear existing content except header
+        while (panel.lastChild && panel.lastChild !== header) {
+            panel.removeChild(panel.lastChild);
+        }
+
+        // Create filter items
+        for (const [value, count] of Object.entries(counts)) {
+            const item = createFilterItem(filterType, value, count);
+            panel.appendChild(item);
+        }
+    }
+}
+
+/**
+ * Create a filter item element
+ */
+function createFilterItem(filterType, value, count) {
+    const item = document.createElement('div');
+    item.className = 'filter-item active';
+    item.dataset.filterType = filterType;
+    item.dataset.filterValue = value;
+
+    // Color indicator (only for display-mode-compatible types)
+    const showColor = (
+        filterType === 'feature-type' ||
+        filterType === 'condition' ||
+        filterType === 'base-condition' ||
+        filterType === 'commodity'
+    );
+
+    if (showColor && filterType === state.displayMode) {
+        const color = getColorForValue(filterType, value);
+        const colorDiv = document.createElement('div');
+        colorDiv.className = 'filter-color';
+        colorDiv.style.background = `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.7)`;
+        item.appendChild(colorDiv);
+    }
+
+    // Label
+    const label = document.createElement('span');
+    label.className = 'filter-label';
+    label.textContent = value === '__NULL__' ? 'Unknown / Not recorded' : value;
+    item.appendChild(label);
+
+    // Count
+    const countSpan = document.createElement('span');
+    countSpan.className = 'filter-count';
+    countSpan.textContent = count.toLocaleString();
+    item.appendChild(countSpan);
+
+    // Click handler
+    item.addEventListener('click', () => {
+        item.classList.toggle('active');
+        toggleFilter(filterType, value);
+    });
+
+    return item;
+}
+
+/**
+ * Toggle a filter value
+ */
+function toggleFilter(filterType, value) {
+    const filterSet = state.filters[filterType];
+
+    if (filterSet.has(value)) {
+        filterSet.delete(value);
+    } else {
+        filterSet.add(value);
+    }
+
+    // Re-render with updated filters
+    renderMines(state.geojsonData);
+    updateActiveFilterSummary();
+    updateTabIndicators();
+}
+
+/**
+ * Clear all filters across all dimensions
+ */
+function clearAllFilters() {
+    for (const filterSet of Object.values(state.filters)) {
+        filterSet.clear();
+    }
+
+    // Update all filter items to active
+    document.querySelectorAll('.filter-item').forEach(item => {
+        item.classList.add('active');
+    });
+
+    renderMines(state.geojsonData);
+    updateActiveFilterSummary();
+    updateTabIndicators();
+}
+
+/**
+ * Update active filter summary display
+ */
+function updateActiveFilterSummary() {
+    let activeCount = 0;
+    for (const filterSet of Object.values(state.filters)) {
+        activeCount += filterSet.size;
+    }
+
+    const countEl = document.querySelector('.active-count');
+    if (activeCount === 0) {
+        countEl.textContent = 'No filters active';
+    } else {
+        countEl.textContent = `${activeCount} filter${activeCount === 1 ? '' : 's'} active`;
+    }
+}
+
+/**
+ * Update tab indicators to show which tabs have active filters
+ */
+function updateTabIndicators() {
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+        const tabName = tab.dataset.tab;
+        const hasActiveFilters = state.filters[tabName]?.size > 0;
+
+        tab.classList.toggle('has-active-filters', hasActiveFilters);
+    });
+}
+
+/**
+ * Update visible feature count display
+ */
+function updateVisibleCount(count) {
+    const statsEl = document.querySelector('.stats-value');
+    statsEl.textContent = `${count.toLocaleString()} / ${state.geojsonData.features.length.toLocaleString()}`;
+}
+
+/**
+ * Initialize tab navigation
+ */
+function initializeTabNavigation() {
+    const tabs = document.querySelectorAll('.filter-tab');
+    const panels = document.querySelectorAll('.filter-panel');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Update active tab
+            const targetPanel = tab.dataset.tab;
+            state.activeTab = targetPanel;
+
+            // Update UI
+            tabs.forEach(t => t.classList.remove('active'));
+            panels.forEach(p => p.classList.remove('active'));
+
+            tab.classList.add('active');
+            document.querySelector(`[data-panel="${targetPanel}"]`).classList.add('active');
+
+            // Update legend colors if the active tab matches display mode
+            updateLegendForDisplayMode(state.displayMode);
+
+            // Save preference to localStorage
+            localStorage.setItem('mines-active-tab', targetPanel);
+        });
+    });
+
+    // Restore last active tab
+    const savedTab = localStorage.getItem('mines-active-tab');
+    if (savedTab) {
+        const tabToClick = document.querySelector(`[data-tab="${savedTab}"]`);
+        if (tabToClick) tabToClick.click();
+    }
+}
+
+/**
+ * Initialize display mode selector
+ */
+function initializeDisplayModeSelector() {
+    const selector = document.getElementById('display-mode');
+
+    selector.addEventListener('change', (e) => {
+        state.displayMode = e.target.value;
+        renderMines(state.geojsonData);
+        updateLegendForDisplayMode(state.displayMode);
+
+        // Save preference
+        localStorage.setItem('mines-display-mode', state.displayMode);
+    });
+
+    // Restore saved preference
+    const savedMode = localStorage.getItem('mines-display-mode');
+    if (savedMode) {
+        selector.value = savedMode;
+        state.displayMode = savedMode;
+    }
+}
+
+/**
+ * Update legend colors when display mode changes
+ */
+function updateLegendForDisplayMode(displayMode) {
+    // Update color indicators in the active panel
+    const activePanel = document.querySelector('.filter-panel.active');
+    if (!activePanel) return;
+
+    const filterType = activePanel.dataset.panel;
+
+    // Only show colors if display mode matches filter type
+    const shouldShowColors = filterType === displayMode;
+
+    activePanel.querySelectorAll('.filter-item').forEach(item => {
+        const colorDiv = item.querySelector('.filter-color');
+        const value = item.dataset.filterValue;
+
+        if (shouldShowColors && !colorDiv) {
+            // Add color indicator
+            const color = getColorForValue(filterType, value);
+            const newColorDiv = document.createElement('div');
+            newColorDiv.className = 'filter-color';
+            newColorDiv.style.background = `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.7)`;
+            item.insertBefore(newColorDiv, item.firstChild);
+        } else if (!shouldShowColors && colorDiv) {
+            // Remove color indicator
+            colorDiv.remove();
+        } else if (shouldShowColors && colorDiv) {
+            // Update existing color
+            const color = getColorForValue(filterType, value);
+            colorDiv.style.background = `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.7)`;
+        }
+    });
+}
+
+/**
+ * Initialize quick action buttons (All/None/Invert) for filter panels
+ */
+function initializeQuickActions() {
+    document.querySelectorAll('.filter-panel').forEach(panel => {
+        const panelType = panel.dataset.panel;
+        const header = panel.querySelector('.filter-panel-header');
+
+        if (!header) return;
+
+        // Select All
+        const selectAllBtn = header.querySelector('[data-action="select-all"]');
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => {
+                state.filters[panelType].clear();
+                panel.querySelectorAll('.filter-item').forEach(item => {
+                    item.classList.add('active');
+                });
+                renderMines(state.geojsonData);
+                updateActiveFilterSummary();
+                updateTabIndicators();
+            });
+        }
+
+        // Select None
+        const selectNoneBtn = header.querySelector('[data-action="select-none"]');
+        if (selectNoneBtn) {
+            selectNoneBtn.addEventListener('click', () => {
+                // Get all values from the panel
+                const allValues = Array.from(panel.querySelectorAll('.filter-item'))
+                    .map(item => item.dataset.filterValue);
+
+                // Add all values to filter (inverted logic - empty Set = all visible)
+                state.filters[panelType] = new Set(allValues);
+
+                panel.querySelectorAll('.filter-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                renderMines(state.geojsonData);
+                updateActiveFilterSummary();
+                updateTabIndicators();
+            });
+        }
+
+        // Invert Selection
+        const invertBtn = header.querySelector('[data-action="invert"]');
+        if (invertBtn) {
+            invertBtn.addEventListener('click', () => {
+                const allValues = Array.from(panel.querySelectorAll('.filter-item'))
+                    .map(item => item.dataset.filterValue);
+
+                const currentFilter = state.filters[panelType];
+                const newFilter = new Set();
+
+                // If filter is empty (all visible), invert means select all to hide
+                if (currentFilter.size === 0) {
+                    allValues.forEach(v => newFilter.add(v));
+                } else {
+                    // Otherwise, invert the selection
+                    allValues.forEach(value => {
+                        if (!currentFilter.has(value)) {
+                            newFilter.add(value);
+                        }
+                    });
+                }
+
+                state.filters[panelType] = newFilter;
+
+                // Update UI
+                panel.querySelectorAll('.filter-item').forEach(item => {
+                    const value = item.dataset.filterValue;
+                    if (newFilter.size === 0 || !newFilter.has(value)) {
+                        item.classList.add('active');
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+
+                renderMines(state.geojsonData);
+                updateActiveFilterSummary();
+                updateTabIndicators();
+            });
+        }
+    });
 }
 
 // ============================================
@@ -410,13 +934,122 @@ function updateCursorInfo(mine, lng, lat) {
     }
 }
 
+// ============================================
+// Enhanced Popup Content Generation
+// ============================================
+
+function isValidValue(value) {
+    return value && value !== 'null' && value.trim() !== '' && value !== '-9999';
+}
+
+function generatePopupContent(props, coordinates) {
+    // Field configuration organized by category
+    const fieldConfig = {
+        'Primary Info': [
+            { key: 'WABMINES_N', label: 'Site Name' },
+            { key: 'FEATURE_TY', label: 'Feature Type', transform: normalizeFeatureType },
+            { key: 'SITE_TYPE', label: 'Site Type' },
+            { key: 'SITE_CODE', label: 'Site Code' }
+        ],
+        'Location': [
+            { key: 'LOCALITY', label: 'Locality' },
+            { key: 'LEASE_NUMB', label: 'Lease Number' },
+            { key: 'LGA_NAME', label: 'Local Government Area' },
+            { key: 'SHIRE_NAME', label: 'Shire' }
+        ],
+        'Commodities': [
+            { key: 'COMMODITIE', label: 'Commodities' },
+            { key: 'MINERAL_FI', label: 'Mineral Field' }
+        ],
+        'Condition': [
+            { key: 'CONDITION', label: 'Condition' },
+            { key: 'BASE_CONDI', label: 'Base Condition' },
+            { key: 'SITE_SUB_T', label: 'Site Subtype' },
+            { key: 'VISIBILITY', label: 'Visibility' }
+        ],
+        'Physical Characteristics': [
+            { key: 'EXCAVATION', label: 'Excavation' },
+            { key: 'DEPTH_LENG', label: 'Depth/Length' },
+            { key: 'WIDTH', label: 'Width' },
+            { key: 'ORIENTATIO', label: 'Orientation' },
+            { key: 'SLOPE', label: 'Slope' }
+        ],
+        'Safety Features': [
+            { key: 'FENCE', label: 'Fence' },
+            { key: 'FENCE_COND', label: 'Fence Condition' },
+            { key: 'GATE', label: 'Gate' },
+            { key: 'SIGNAGE', label: 'Signage' },
+            { key: 'CAP', label: 'Cap' },
+            { key: 'BACKFILL', label: 'Backfill' }
+        ],
+        'Underground': [
+            { key: 'DECLINE', label: 'Decline' },
+            { key: 'ACCESSIBLE', label: 'Accessible' },
+            { key: 'WATER_LEVE', label: 'Water Level' },
+            { key: 'TIMBER', label: 'Timber' }
+        ],
+        'Other': [
+            { key: 'ENVIRONMEN', label: 'Environment' },
+            { key: 'LAND_USE', label: 'Land Use' },
+            { key: 'SURVEY_DAT', label: 'Survey Date' },
+            { key: 'COMMENT', label: 'Comments' }
+        ]
+    };
+
+    let html = '';
+
+    // Build sections
+    for (const [sectionName, fields] of Object.entries(fieldConfig)) {
+        const validFields = fields.filter(f => isValidValue(props[f.key]));
+
+        if (validFields.length > 0) {
+            html += `<div class="popup-section">`;
+            html += `<div class="popup-section-title">${sectionName}</div>`;
+            html += `<div class="popup-section-content">`;
+
+            for (const field of validFields) {
+                let value = props[field.key];
+                if (field.transform) {
+                    value = field.transform(value);
+                }
+                html += `<div class="popup-field">`;
+                html += `<div class="popup-label">${field.label}:</div>`;
+                html += `<div class="popup-value">${value}</div>`;
+                html += `</div>`;
+            }
+
+            html += `</div></div>`;
+        }
+    }
+
+    // Add coordinates
+    html += `<div class="popup-coords copyable">${coordinates.gmaps}</div>`;
+    html += `<div class="popup-coords-dm copyable">${coordinates.display}</div>`;
+
+    // Add action buttons
+    html += `<div class="popup-actions">`;
+    html += `<button class="popup-share-btn" data-lat="${props.Y}" data-lng="${props.X}">`;
+    html += `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">`;
+    html += `<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>`;
+    html += `<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>`;
+    html += `</svg><span>Copy Link</span></button>`;
+
+    if (isValidValue(props.WEB_LINK)) {
+        html += `<a href="${props.WEB_LINK}" target="_blank" rel="noopener noreferrer" class="popup-web-link-btn">`;
+        html += `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">`;
+        html += `<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>`;
+        html += `<polyline points="15 3 21 3 21 9"/>`;
+        html += `<line x1="10" y1="14" x2="21" y2="3"/>`;
+        html += `</svg><span>View on Minedex</span></a>`;
+    }
+
+    html += `</div>`;
+
+    return html;
+}
+
 function showClickPopup(mine, lng, lat) {
     const props = mine.properties;
-    const featureType = normalizeFeatureType(props.FEATURE_TY);
-    const siteName = props.WABMINES_N || 'Unknown';
-    const commodities = props.COMMODITIE || 'Unknown';
-    const condition = props.CONDITION || 'Unknown';
-    const siteType = props.SITE_TYPE || 'Unknown';
 
     if (state.clickMarker) state.clickMarker.remove();
     if (state.clickPopup) state.clickPopup.remove();
@@ -428,33 +1061,11 @@ function showClickPopup(mine, lng, lat) {
     const trueLat = mine.geometry.coordinates[1];
 
     const r = formatCoordinates(trueLng, trueLat);
+    const popupHTML = generatePopupContent(props, r);
+
     state.clickPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, className: 'mine-popup', offset: 12 })
         .setLngLat([lng, lat])
-        .setHTML(`
-            <div class="popup-mine-info">
-                <div class="popup-label">Site:</div>
-                <div class="popup-value">${siteName}</div>
-                <div class="popup-label">Feature:</div>
-                <div class="popup-value">${featureType}</div>
-                <div class="popup-label">Site Type:</div>
-                <div class="popup-value">${siteType}</div>
-                <div class="popup-label">Commodities:</div>
-                <div class="popup-value">${commodities}</div>
-                <div class="popup-label">Condition:</div>
-                <div class="popup-value">${condition}</div>
-                <div class="popup-label">Site Code:</div>
-                <div class="popup-value">${props.SITE_CODE || 'N/A'}</div>
-            </div>
-            <div class="popup-coords copyable">${r.gmaps}</div>
-            <div class="popup-coords-dm copyable">${r.display}</div>
-            <button class="popup-share-btn" data-lat="${trueLat}" data-lng="${trueLng}">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                </svg>
-                <span>Copy Link</span>
-            </button>
-        `)
+        .setHTML(popupHTML)
         .addTo(map);
 
     // Attach share button handler

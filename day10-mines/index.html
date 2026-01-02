@@ -67,43 +67,90 @@
                 <div class="cursor-coords" id="cursor-coords">--</div>
             </div>
             <div class="legend-stats" id="legend-stats">
-                <span class="stats-label">Total sites:</span>
+                <span class="stats-label">Visible sites:</span>
                 <span class="stats-value" id="mine-count">--</span>
             </div>
-            <div class="legend-title">Feature Types (click to toggle)</div>
-            <div class="legend-content">
-                <div class="legend-item active" data-feature-type="Shaft">
-                    <div class="legend-color" style="background: rgba(139, 69, 19, 0.7);"></div>
-                    <span>Shaft</span>
+
+            <!-- Display Mode Selector -->
+            <div class="display-mode-selector">
+                <label>Color by:</label>
+                <select id="display-mode">
+                    <option value="feature-type" selected>Feature Type</option>
+                    <option value="condition">Condition</option>
+                    <option value="base-condition">Base Condition</option>
+                    <option value="commodity">Commodity</option>
+                </select>
+            </div>
+
+            <!-- Filter Tabs -->
+            <div class="filter-tabs">
+                <button class="filter-tab active" data-tab="feature-type">Feature Type</button>
+                <button class="filter-tab" data-tab="site-subtype">Site Subtype</button>
+                <button class="filter-tab" data-tab="base-condition">Base Condition</button>
+                <button class="filter-tab" data-tab="condition">Condition</button>
+                <button class="filter-tab" data-tab="visibility">Visibility</button>
+                <button class="filter-tab" data-tab="commodity">Commodities</button>
+                <button class="filter-tab" data-tab="excavation">Excavation</button>
+            </div>
+
+            <!-- Filter Panels (populated dynamically) -->
+            <div class="filter-panels">
+                <div class="filter-panel active" data-panel="feature-type">
+                    <div class="filter-panel-header">
+                        <button class="quick-action-btn" data-action="select-all">All</button>
+                        <button class="quick-action-btn" data-action="select-none">None</button>
+                        <button class="quick-action-btn" data-action="invert">Invert</button>
+                    </div>
+                    <!-- Filter items will be added dynamically -->
                 </div>
-                <div class="legend-item active" data-feature-type="Adit">
-                    <div class="legend-color" style="background: rgba(101, 67, 33, 0.7);"></div>
-                    <span>Adit</span>
+                <div class="filter-panel" data-panel="site-subtype">
+                    <div class="filter-panel-header">
+                        <button class="quick-action-btn" data-action="select-all">All</button>
+                        <button class="quick-action-btn" data-action="select-none">None</button>
+                        <button class="quick-action-btn" data-action="invert">Invert</button>
+                    </div>
                 </div>
-                <div class="legend-item active" data-feature-type="Costean/Trench">
-                    <div class="legend-color" style="background: rgba(210, 180, 140, 0.7);"></div>
-                    <span>Costean/Trench</span>
+                <div class="filter-panel" data-panel="base-condition">
+                    <div class="filter-panel-header">
+                        <button class="quick-action-btn" data-action="select-all">All</button>
+                        <button class="quick-action-btn" data-action="select-none">None</button>
+                        <button class="quick-action-btn" data-action="invert">Invert</button>
+                    </div>
                 </div>
-                <div class="legend-item active" data-feature-type="Pit/Quarry">
-                    <div class="legend-color" style="background: rgba(244, 164, 96, 0.7);"></div>
-                    <span>Pit/Quarry</span>
+                <div class="filter-panel" data-panel="condition">
+                    <div class="filter-panel-header">
+                        <button class="quick-action-btn" data-action="select-all">All</button>
+                        <button class="quick-action-btn" data-action="select-none">None</button>
+                        <button class="quick-action-btn" data-action="invert">Invert</button>
+                    </div>
                 </div>
-                <div class="legend-item active" data-feature-type="Open Stope">
-                    <div class="legend-color" style="background: rgba(205, 133, 63, 0.7);"></div>
-                    <span>Open Stope</span>
+                <div class="filter-panel" data-panel="visibility">
+                    <div class="filter-panel-header">
+                        <button class="quick-action-btn" data-action="select-all">All</button>
+                        <button class="quick-action-btn" data-action="select-none">None</button>
+                        <button class="quick-action-btn" data-action="invert">Invert</button>
+                    </div>
                 </div>
-                <div class="legend-item active" data-feature-type="Waste Dump">
-                    <div class="legend-color" style="background: rgba(160, 120, 80, 0.7);"></div>
-                    <span>Waste Dump</span>
+                <div class="filter-panel" data-panel="commodity">
+                    <div class="filter-panel-header">
+                        <button class="quick-action-btn" data-action="select-all">All</button>
+                        <button class="quick-action-btn" data-action="select-none">None</button>
+                        <button class="quick-action-btn" data-action="invert">Invert</button>
+                    </div>
                 </div>
-                <div class="legend-item active" data-feature-type="Tailings Dump">
-                    <div class="legend-color" style="background: rgba(180, 140, 100, 0.7);"></div>
-                    <span>Tailings Dump</span>
+                <div class="filter-panel" data-panel="excavation">
+                    <div class="filter-panel-header">
+                        <button class="quick-action-btn" data-action="select-all">All</button>
+                        <button class="quick-action-btn" data-action="select-none">None</button>
+                        <button class="quick-action-btn" data-action="invert">Invert</button>
+                    </div>
                 </div>
-                <div class="legend-item active" data-feature-type="Other">
-                    <div class="legend-color" style="background: rgba(169, 169, 169, 0.7);"></div>
-                    <span>Other</span>
-                </div>
+            </div>
+
+            <!-- Active Filter Summary -->
+            <div class="active-filters-summary">
+                <span class="active-count">No filters active</span>
+                <button class="clear-filters-btn">Clear All</button>
             </div>
         </div>
     </div>
