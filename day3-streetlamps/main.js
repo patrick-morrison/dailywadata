@@ -9,7 +9,7 @@
 
 const CONFIG = {
     // Data settings
-    GEOJSON_URL: 'streetlights.geojson',
+    CSV_URL: 'streetlights.csv',
 
     // Visualization settings
     CIRCLE_OPACITY: 0.8, // 80% opacity
@@ -40,7 +40,7 @@ const CONFIG = {
     // Map bounds (will be calculated from data)
     INITIAL_VIEW: {
         lng: 115.796008,
-        lat: -32.014970,
+        lat: -32.01497,
         zoom: 8
     }
 };
@@ -57,6 +57,37 @@ function normalizeBulbType(bulbType) {
         return 'Unknown';
     }
     return bulbType;
+}
+
+/**
+ * Parse CSV text into array of objects
+ */
+function parseCSV(csvText) {
+    const lines = csvText.trim().split('\n');
+
+    const features = [];
+    for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+
+        // Create GeoJSON-like feature object
+        features.push({
+            type: 'Feature',
+            properties: {
+                pick_id: values[2],
+                bulb_watts: values[3],
+                bulb_type: values[4]
+            },
+            geometry: {
+                type: 'Point',
+                coordinates: [Number.parseFloat(values[0]), Number.parseFloat(values[1])]
+            }
+        });
+    }
+
+    return {
+        type: 'FeatureCollection',
+        features: features
+    };
 }
 
 // ============================================
@@ -257,7 +288,7 @@ document.getElementById('location-btn').addEventListener('click', toggleGeolocat
 function initializeDarkMode() {
     // Default to dark mode, but allow localStorage to override
     const savedMode = localStorage.getItem('darkMode');
-    const isDark = savedMode !== null ? savedMode === 'true' : true; // Default to dark mode
+    const isDark = savedMode === null ? true : savedMode === 'true'; // Default to dark mode
     const checkbox = document.getElementById('dark-mode-checkbox');
 
     // Set checkbox state
@@ -332,8 +363,9 @@ async function loadStreetlights() {
     try {
         setLoadingText('Loading streetlight data...');
 
-        const response = await fetch(CONFIG.GEOJSON_URL);
-        const geojson = await response.json();
+        const response = await fetch(CONFIG.CSV_URL);
+        const csvText = await response.text();
+        const geojson = parseCSV(csvText);
 
         state.geojsonData = geojson;
 
@@ -507,7 +539,7 @@ function showClickPopup(light, lng, lat) {
     const shareBtn = document.querySelector('.popup-share-btn');
     if (shareBtn) {
         shareBtn.addEventListener('click', () => {
-            const url = `${window.location.origin}${window.location.pathname}#${lat.toFixed(6)},${lng.toFixed(6)}`;
+            const url = `${globalThis.location.origin}${globalThis.location.pathname}#${lat.toFixed(6)},${lng.toFixed(6)}`;
             navigator.clipboard.writeText(url);
             shareBtn.querySelector('span').textContent = 'Copied!';
             setTimeout(() => {
@@ -530,7 +562,7 @@ function toggleGeolocation() {
     if (state.isTracking) {
         // Stop tracking
         navigator.geolocation.clearWatch(state.watchId);
-        window.removeEventListener('deviceorientation', handleDeviceOrientation);
+        globalThis.removeEventListener('deviceorientation', handleDeviceOrientation);
         state.isTracking = false;
         state.deviceHeading = null;
         document.getElementById('location-btn').classList.remove('active');
@@ -548,13 +580,13 @@ function toggleGeolocation() {
             DeviceOrientationEvent.requestPermission()
                 .then(response => {
                     if (response === 'granted') {
-                        window.addEventListener('deviceorientation', handleDeviceOrientation);
+                        globalThis.addEventListener('deviceorientation', handleDeviceOrientation);
                     }
                 })
                 .catch(console.error);
         } else {
             // Non-iOS or older iOS - just add listener
-            window.addEventListener('deviceorientation', handleDeviceOrientation);
+            globalThis.addEventListener('deviceorientation', handleDeviceOrientation);
         }
 
         state.watchId = navigator.geolocation.watchPosition(updateUserLocation,

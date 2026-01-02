@@ -15,7 +15,7 @@ The dataset has the ID of each streetlamp, as well as the wattage and type of bu
 
 ## Processing
 
-The only preprocessing needed was converting the downloaded dataset (GDA94 Geopackage) to a EPSG:4326 GeoJSON for easy handling on the web.
+The only preprocessing needed was converting the downloaded dataset (GDA94 Geopackage) to a EPSG:4326 GeoJSON for easy handling on the web, this dataset was then compressed further by parsing the GeoJSON to a csv, which is parsed back to a GeoJSON at runtime in the browser.
 
 ## Tech Stack
 
