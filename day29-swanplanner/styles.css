@@ -1310,6 +1310,44 @@ body {
     border-color: #22c55e;
 }
 
+/* Toast Notification for Share Button */
+.share-toast {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: rgba(34, 197, 94, 0.95);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    z-index: 10000;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(8px);
+}
+
+.share-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.share-toast.error {
+    background: rgba(245, 158, 11, 0.95);
+}
+
+@media (max-width: 768px) {
+    .share-toast {
+        top: 12px;
+        font-size: 0.85rem;
+        padding: 10px 20px;
+    }
+}
+
 .finish-btn.hidden,
 .shelf-btn.hidden {
     display: none;

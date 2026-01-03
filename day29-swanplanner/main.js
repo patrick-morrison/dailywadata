@@ -3538,6 +3538,7 @@ class RouteProfiler {
         const url = this.generateShareUrl();
         if (!url) {
             console.warn('No route to share');
+            this.showToast('No route to share yet', true);
             return;
         }
 
@@ -3553,9 +3554,40 @@ class RouteProfiler {
                     btn.title = originalTitle;
                 }, 1500);
             }
+
+            // Show toast notification
+            this.showToast('Copied link to clipboard');
         } catch (err) {
             console.error('Failed to copy URL:', err);
+            this.showToast('Failed to copy link', true);
         }
+    }
+
+    /**
+     * Show a toast notification
+     */
+    showToast(message, isError = false) {
+        // Remove existing toast if any
+        const existingToast = document.querySelector('.share-toast');
+        if (existingToast) {
+            existingToast.remove();
+        }
+
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = 'share-toast';
+        if (isError) toast.classList.add('error');
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        // Trigger animation
+        setTimeout(() => toast.classList.add('show'), 10);
+
+        // Remove after 2 seconds
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
     }
 
     /**
