@@ -1180,7 +1180,7 @@ class RouteProfiler {
         // Share button listener
         const shareBtn = document.getElementById('share-btn');
         if (shareBtn) {
-            shareBtn.addEventListener('click', () => this.copyShareUrl());
+            shareBtn.addEventListener('click', () => this.showShareModal());
         }
 
         // Mid-line insertion marker
@@ -3532,9 +3532,9 @@ class RouteProfiler {
     }
 
     /**
-     * Copy share URL to clipboard
+     * Show share modal with URL and copy button
      */
-    async copyShareUrl() {
+    showShareModal() {
         const url = this.generateShareUrl();
         if (!url) {
             console.warn('No route to share');
@@ -3542,24 +3542,89 @@ class RouteProfiler {
             return;
         }
 
-        try {
-            await navigator.clipboard.writeText(url);
-            const btn = document.getElementById('share-btn');
-            if (btn) {
-                btn.classList.add('copied');
-                const originalTitle = btn.title;
-                btn.title = 'Copied!';
-                setTimeout(() => {
-                    btn.classList.remove('copied');
-                    btn.title = originalTitle;
-                }, 1500);
-            }
+        // Remove existing modal if any
+        const existingModal = document.querySelector('.share-modal');
+        if (existingModal) {
+            existingModal.remove();
+        }
 
-            // Show toast notification
-            this.showToast('Copied link to clipboard');
-        } catch (err) {
-            console.error('Failed to copy URL:', err);
-            this.showToast('Failed to copy link', true);
+        // Create modal
+        const modal = document.createElement('div');
+        modal.className = 'share-modal';
+        modal.innerHTML = `
+            <div class="share-modal-content">
+                <div class="share-modal-header">
+                    <h3>Share Route</h3>
+                    <button class="share-modal-close" aria-label="Close">&times;</button>
+                </div>
+                <div class="share-modal-body">
+                    <label for="share-url-input">Share this link:</label>
+                    <div class="share-url-container">
+                        <input type="text" id="share-url-input" value="${url}" readonly>
+                        <button class="share-copy-btn">Copy</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        // Show modal with animation
+        setTimeout(() => modal.classList.add('show'), 10);
+
+        // Close button handler
+        const closeBtn = modal.querySelector('.share-modal-close');
+        closeBtn.addEventListener('click', () => this.closeShareModal());
+
+        // Click outside to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeShareModal();
+            }
+        });
+
+        // Copy button handler
+        const copyBtn = modal.querySelector('.share-copy-btn');
+        const urlInput = modal.querySelector('#share-url-input');
+        copyBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(url);
+                copyBtn.textContent = 'Copied!';
+                copyBtn.classList.add('copied');
+                urlInput.select();
+
+                setTimeout(() => {
+                    copyBtn.textContent = 'Copy';
+                    copyBtn.classList.remove('copied');
+                }, 1500);
+            } catch (err) {
+                console.error('Failed to copy URL:', err);
+                this.showToast('Failed to copy link', true);
+            }
+        });
+
+        // Select URL on input click
+        urlInput.addEventListener('click', () => {
+            urlInput.select();
+        });
+
+        // ESC key to close
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                this.closeShareModal();
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+    }
+
+    /**
+     * Close share modal
+     */
+    closeShareModal() {
+        const modal = document.querySelector('.share-modal');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.remove(), 300);
         }
     }
 

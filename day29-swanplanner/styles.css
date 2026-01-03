@@ -1310,7 +1310,181 @@ body {
     border-color: #22c55e;
 }
 
-/* Toast Notification for Share Button */
+/* Share Modal */
+.share-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    padding: 20px;
+}
+
+.share-modal.show {
+    opacity: 1;
+}
+
+.share-modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 500px;
+    transform: scale(0.9) translateY(20px);
+    transition: transform 0.3s ease;
+}
+
+.share-modal.show .share-modal-content {
+    transform: scale(1) translateY(0);
+}
+
+.share-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.share-modal-header h3 {
+    margin: 0;
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.5rem;
+    color: #1a1a1a;
+}
+
+.share-modal-close {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: #64748b;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+    line-height: 1;
+}
+
+.share-modal-close:hover {
+    background: #f1f5f9;
+    color: #1a1a1a;
+}
+
+.share-modal-body {
+    padding: 24px;
+}
+
+.share-modal-body label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+
+.share-url-container {
+    display: flex;
+    gap: 8px;
+}
+
+#share-url-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: #1a1a1a;
+    background: #f8fafc;
+    transition: border-color 0.2s;
+}
+
+#share-url-input:focus {
+    outline: none;
+    border-color: #1e40af;
+    background: white;
+}
+
+.share-copy-btn {
+    padding: 12px 24px;
+    background: #1e40af;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.share-copy-btn:hover {
+    background: #172554;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(30, 64, 175, 0.3);
+}
+
+.share-copy-btn.copied {
+    background: #22c55e;
+}
+
+.share-copy-btn:active {
+    transform: translateY(0);
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+    .share-modal {
+        padding: 16px;
+    }
+
+    .share-modal-content {
+        max-width: 100%;
+    }
+
+    .share-modal-header {
+        padding: 16px 20px;
+    }
+
+    .share-modal-header h3 {
+        font-size: 1.25rem;
+    }
+
+    .share-modal-body {
+        padding: 20px;
+    }
+
+    .share-url-container {
+        flex-direction: column;
+    }
+
+    #share-url-input {
+        font-size: 0.8rem;
+        padding: 10px 12px;
+    }
+
+    .share-copy-btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 0.95rem;
+    }
+}
+
+/* Toast Notification (kept for error messages) */
 .share-toast {
     position: fixed;
     top: 80px;
