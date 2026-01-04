@@ -34,7 +34,7 @@ const CONFIG = {
     // Lake Eyre bounds (mask out to transparent)
     LAKE_EYRE_BOUNDS: {
         west: 136.18650239570576,
-        south: -31.726250244835036,
+        south: -30.972,
         east: 140.92867012872114,
         north: -25.2775052521325
     },
