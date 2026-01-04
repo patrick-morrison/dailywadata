@@ -228,6 +228,8 @@ const GUIDE_STEPS = [
     {
         text: 'The crossing to the Kimberley shelf was much shorter from Timor-Roti.',
         markers: ['timor-roti', 'kimberley-shelf'],
+        age: 65,
+        ageDuration: 800,
         bounds: [
             [116.7014095303714, -17.857812914303366],
             [136.30664509442698, -7.066559065454442]
