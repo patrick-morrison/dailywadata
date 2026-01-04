@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WA Fire History Analysis</title>
+    <meta name="description"
+        content="Western Australia fire history analysis showing prescribed burns and wildfires over time">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="title-card">
+            <h1>WA Fire History Analysis</h1>
+            <div class="subtitle">Prescribed Burns and Wildfires, 2000-2025</div>
+            <div class="title-meta">
+                <span class="attribution">Analysis by Daisy Evans</span>
+                <a href="../sources.html" class="methods-link">Show methods notes →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Grid for Medium Screens -->
+    <div class="content-grid">
+        <!-- Controls -->
+        <div class="controls">
+            <button id="play-pause-btn" class="control-btn">
+                <span id="play-icon">▶</span>
+                <span id="pause-icon" style="display: none;">⏸</span>
+                <span id="btn-label">Play</span>
+            </button>
+            <button id="restart-btn" class="control-btn">
+                <span>↻</span> Restart
+            </button>
+            <button id="prev-frame-btn" class="control-btn">
+                <span>←</span> Prev Year
+            </button>
+            <input type="number" class="year-input" id="year-input" min="2000" max="2025" value="2000">
+            <button id="next-frame-btn" class="control-btn">
+                Next Year <span>→</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- All Videos -->
+    <div class="video-container">
+        <div class="video-wrapper">
+            <h3>All Fires</h3>
+            <video id="video-overall" muted loop autoplay>
+                <source src="firedays_per_year_2000_smallgrid.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        <div class="video-wrapper">
+            <h3>Wildfires</h3>
+            <video id="video-wf" muted loop autoplay>
+                <source src="firedays_per_year_2000_smallgrid_wf.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        <div class="video-wrapper">
+            <h3>Prescribed Burns</h3>
+            <video id="video-pb" muted loop autoplay>
+                <source src="firedays_per_year_2000_smallgrid_pb.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+    </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+
+</html>
