@@ -182,22 +182,22 @@ const PROFILE_MARKERS = [
     {
         id: 'lgmLine',
         age: 22,
-        labelDesktop: 'Last Glacial Maximum 22 ka',
-        labelMobile: 'LGM 22 ka',
+        labelDesktop: 'Last Glacial Maximum',
+        labelMobile: 'LGM',
         color: 'rgba(220, 38, 38, 0.6)'
     },
     {
         id: 'humanLine',
         age: 65,
-        labelDesktop: 'Human Arrival 65 ka',
-        labelMobile: 'Humans 65 ka',
+        labelDesktop: 'Human Arrival',
+        labelMobile: 'Human Arrival',
         color: 'rgba(22, 163, 74, 0.6)'
     },
     {
         id: 'interglacialLine',
         age: 125,
-        labelDesktop: 'Last Interglacial 125 ka',
-        labelMobile: 'Last Interglacial 125 ka',
+        labelDesktop: 'Last Interglacial',
+        labelMobile: 'Last Interglacial',
         color: 'rgba(37, 99, 235, 0.6)'
     }
 ];
