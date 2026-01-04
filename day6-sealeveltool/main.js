@@ -31,6 +31,13 @@ const CONFIG = {
         east: 159.03,
         north: -8.0
     },
+    // Lake Eyre bounds (mask out to transparent)
+    LAKE_EYRE_BOUNDS: {
+        west: 136.18650239570576,
+        south: -31.726250244835036,
+        east: 140.92867012872114,
+        north: -25.2775052521325
+    },
 
     // Hillshade parameters
     SUN_AZIMUTH: 315,
@@ -93,6 +100,7 @@ const state = {
 
     // Precomputed hillshade values
     hillshadeValues: null,
+    lakeMask: null,
 
     // Current hillshade image URL (cached)
     hillshadeImageUrl: null,
@@ -170,6 +178,30 @@ const GUIDE_MARKERS = [
     }
 ];
 
+const PROFILE_MARKERS = [
+    {
+        id: 'lgmLine',
+        age: 22,
+        labelDesktop: 'Last Glacial Maximum 22 ka',
+        labelMobile: 'LGM 22 ka',
+        color: 'rgba(220, 38, 38, 0.6)'
+    },
+    {
+        id: 'humanLine',
+        age: 65,
+        labelDesktop: 'Human Arrival 65 ka',
+        labelMobile: 'Humans 65 ka',
+        color: 'rgba(22, 163, 74, 0.6)'
+    },
+    {
+        id: 'interglacialLine',
+        age: 125,
+        labelDesktop: 'Last Interglacial 125 ka',
+        labelMobile: 'Last Interglacial 125 ka',
+        color: 'rgba(37, 99, 235, 0.6)'
+    }
+];
+
 const GUIDE_STEPS = [
     {
         text: 'During the Ice age, sea level was much lower.',
@@ -186,6 +218,8 @@ const GUIDE_STEPS = [
     },
     {
         text: 'Northern Australia was connected to what is now Papua New Guinea.',
+        age: 65,
+        ageDuration: 800,
         bounds: [
             [113.55447151356196, -27.340997615572803],
             [149.8348800584082, -7.931606812657222]
@@ -200,10 +234,10 @@ const GUIDE_STEPS = [
         ]
     },
     {
-        text: 'People on what is now Barrow Island 50,000 years ago were far inland, but still using marine resources.',
+        text: 'People on what is now Barrow Island 50,000 years ago were far inland, but still using marine resources like fish and shells.',
         markers: ['barrow'],
-        markersAfterMove: true,
         age: 50,
+        ageDuration: 800,
         bounds: [
             [110.08076044759872, -24.10614688271511],
             [125.02300324434333, -16.19374322740167]
@@ -212,8 +246,8 @@ const GUIDE_STEPS = [
     {
         text: "In the southwest of Western Australia 48 thousand years ago, people were already occupying a cave called 'Devil's Lair'.",
         markers: ['devils-lair'],
-        markersAfterMove: true,
         age: 48,
+        ageDuration: 800,
         bounds: [
             [110.08496870427405, -37.68589435197455],
             [124.08241024880016, -31.173903627393337]
@@ -578,11 +612,7 @@ function runGuideStep(index) {
     updateGuideNav();
     showGuideUI(true);
     setGuideText(step.text);
-    if (step.markersAfterMove && step.bounds) {
-        setGuideMarkers([]);
-    } else {
-        setGuideMarkers(step.markers);
-    }
+    setGuideMarkers(step.markers);
     map.stop?.();
 
     const applyAge = () => {
@@ -596,9 +626,6 @@ function runGuideStep(index) {
         map.once('moveend', () => {
             if (moveToken !== guide.moveToken) return;
             applyAge();
-            if (step.markersAfterMove) {
-                setGuideMarkers(step.markers);
-            }
         });
         map.fitBounds(step.bounds, {
             padding: GUIDE_FIT_PADDING,
@@ -656,6 +683,28 @@ function queueHillshadeCompute(rasterToken) {
     } else {
         setTimeout(start, 100);
     }
+}
+
+function computeLakeMask(width, height, bounds, lakeBounds) {
+    if (!bounds || !lakeBounds) return null;
+    const lonSpan = bounds.east - bounds.west;
+    const latSpan = bounds.north - bounds.south;
+    if (lonSpan <= 0 || latSpan <= 0) return null;
+
+    const xMin = Math.max(0, Math.floor((lakeBounds.west - bounds.west) / lonSpan * (width - 1)));
+    const xMax = Math.min(width - 1, Math.ceil((lakeBounds.east - bounds.west) / lonSpan * (width - 1)));
+    const yMin = Math.max(0, Math.floor((bounds.north - lakeBounds.north) / latSpan * (height - 1)));
+    const yMax = Math.min(height - 1, Math.ceil((bounds.north - lakeBounds.south) / latSpan * (height - 1)));
+
+    if (xMax < xMin || yMax < yMin) return null;
+    const mask = new Uint8Array(width * height);
+    for (let y = yMin; y <= yMax; y++) {
+        const rowStart = y * width;
+        for (let x = xMin; x <= xMax; x++) {
+            mask[rowStart + x] = 1;
+        }
+    }
+    return mask;
 }
 
 function setupWelcomeButtons() {
@@ -767,6 +816,7 @@ async function loadPreview() {
         state.rasterWidth = width;
         state.rasterHeight = height;
         state.bounds = CONFIG.BOUNDS;
+        state.lakeMask = computeLakeMask(width, height, CONFIG.BOUNDS, CONFIG.LAKE_EYRE_BOUNDS);
 
         state.rasterToken += 1;
         const rasterToken = state.rasterToken;
@@ -851,6 +901,7 @@ async function loadFullResolution() {
             state.rasterData = data;
             state.rasterWidth = targetWidth;
             state.rasterHeight = targetHeight;
+            state.lakeMask = computeLakeMask(targetWidth, targetHeight, CONFIG.BOUNDS, CONFIG.LAKE_EYRE_BOUNDS);
 
             state.rasterToken += 1;
             const rasterToken = state.rasterToken;
@@ -929,7 +980,7 @@ function renderFrame() {
 
 async function renderHillshadeToCanvas(rasterToken = state.rasterToken) {
     const token = rasterToken;
-    const { hillshadeCanvas, hillshadeValues, rasterData, rasterWidth, rasterHeight } = state;
+    const { hillshadeCanvas, hillshadeValues, rasterData, rasterWidth, rasterHeight, lakeMask } = state;
     if (!hillshadeCanvas || !hillshadeValues) return;
 
     const ctx = hillshadeCanvas.getContext('2d', { willReadFrequently: true });
@@ -945,6 +996,11 @@ async function renderHillshadeToCanvas(rasterToken = state.rasterToken) {
 
         for (let i = start; i < end; i++) {
             const px = i * 4;
+            if (lakeMask && lakeMask[i]) {
+                imageData.data[px + 3] = 0;
+                continue;
+            }
+
             const depth = rasterData[i];
 
             if (isNaN(depth) || depth < CONFIG.HILLSHADE_MIN_DEPTH) {
@@ -990,7 +1046,7 @@ async function renderHillshadeToCanvas(rasterToken = state.rasterToken) {
 }
 
 function renderSeaLevelToCanvas(seaLevel) {
-    const { seaCanvas, rasterData, rasterWidth, rasterHeight } = state;
+    const { seaCanvas, rasterData, rasterWidth, rasterHeight, lakeMask } = state;
     if (!seaCanvas || !rasterData) return;
 
     const ctx = seaCanvas.getContext('2d', { willReadFrequently: true });
@@ -1009,6 +1065,11 @@ function renderSeaLevelToCanvas(seaLevel) {
 
     for (let i = 0; i < rasterWidth * rasterHeight; i++) {
         const px = i * 4;
+        if (lakeMask && lakeMask[i]) {
+            imageData.data[px + 3] = 0;
+            continue;
+        }
+
         const depth = rasterData[i];
 
         if (isNaN(depth)) {
@@ -1405,9 +1466,64 @@ function initializeChart() {
 
     // After chart is created, sync slider padding with chart's plot area
     syncSliderPadding();
+    updateProfileMarkers(true);
+    setupChartResizeHandlers();
 
     // Setup drag interaction
     setupChartDrag();
+}
+
+let profileMarkerIsMobile = null;
+let chartResizeRaf = null;
+let chartResizeBound = false;
+
+function updateProfileMarkers(force = false) {
+    if (!state.chart) return;
+    const isMobile = window.innerWidth < 768;
+    if (!force && profileMarkerIsMobile === isMobile) return;
+    profileMarkerIsMobile = isMobile;
+
+    const annotations = state.chart.options.plugins.annotation.annotations;
+    PROFILE_MARKERS.forEach((marker) => {
+        annotations[marker.id] = {
+            type: 'line',
+            xMin: marker.age,
+            xMax: marker.age,
+            borderColor: 'rgba(0, 0, 0, 0)',
+            borderWidth: 0,
+            borderDash: [],
+            clip: false,
+            label: {
+                display: true,
+                content: isMobile ? marker.labelMobile : marker.labelDesktop,
+                position: 'start',
+                backgroundColor: 'rgba(0, 0, 0, 0)',
+                color: 'rgba(0, 0, 0, 0.7)',
+                padding: { top: 0, bottom: 0, left: 0, right: 0 },
+                borderWidth: 0,
+                font: {
+                    family: 'JetBrains Mono, monospace',
+                    size: isMobile ? 9 : 10,
+                    weight: '500'
+                }
+            }
+        };
+    });
+
+    state.chart.update('none');
+}
+
+function setupChartResizeHandlers() {
+    if (chartResizeBound) return;
+    chartResizeBound = true;
+    window.addEventListener('resize', () => {
+        if (chartResizeRaf != null) return;
+        chartResizeRaf = requestAnimationFrame(() => {
+            chartResizeRaf = null;
+            syncSliderPadding();
+            updateProfileMarkers();
+        });
+    });
 }
 
 function syncSliderPadding() {
