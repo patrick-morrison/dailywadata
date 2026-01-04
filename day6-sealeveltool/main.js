@@ -14,6 +14,7 @@ const CONFIG = {
     COG_URL: 'bathytopo_aus.tif',
     PREVIEW_URL: 'bathytopo_preview.tif',
     CURVE_URL: window.PAGE_CONFIG?.curveUrl || 'curve_grant2012.csv',
+    ENVIRO_BLEND_URL: window.PAGE_CONFIG?.enviroBlendUrl || 'enviroblend.jpg',
 
     // Data encoding: pixel = (depth + 150) * 255 / 160
     // Decode: depth = (pixel * 160 / 255) - 150
@@ -34,7 +35,7 @@ const CONFIG = {
     // Hillshade parameters
     SUN_AZIMUTH: 315,
     SUN_ALTITUDE: 45,
-    EXAGGERATION: 3,
+    EXAGGERATION: 6,
 
     // Ocean color palette (extended to -150m)
     OCEAN_COLORS: [
@@ -59,6 +60,8 @@ const CONFIG = {
         { depth: -130, color: [100, 85, 65, 230] },
         { depth: -150, color: [90, 75, 60, 235] }
     ],
+
+    ENVIRO_BLEND_STRENGTH: .6,
 
     ANIMATION_SPEED: 50,
 };
@@ -87,6 +90,12 @@ const state = {
 
     // Current hillshade image URL (cached)
     hillshadeImageUrl: null,
+
+    // Enviro blend image (for land tinting)
+    enviroBlendImage: null,
+    enviroBlendData: null,
+    enviroBlendWidth: 0,
+    enviroBlendHeight: 0,
 
     // Sea level curve data
     curveData: [],
@@ -268,6 +277,44 @@ async function loadSeaLevelCurve() {
     console.log(`Loaded ${state.curveData.length} curve data points`);
 }
 
+async function loadEnviroBlendImage() {
+    if (state.enviroBlendImage) return;
+
+    try {
+        const img = new Image();
+        img.src = CONFIG.ENVIRO_BLEND_URL;
+        await img.decode();
+        state.enviroBlendImage = img;
+    } catch (e) {
+        console.warn('Enviro blend image load failed:', e.message);
+    }
+}
+
+function updateEnviroBlendData(targetWidth, targetHeight) {
+    if (!state.enviroBlendImage) return;
+    if (state.enviroBlendData &&
+        state.enviroBlendWidth === targetWidth &&
+        state.enviroBlendHeight === targetHeight) {
+        return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(state.enviroBlendImage, 0, 0, targetWidth, targetHeight);
+    const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+    state.enviroBlendData = imageData.data;
+    state.enviroBlendWidth = targetWidth;
+    state.enviroBlendHeight = targetHeight;
+}
+
+async function prepareEnviroBlend(targetWidth, targetHeight) {
+    await loadEnviroBlendImage();
+    updateEnviroBlendData(targetWidth, targetHeight);
+    if (state.enviroBlendData) scheduleRender();
+}
+
 async function loadPreview() {
     try {
         showProgress('Downloading preview...', 60);
@@ -307,6 +354,8 @@ async function loadPreview() {
         state.rasterWidth = width;
         state.rasterHeight = height;
         state.bounds = CONFIG.BOUNDS;
+
+        prepareEnviroBlend(width, height);
 
         // Create persistent canvases
         state.hillshadeCanvas = document.createElement('canvas');
@@ -385,6 +434,8 @@ async function loadFullResolution() {
         state.rasterData = data;
         state.rasterWidth = targetWidth;
         state.rasterHeight = targetHeight;
+
+        prepareEnviroBlend(targetWidth, targetHeight);
 
         // Recreate canvases at new size
         state.hillshadeCanvas = document.createElement('canvas');
@@ -481,13 +532,13 @@ async function renderHillshadeToCanvas() {
                 imageData.data[px] = 0;
                 imageData.data[px + 1] = 0;
                 imageData.data[px + 2] = 0;
-                imageData.data[px + 3] = Math.round((0.5 - shade) * 180);  // Was 100
+                imageData.data[px + 3] = Math.round((0.5 - shade) * 220);
             } else {
                 // Highlight (lighter)
                 imageData.data[px] = 255;
                 imageData.data[px + 1] = 255;
                 imageData.data[px + 2] = 255;
-                imageData.data[px + 3] = Math.round((shade - 0.5) * 100);  // Was 60
+                imageData.data[px + 3] = Math.round((shade - 0.5) * 150);
             }
         }
 
@@ -512,6 +563,11 @@ function renderSeaLevelToCanvas(seaLevel) {
 
     const ctx = seaCanvas.getContext('2d', { willReadFrequently: true });
     const imageData = ctx.createImageData(rasterWidth, rasterHeight);
+    const enviroBlendData = state.enviroBlendData;
+    const hasEnviroBlend = !!enviroBlendData &&
+        state.enviroBlendWidth === rasterWidth &&
+        state.enviroBlendHeight === rasterHeight;
+    const enviroBlendStrength = CONFIG.ENVIRO_BLEND_STRENGTH;
 
     // Round sea level to avoid flickering from floating point precision issues
     seaLevel = Math.round(seaLevel * 2) / 2;  // Round to nearest 0.5m
@@ -532,10 +588,18 @@ function renderSeaLevelToCanvas(seaLevel) {
             // Above current sea level = ancient exposed land
             if (depth <= 0) {
                 const color = getLandColor(depth);
-                imageData.data[px] = color[0];
-                imageData.data[px + 1] = color[1];
-                imageData.data[px + 2] = color[2];
-                imageData.data[px + 3] = color[3];
+                if (hasEnviroBlend) {
+                    const blend = enviroBlendStrength;
+                    imageData.data[px] = Math.round(color[0] * (1 - blend) + enviroBlendData[px] * blend);
+                    imageData.data[px + 1] = Math.round(color[1] * (1 - blend) + enviroBlendData[px + 1] * blend);
+                    imageData.data[px + 2] = Math.round(color[2] * (1 - blend) + enviroBlendData[px + 2] * blend);
+                    imageData.data[px + 3] = color[3];
+                } else {
+                    imageData.data[px] = color[0];
+                    imageData.data[px + 1] = color[1];
+                    imageData.data[px + 2] = color[2];
+                    imageData.data[px + 3] = color[3];
+                }
             } else {
                 imageData.data[px + 3] = 0;
             }
@@ -654,19 +718,26 @@ function getOceanColor(relativeDepth) {
 
 function getLandColor(depth) {
     const stops = CONFIG.LAND_COLORS;
+    const darken = 0.9;
     for (let i = 0; i < stops.length - 1; i++) {
         if (depth >= stops[i + 1].depth) {
             const t = (depth - stops[i].depth) / (stops[i + 1].depth - stops[i].depth);
             const c1 = stops[i].color, c2 = stops[i + 1].color;
             return [
-                Math.round(c1[0] + t * (c2[0] - c1[0])),
-                Math.round(c1[1] + t * (c2[1] - c1[1])),
-                Math.round(c1[2] + t * (c2[2] - c1[2])),
+                Math.round((c1[0] + t * (c2[0] - c1[0])) * darken),
+                Math.round((c1[1] + t * (c2[1] - c1[1])) * darken),
+                Math.round((c1[2] + t * (c2[2] - c1[2])) * darken),
                 Math.round(c1[3] + t * (c2[3] - c1[3]))
             ];
         }
     }
-    return stops[stops.length - 1].color;
+    const last = stops[stops.length - 1].color;
+    return [
+        Math.round(last[0] * darken),
+        Math.round(last[1] * darken),
+        Math.round(last[2] * darken),
+        last[3]
+    ];
 }
 
 async function computeHillshade(data, width, height) {
