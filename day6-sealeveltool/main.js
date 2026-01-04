@@ -202,6 +202,7 @@ const GUIDE_STEPS = [
     {
         text: 'People on what is now Barrow Island 50,000 years ago were far inland, but still using marine resources.',
         markers: ['barrow'],
+        markersAfterMove: true,
         age: 50,
         bounds: [
             [110.08076044759872, -24.10614688271511],
@@ -211,6 +212,7 @@ const GUIDE_STEPS = [
     {
         text: "In the southwest of Western Australia 48 thousand years ago, people were already occupying a cave called 'Devil's Lair'.",
         markers: ['devils-lair'],
+        markersAfterMove: true,
         age: 48,
         bounds: [
             [110.08496870427405, -37.68589435197455],
@@ -576,7 +578,11 @@ function runGuideStep(index) {
     updateGuideNav();
     showGuideUI(true);
     setGuideText(step.text);
-    setGuideMarkers(step.markers);
+    if (step.markersAfterMove && step.bounds) {
+        setGuideMarkers([]);
+    } else {
+        setGuideMarkers(step.markers);
+    }
     map.stop?.();
 
     const applyAge = () => {
@@ -590,6 +596,9 @@ function runGuideStep(index) {
         map.once('moveend', () => {
             if (moveToken !== guide.moveToken) return;
             applyAge();
+            if (step.markersAfterMove) {
+                setGuideMarkers(step.markers);
+            }
         });
         map.fitBounds(step.bounds, {
             padding: GUIDE_FIT_PADDING,
