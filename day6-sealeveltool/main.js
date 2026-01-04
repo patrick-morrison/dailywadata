@@ -129,7 +129,7 @@ const state = {
     pendingRender: null,
     seaRenderToken: 0,
     rasterToken: 0,
-    fullResLoadScheduled: false
+    fullResPromise: null
 };
 
 // ============================================
@@ -218,7 +218,14 @@ map.on('load', async () => {
         // Initial render with preview data
         scheduleRender();
 
-        // Load full resolution after intro so the button stays responsive
+        // Load full resolution before showing the explore button
+        await loadFullResolution();
+
+        if (state.rasterData) {
+            showProgress('Ready', 100);
+        } else {
+            showProgress('Failed to load', 0);
+        }
 
     } catch (error) {
         console.error('Initialization failed:', error);
@@ -257,7 +264,7 @@ function getInitialFitBounds() {
         const height = CONFIG.BOUNDS.north - CONFIG.BOUNDS.south;
         return {
             west: CONFIG.BOUNDS.west,
-            south: CONFIG.BOUNDS.south + (height * 0.2),
+            south: CONFIG.BOUNDS.south + (height * 0.25),
             east: CONFIG.BOUNDS.west + (width / 3),
             north: CONFIG.BOUNDS.north
         };
@@ -290,50 +297,34 @@ function runExploreIntro() {
 
         if (t < 1) {
             requestAnimationFrame(step);
-        } else {
-            queueFullResolutionLoad();
         }
     };
 
     requestAnimationFrame(step);
 }
 
-function queueFullResolutionLoad() {
-    if (state.isFullResLoaded || state.isFullResLoading || state.fullResLoadScheduled) return;
-    state.fullResLoadScheduled = true;
+function queueHillshadeCompute(rasterToken) {
+    const token = rasterToken;
+    const start = () => {
+        if (token !== state.rasterToken) return;
+        const data = state.rasterData;
+        if (!data || !state.rasterWidth || !state.rasterHeight) return;
 
-    const startLoad = () => {
-        if (!state.fullResLoadScheduled) return;
-        state.fullResLoadScheduled = false;
-        loadFullResolution();
+        computeHillshade(data, state.rasterWidth, state.rasterHeight, {
+            chunkRows: 16,
+            shouldCancel: () => token !== state.rasterToken
+        }).then((values) => {
+            if (!values || token !== state.rasterToken) return;
+            state.hillshadeValues = values;
+            renderHillshadeToCanvas(token);
+        });
     };
 
-    const startAfterInteraction = () => {
-        window.removeEventListener('pointerdown', startAfterInteraction);
-        window.removeEventListener('keydown', startAfterInteraction);
-        setTimeout(startLoad, 0);
-    };
-
-    window.addEventListener('pointerdown', startAfterInteraction, { once: true, passive: true });
-    window.addEventListener('keydown', startAfterInteraction, { once: true });
-
-    const scheduleIdleStart = () => {
-        if (!state.fullResLoadScheduled) return;
-        if ('requestIdleCallback' in window) {
-            requestIdleCallback((deadline) => {
-                if (!state.fullResLoadScheduled) return;
-                if (deadline.timeRemaining() > 8 || deadline.didTimeout) {
-                    startLoad();
-                } else {
-                    setTimeout(startLoad, 0);
-                }
-            }, { timeout: 2000 });
-        } else {
-            setTimeout(startLoad, 500);
-        }
-    };
-
-    setTimeout(scheduleIdleStart, 300);
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => start(), { timeout: 1200 });
+    } else {
+        setTimeout(start, 100);
+    }
 }
 
 function setupWelcomeButtons() {
@@ -353,7 +344,6 @@ function setupWelcomeButtons() {
             // TODO: Wire up "Guide Me" tour
             welcomeScreen.classList.add('hidden');
             console.log('Guide Me clicked - will implement guided tour');
-            queueFullResolutionLoad();
         });
     }
 }
@@ -450,6 +440,9 @@ async function loadPreview() {
 
         state.rasterToken += 1;
         const rasterToken = state.rasterToken;
+        state.hillshadeValues = null;
+        state.hillshadeBitmap = null;
+        state.hillshadeImageUrl = null;
 
         prepareEnviroBlend(width, height, rasterToken);
 
@@ -462,17 +455,12 @@ async function loadPreview() {
         state.seaCanvas.width = width;
         state.seaCanvas.height = height;
 
-        showProgress('Computing hillshade...', 90);
+        showProgress('Finalizing...', 90);
         await new Promise(resolve => setTimeout(resolve, 0)); // Yield to UI
-
-        // Precompute hillshade (async, non-blocking)
-        state.hillshadeValues = await computeHillshade(data, width, height);
-        await renderHillshadeToCanvas(rasterToken);
 
         // Initial render to display data
         scheduleRender();
 
-        showProgress('Ready', 100);
         console.log('Preview loaded:', width, 'x', height);
 
     } catch (e) {
@@ -482,87 +470,92 @@ async function loadPreview() {
 }
 
 async function loadFullResolution() {
-    if (state.isFullResLoaded || state.isFullResLoading) return;
+    if (state.isFullResLoaded) return;
+    if (state.isFullResLoading && state.fullResPromise) return state.fullResPromise;
+
     state.isFullResLoading = true;
+    state.fullResPromise = (async () => {
+        showProgress('Loading full detail...', 60);
 
-    showProgress('Loading full detail...', 60);
+        try {
+            // Use fetch for better browser compatibility
+            const response = await fetch(CONFIG.COG_URL);
+            if (!response.ok) throw new Error('Full file fetch failed');
+            const buffer = await response.arrayBuffer();
+            state.tiff = await GeoTIFF.fromArrayBuffer(buffer);
+            state.image = await state.tiff.getImage();
 
-    try {
-        // Use fetch for better browser compatibility
-        const response = await fetch(CONFIG.COG_URL);
-        if (!response.ok) throw new Error('Full file fetch failed');
-        const buffer = await response.arrayBuffer();
-        state.tiff = await GeoTIFF.fromArrayBuffer(buffer);
-        state.image = await state.tiff.getImage();
+            const width = state.image.getWidth();
+            const height = state.image.getHeight();
 
-        const width = state.image.getWidth();
-        const height = state.image.getHeight();
+            // Load at reasonable resolution
+            const maxDim = 2048;
+            const scale = Math.min(1, maxDim / Math.max(width, height));
+            const targetWidth = Math.round(width * scale);
+            const targetHeight = Math.round(height * scale);
 
-        // Load at reasonable resolution
-        const maxDim = 2048;
-        const scale = Math.min(1, maxDim / Math.max(width, height));
-        const targetWidth = Math.round(width * scale);
-        const targetHeight = Math.round(height * scale);
+            showProgress('Processing...', 80);
 
-        showProgress('Processing...', 80);
+            const rasters = await state.image.readRasters({
+                width: targetWidth,
+                height: targetHeight,
+                resampleMethod: 'bilinear'
+            });
 
-        const rasters = await state.image.readRasters({
-            width: targetWidth,
-            height: targetHeight,
-            resampleMethod: 'bilinear'
-        });
-
-        // Convert to depth using new encoding
-        // Process in chunks to avoid blocking
-        const data = new Float32Array(rasters[0].length);
-        const chunkSize = 50000; // Process 50k pixels at a time
-        for (let start = 0; start < rasters[0].length; start += chunkSize) {
-            const end = Math.min(start + chunkSize, rasters[0].length);
-            for (let i = start; i < end; i++) {
-                const pixel = rasters[0][i];
-                data[i] = pixel === 0 ? NaN : (pixel * 160 / 255) - 150;
+            // Convert to depth using new encoding
+            // Process in chunks to avoid blocking
+            const data = new Float32Array(rasters[0].length);
+            const chunkSize = 50000; // Process 50k pixels at a time
+            for (let start = 0; start < rasters[0].length; start += chunkSize) {
+                const end = Math.min(start + chunkSize, rasters[0].length);
+                for (let i = start; i < end; i++) {
+                    const pixel = rasters[0][i];
+                    data[i] = pixel === 0 ? NaN : (pixel * 160 / 255) - 150;
+                }
+                if (start + chunkSize < rasters[0].length) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
             }
-            if (start + chunkSize < rasters[0].length) {
-                await new Promise(resolve => setTimeout(resolve, 0));
-            }
+
+            // Update state
+            state.rasterData = data;
+            state.rasterWidth = targetWidth;
+            state.rasterHeight = targetHeight;
+
+            state.rasterToken += 1;
+            const rasterToken = state.rasterToken;
+
+            prepareEnviroBlend(targetWidth, targetHeight, rasterToken);
+
+            // Recreate canvases at new size
+            state.hillshadeCanvas = document.createElement('canvas');
+            state.hillshadeCanvas.width = targetWidth;
+            state.hillshadeCanvas.height = targetHeight;
+
+            state.seaCanvas = document.createElement('canvas');
+            state.seaCanvas.width = targetWidth;
+            state.seaCanvas.height = targetHeight;
+
+            state.hillshadeValues = null;
+            state.hillshadeBitmap = null;
+            state.hillshadeImageUrl = null; // Force re-render
+
+            // Re-render with full data first
+            scheduleRender();
+
+            // Recompute hillshade in the background
+            queueHillshadeCompute(rasterToken);
+
+            state.isFullResLoaded = true;
+        } catch (e) {
+            console.error('Full resolution load failed:', e);
+        } finally {
+            state.isFullResLoading = false;
+            state.fullResPromise = null;
         }
+    })();
 
-        // Update state
-        state.rasterData = data;
-        state.rasterWidth = targetWidth;
-        state.rasterHeight = targetHeight;
-
-        state.rasterToken += 1;
-        const rasterToken = state.rasterToken;
-
-        prepareEnviroBlend(targetWidth, targetHeight, rasterToken);
-
-        // Recreate canvases at new size
-        state.hillshadeCanvas = document.createElement('canvas');
-        state.hillshadeCanvas.width = targetWidth;
-        state.hillshadeCanvas.height = targetHeight;
-
-        state.seaCanvas = document.createElement('canvas');
-        state.seaCanvas.width = targetWidth;
-        state.seaCanvas.height = targetHeight;
-
-        // Recompute hillshade (async, non-blocking)
-        state.hillshadeValues = await computeHillshade(data, targetWidth, targetHeight);
-        state.hillshadeImageUrl = null; // Force re-render
-        await renderHillshadeToCanvas(rasterToken);
-
-        state.isFullResLoaded = true;
-        state.isFullResLoading = false;
-
-        // Re-render with full data
-        scheduleRender();
-
-        showProgress('Ready', 100);
-
-    } catch (e) {
-        console.error('Full resolution load failed:', e);
-        state.isFullResLoading = false;
-    }
+    return state.fullResPromise;
 }
 
 // ============================================
@@ -614,9 +607,10 @@ async function renderHillshadeToCanvas(rasterToken = state.rasterToken) {
 
     // Process in chunks to avoid blocking UI
     const totalPixels = rasterWidth * rasterHeight;
-    const chunkSize = 50000; // Process 50k pixels at a time
+    const chunkSize = 20000; // Process 20k pixels at a time
 
     for (let start = 0; start < totalPixels; start += chunkSize) {
+        if (token !== state.rasterToken) return;
         const end = Math.min(start + chunkSize, totalPixels);
 
         for (let i = start; i < end; i++) {
@@ -651,6 +645,7 @@ async function renderHillshadeToCanvas(rasterToken = state.rasterToken) {
         }
     }
 
+    if (token !== state.rasterToken) return;
     ctx.putImageData(imageData, 0, 0);
 
     // Use createImageBitmap for better performance
@@ -867,7 +862,7 @@ function getLandColor(depth) {
     ];
 }
 
-async function computeHillshade(data, width, height) {
+async function computeHillshade(data, width, height, options = {}) {
     const hillshade = new Float32Array(width * height);
     const azimuthRad = CONFIG.SUN_AZIMUTH * Math.PI / 180;
     const altitudeRad = CONFIG.SUN_ALTITUDE * Math.PI / 180;
@@ -880,8 +875,9 @@ async function computeHillshade(data, width, height) {
     const cellSize = (cellSizeX + cellSizeY) / 2;
 
     // Process in chunks to avoid blocking the UI
-    const chunkSize = 50; // Process 50 rows at a time
+    const chunkSize = options.chunkRows ?? 20; // Process rows in smaller chunks
     for (let startY = 1; startY < height - 1; startY += chunkSize) {
+        if (options.shouldCancel?.()) return null;
         const endY = Math.min(startY + chunkSize, height - 1);
 
         for (let y = startY; y < endY; y++) {
@@ -1196,9 +1192,9 @@ function setupChartDrag() {
     canvas.addEventListener('mouseleave', handleEnd);
 
     // Touch events for mobile
-    canvas.addEventListener('touchstart', handleStart);
-    canvas.addEventListener('touchmove', handleMove);
-    canvas.addEventListener('touchend', handleEnd);
+    canvas.addEventListener('touchstart', handleStart, { passive: true });
+    canvas.addEventListener('touchmove', handleMove, { passive: true });
+    canvas.addEventListener('touchend', handleEnd, { passive: true });
 }
 
 function updateChartHighlight(age, seaLevel) {

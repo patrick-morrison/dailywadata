@@ -314,13 +314,24 @@ body {
     border-color: var(--color-accent);
 }
 
-.play-btn.playing svg {
+.play-btn svg {
     display: none;
 }
 
-.play-btn.playing::before {
-    content: '⏸';
-    font-size: 14px;
+.play-btn .play-icon {
+    display: block;
+}
+
+.play-btn .pause-icon {
+    display: none;
+}
+
+.play-btn.playing .play-icon {
+    display: none;
+}
+
+.play-btn.playing .pause-icon {
+    display: block;
 }
 
 /* ============================================
@@ -358,6 +369,7 @@ body {
     width: 100% !important;
     height: 100% !important;
     cursor: grab;
+    touch-action: none;
 }
 
 #sea-level-chart:active {
@@ -375,9 +387,10 @@ body {
 }
 
 .vertical-slider {
-    writing-mode: bt-lr;
-    -webkit-appearance: slider-vertical;
-    appearance: slider-vertical;
+    writing-mode: vertical-lr;
+    direction: rtl;
+    -webkit-appearance: none;
+    appearance: none;
     width: 10px;
     height: 100%;
     background: linear-gradient(to bottom,
