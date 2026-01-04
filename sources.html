@@ -133,6 +133,9 @@
 
         <div class="sources-content">
             <p>Data sources and methodologies for each day of the project.</p>
+            <p><a href="https://github.com/patrick-morrison/dailywadata" target="_blank"
+                    style="font-weight: bold; color: var(--accent); text-decoration: underline;">View the code on GitHub
+                    &rarr;</a></p>
 
             <div class="day-entry">
                 <div class="day-header">
@@ -140,6 +143,14 @@
                     <h3 class="day-name"><a href="day1-dotlidar/index.html">Wadjemup Rottnest Bathymetry</a></h3>
                 </div>
                 <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Finding this Department of Transport LiDAR data on National Map years
+                            ago got me interested in subsea data. It reveals the path of the river, the ancient
+                            shorelines
+                            and dunes offshore around Wadjemup Rottnest, and the deep scars of sand mining. Please
+                            explore it, and click to share links of anything you find interesting.</div>
+                    </div>
                     <div class="detail-section">
                         <div class="detail-label">Source</div>
                         <div class="detail-text">Perth Bathymetric LiDAR from the <a
@@ -152,7 +163,7 @@
                             as a 25% Float32 DEFLATE COG (from 568 MB to 14 MB).</div>
                     </div>
                     <div class="detail-section">
-                        <div class="detail-label">Tech Stack</div>
+                        <div class="detail-label">Implementation Details</div>
                         <div class="detail-text">HTML/CSS/JS webmap. I wanted a chance to upgrade from my Leaflet map
                             experience, so this uses the modern and open MapLibre GL for basemap rendering. deck.gl:
                             colours and hillshades the bathymetry on the client side. GeoTIFF.js reads the COG to show
@@ -161,6 +172,87 @@
                     <div class="detail-section">
                         <div class="detail-label">Author</div>
                         <div class="detail-text">Patrick Morrison</div>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">02</span>
+                    <h3 class="day-name"><a href="day2-shipwrecks/index.html">WA Shipwrecks Map</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">The WA Museum's shipwreck database is a huge, detailed resource that's
+                            well worth taking a look at. It's hard to believe just how many shipwrecks lie off our coast
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text">Maritime Archaeology databases from the <a
+                                href="https://catalogue.data.wa.gov.au/dataset/shipwrecks">Western Australian Museum</a>
+                            via Data WA. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">None. The data was used as-is from the source GeoJSON.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">Built with OpenLayers to render the GeoJSON points. Added a simple
+                            method to share shipwrecks.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Jack Langoulant</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">03</span>
+                    <h3 class="day-name"><a href="day3-streetlamps/index.html">Public Lighting Infrastructure</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Streetlights of the WA area as managed by Western Power, and thus does
+                            not cover all of WA. The dataset has the ID of each streetlamp, as well as the wattage and
+                            type of bulb installed.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://catalogue.data.wa.gov.au/dataset/streetlights-wp-043">Download data from
+                                dataWA</a></div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Licence</div>
+                        <div class="detail-text">
+                            <strong>Map:</strong> CC BY 4.0 — <a
+                                href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution</a><br>
+                            <strong>Data:</strong> <a
+                                href="https://catalogue.data.wa.gov.au/dataset/wp-licence-terms-and-conditions/resource/5c0d580f-85a6-42de-ab47-036e70bcd2ad">Western
+                                Power Data</a>
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">The only preprocessing needed was converting the downloaded dataset
+                            (GDA94 Geopackage) to a EPSG:4326 GeoJSON for easy handling on the web.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">HTML/CSS/JS webmap. Utilising the modern and open MapLibre GL for
+                            basemap rendering, the streetlamps are then added as a scatterplot layer on top, with the
+                            size and color of the bulb determined by the wattage and type respectively.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Aren Leishman</div>
                     </div>
                 </div>
             </div>
