@@ -1,0 +1,1196 @@
+/**
+ * Day 6 - Ancient Australian Coastlines
+ * Sea Level Visualization Tool
+ * 
+ * Optimized for: no-flicker updates, always-interactive, fast preview
+ */
+
+// ============================================
+// Constants & Configuration
+// ============================================
+
+const CONFIG = {
+    // Clipped to Australia extent, Web Mercator projection, +10m to -150m range
+    COG_URL: 'bathytopo_aus.tif',
+    PREVIEW_URL: 'bathytopo_preview.tif',
+    CURVE_URL: window.PAGE_CONFIG?.curveUrl || 'curve_grant2012.csv',
+
+    // Data encoding: pixel = (depth + 150) * 255 / 160
+    // Decode: depth = (pixel * 160 / 255) - 150
+    DEPTH_MIN: -150,
+    DEPTH_MAX: 10,
+
+    // Beach fringe width in meters
+    BEACH_WIDTH: 2,
+
+    // Bounds in WGS84 (from clipped file)
+    BOUNDS: {
+        west: 110.346,
+        south: -44.22,
+        east: 159.03,
+        north: -8.0
+    },
+
+    // Hillshade parameters
+    SUN_AZIMUTH: 315,
+    SUN_ALTITUDE: 45,
+    EXAGGERATION: 3,
+
+    // Ocean color palette (extended to -150m)
+    OCEAN_COLORS: [
+        { depth: 0, color: [100, 180, 220, 180] },
+        { depth: -20, color: [60, 140, 190, 200] },
+        { depth: -50, color: [40, 100, 160, 210] },
+        { depth: -80, color: [25, 70, 120, 220] },
+        { depth: -130, color: [15, 40, 80, 230] },
+        { depth: -150, color: [10, 30, 60, 240] }
+    ],
+
+    // Beach color
+    BEACH_COLOR: [210, 190, 140, 220],
+
+    // Ancient land colors (exposed seafloor, extended to -150m)
+    LAND_COLORS: [
+        { depth: 10, color: [200, 180, 150, 180] },
+        { depth: 0, color: [180, 160, 130, 200] },
+        { depth: -20, color: [160, 140, 110, 210] },
+        { depth: -50, color: [140, 120, 90, 220] },
+        { depth: -80, color: [120, 100, 75, 225] },
+        { depth: -130, color: [100, 85, 65, 230] },
+        { depth: -150, color: [90, 75, 60, 235] }
+    ],
+
+    ANIMATION_SPEED: 50,
+};
+
+// ============================================
+// State Management
+// ============================================
+
+const state = {
+    tiff: null,
+    image: null,
+    rasterData: null,
+    rasterWidth: 0,
+    rasterHeight: 0,
+    bounds: null,
+
+    // Persistent canvases (no recreating)
+    hillshadeCanvas: null,
+    seaCanvas: null,
+
+    // Single deck.gl overlay (no remove/add)
+    deckOverlay: null,
+
+    // Precomputed hillshade values
+    hillshadeValues: null,
+
+    // Current hillshade image URL (cached)
+    hillshadeImageUrl: null,
+
+    // Sea level curve data
+    curveData: [],
+
+    // Current values
+    currentSeaLevel: 0,
+    currentAge: 0,
+
+    // Loading state
+    isLoading: true,
+    isFullResLoaded: false,
+
+    // Animation
+    isPlaying: false,
+    playDirection: -1,  // -1 = move towards Now (decreasing age, moving right)
+    animationTimer: null,
+
+    // Measurement
+    isMeasuring: false,
+    measurePoints: [],
+    measureMarkers: [],
+
+    // Chart
+    chart: null,
+
+    // Render scheduling
+    pendingRender: null
+};
+
+// ============================================
+// Map Initialization
+// ============================================
+
+const map = new maplibregl.Map({
+    container: 'map',
+    style: {
+        version: 8,
+        sources: {
+            'esri-satellite': {
+                type: 'raster',
+                tiles: [
+                    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                ],
+                tileSize: 256,
+                maxzoom: 18,
+                attribution: '© Esri, Maxar, Earthstar Geographics'
+            }
+        },
+        layers: [{
+            id: 'satellite',
+            type: 'raster',
+            source: 'esri-satellite'
+        }]
+    },
+    center: [134, -28],
+    zoom: 4,
+    minZoom: 3,
+    maxZoom: 10,
+    maxPitch: 0,
+    dragRotate: false,
+    attributionControl: false
+});
+
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+
+// ============================================
+// Initialization
+// ============================================
+
+map.on('load', async () => {
+    // Fit map to data bounds immediately
+    map.fitBounds([
+        [CONFIG.BOUNDS.west, CONFIG.BOUNDS.south], // Southwest
+        [CONFIG.BOUNDS.east, CONFIG.BOUNDS.north]  // Northeast
+    ], {
+        padding: 20,
+        duration: 0  // Instant, no animation
+    });
+
+    // Setup UI immediately (map is always interactive)
+    setupSliders();
+    setupMeasureTool();
+    setupAnimation();
+
+    // Initialize single deck.gl overlay (never removed)
+    state.deckOverlay = new deck.MapboxOverlay({
+        layers: [],
+        interleaved: false
+    });
+    map.addControl(state.deckOverlay);
+
+    try {
+        // Show initial loading state
+        showProgress('Loading curve data...', 10);
+        await new Promise(resolve => setTimeout(resolve, 0)); // Yield to UI
+
+        // Load curve data (small, fast)
+        await loadSeaLevelCurve();
+
+        showProgress('Initializing chart...', 30);
+        await new Promise(resolve => setTimeout(resolve, 0)); // Yield to UI
+
+        // Initialize chart AFTER curve data loads (prevents squashed Y-axis)
+        initializeChart();
+
+        showProgress('Loading preview...', 50);
+        await new Promise(resolve => setTimeout(resolve, 0)); // Yield to UI
+
+        // Load preview first (469KB - instant)
+        await loadPreview();
+
+        // Initial render with preview data
+        scheduleRender();
+
+        // Load full resolution in background
+        loadFullResolution();
+
+    } catch (error) {
+        console.error('Initialization failed:', error);
+        showProgress('Failed to load', 0);
+    }
+});
+
+// ============================================
+// Loading Functions
+// ============================================
+
+function showProgress(text, percent) {
+    const el = document.getElementById('loading-text');
+    if (el) {
+        el.textContent = percent > 0 && percent < 100 ? `${text} (${Math.round(percent)}%)` : text;
+    }
+
+    if (percent >= 100 || text === 'Ready') {
+        // Hide loading indicator, show buttons
+        const buttonsLoading = document.getElementById('buttons-loading');
+        const welcomeButtons = document.getElementById('welcome-buttons');
+
+        if (buttonsLoading) buttonsLoading.classList.add('hidden');
+        if (welcomeButtons) welcomeButtons.classList.remove('hidden');
+
+        state.isLoading = false;
+
+        // Setup button handlers
+        setupWelcomeButtons();
+    }
+}
+
+function setupWelcomeButtons() {
+    const exploreBtn = document.getElementById('explore-btn');
+    const guideMeBtn = document.getElementById('guide-me-btn');
+    const welcomeScreen = document.getElementById('welcome-screen');
+
+    if (exploreBtn) {
+        exploreBtn.addEventListener('click', () => {
+            welcomeScreen.classList.add('hidden');
+        });
+    }
+
+    if (guideMeBtn) {
+        guideMeBtn.addEventListener('click', () => {
+            // TODO: Wire up "Guide Me" tour
+            welcomeScreen.classList.add('hidden');
+            console.log('Guide Me clicked - will implement guided tour');
+        });
+    }
+}
+
+async function loadSeaLevelCurve() {
+    const response = await fetch(CONFIG.CURVE_URL);
+    const text = await response.text();
+    state.curveData = text.trim().split('\n').slice(1).map(line => {
+        const [age, seaLevel] = line.split(',').map(Number);
+        return { age, seaLevel };
+    }).filter(d => !isNaN(d.age) && !isNaN(d.seaLevel));
+    console.log(`Loaded ${state.curveData.length} curve data points`);
+}
+
+async function loadPreview() {
+    try {
+        showProgress('Downloading preview...', 60);
+        const response = await fetch(CONFIG.PREVIEW_URL);
+        if (!response.ok) throw new Error('Preview fetch failed');
+
+        showProgress('Processing data...', 70);
+        await new Promise(resolve => setTimeout(resolve, 0)); // Yield to UI
+
+        const buffer = await response.arrayBuffer();
+        const previewTiff = await GeoTIFF.fromArrayBuffer(buffer);
+        const previewImage = await previewTiff.getImage();
+        const width = previewImage.getWidth();
+        const height = previewImage.getHeight();
+
+        const rasters = await previewImage.readRasters();
+
+        showProgress('Converting elevation data...', 80);
+        await new Promise(resolve => setTimeout(resolve, 0)); // Yield to UI
+
+        // Convert to depth values using new encoding: (pixel * 160 / 255) - 150
+        // Process in chunks to avoid blocking
+        const data = new Float32Array(rasters[0].length);
+        const chunkSize = 50000; // Process 50k pixels at a time
+        for (let start = 0; start < rasters[0].length; start += chunkSize) {
+            const end = Math.min(start + chunkSize, rasters[0].length);
+            for (let i = start; i < end; i++) {
+                const pixel = rasters[0][i];
+                data[i] = pixel === 0 ? NaN : (pixel * 160 / 255) - 150;
+            }
+            if (start + chunkSize < rasters[0].length) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+        }
+
+        state.rasterData = data;
+        state.rasterWidth = width;
+        state.rasterHeight = height;
+        state.bounds = CONFIG.BOUNDS;
+
+        // Create persistent canvases
+        state.hillshadeCanvas = document.createElement('canvas');
+        state.hillshadeCanvas.width = width;
+        state.hillshadeCanvas.height = height;
+
+        state.seaCanvas = document.createElement('canvas');
+        state.seaCanvas.width = width;
+        state.seaCanvas.height = height;
+
+        showProgress('Computing hillshade...', 90);
+        await new Promise(resolve => setTimeout(resolve, 0)); // Yield to UI
+
+        // Precompute hillshade (async, non-blocking)
+        state.hillshadeValues = await computeHillshade(data, width, height);
+        await renderHillshadeToCanvas();
+
+        // Initial render to display data
+        scheduleRender();
+
+        showProgress('Ready', 100);
+        console.log('Preview loaded:', width, 'x', height);
+
+    } catch (e) {
+        console.warn('Preview load failed:', e.message);
+        await loadFullResolution();
+    }
+}
+
+async function loadFullResolution() {
+    if (state.isFullResLoaded) return;
+
+    showProgress('Loading full detail...', 60);
+
+    try {
+        // Use fetch for better browser compatibility
+        const response = await fetch(CONFIG.COG_URL);
+        if (!response.ok) throw new Error('Full file fetch failed');
+        const buffer = await response.arrayBuffer();
+        state.tiff = await GeoTIFF.fromArrayBuffer(buffer);
+        state.image = await state.tiff.getImage();
+
+        const width = state.image.getWidth();
+        const height = state.image.getHeight();
+
+        // Load at reasonable resolution
+        const maxDim = 2048;
+        const scale = Math.min(1, maxDim / Math.max(width, height));
+        const targetWidth = Math.round(width * scale);
+        const targetHeight = Math.round(height * scale);
+
+        showProgress('Processing...', 80);
+
+        const rasters = await state.image.readRasters({
+            width: targetWidth,
+            height: targetHeight,
+            resampleMethod: 'bilinear'
+        });
+
+        // Convert to depth using new encoding
+        // Process in chunks to avoid blocking
+        const data = new Float32Array(rasters[0].length);
+        const chunkSize = 50000; // Process 50k pixels at a time
+        for (let start = 0; start < rasters[0].length; start += chunkSize) {
+            const end = Math.min(start + chunkSize, rasters[0].length);
+            for (let i = start; i < end; i++) {
+                const pixel = rasters[0][i];
+                data[i] = pixel === 0 ? NaN : (pixel * 160 / 255) - 150;
+            }
+            if (start + chunkSize < rasters[0].length) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+        }
+
+        // Update state
+        state.rasterData = data;
+        state.rasterWidth = targetWidth;
+        state.rasterHeight = targetHeight;
+
+        // Recreate canvases at new size
+        state.hillshadeCanvas = document.createElement('canvas');
+        state.hillshadeCanvas.width = targetWidth;
+        state.hillshadeCanvas.height = targetHeight;
+
+        state.seaCanvas = document.createElement('canvas');
+        state.seaCanvas.width = targetWidth;
+        state.seaCanvas.height = targetHeight;
+
+        // Recompute hillshade (async, non-blocking)
+        state.hillshadeValues = await computeHillshade(data, targetWidth, targetHeight);
+        state.hillshadeImageUrl = null; // Force re-render
+        await renderHillshadeToCanvas();
+
+        state.isFullResLoaded = true;
+
+        // Re-render with full data
+        scheduleRender();
+
+        showProgress('Ready', 100);
+
+    } catch (e) {
+        console.error('Full resolution load failed:', e);
+    }
+}
+
+// ============================================
+// Rendering (Optimized - No Flicker)
+// ============================================
+
+let lastRenderTime = 0;
+const MIN_RENDER_INTERVAL = 50;  // ms between renders
+
+function scheduleRender() {
+    // Debounce renders to avoid excessive updates
+    if (state.pendingRender) return;
+
+    const now = performance.now();
+    const timeSinceLastRender = now - lastRenderTime;
+    const delay = Math.max(0, MIN_RENDER_INTERVAL - timeSinceLastRender);
+
+    state.pendingRender = setTimeout(() => {
+        state.pendingRender = null;
+        lastRenderTime = performance.now();
+        renderFrame();
+    }, delay);
+}
+
+function renderFrame() {
+    if (!state.rasterData) return;
+
+    renderSeaLevelToCanvas(state.currentSeaLevel);
+
+    // Use createImageBitmap for better performance (async)
+    createImageBitmap(state.seaCanvas).then(bitmap => {
+        state.seaBitmap = bitmap;
+        updateDeckLayers();
+    });
+}
+
+async function renderHillshadeToCanvas() {
+    const { hillshadeCanvas, hillshadeValues, rasterData, rasterWidth, rasterHeight } = state;
+    if (!hillshadeCanvas || !hillshadeValues) return;
+
+    const ctx = hillshadeCanvas.getContext('2d', { willReadFrequently: true });
+    const imageData = ctx.createImageData(rasterWidth, rasterHeight);
+
+    // Process in chunks to avoid blocking UI
+    const totalPixels = rasterWidth * rasterHeight;
+    const chunkSize = 50000; // Process 50k pixels at a time
+
+    for (let start = 0; start < totalPixels; start += chunkSize) {
+        const end = Math.min(start + chunkSize, totalPixels);
+
+        for (let i = start; i < end; i++) {
+            const px = i * 4;
+            const depth = rasterData[i];
+
+            if (isNaN(depth)) {
+                imageData.data[px + 3] = 0;
+                continue;
+            }
+
+            const shade = hillshadeValues[i];
+            // Stronger hillshade effect
+            if (shade < 0.5) {
+                // Shadow (darker)
+                imageData.data[px] = 0;
+                imageData.data[px + 1] = 0;
+                imageData.data[px + 2] = 0;
+                imageData.data[px + 3] = Math.round((0.5 - shade) * 180);  // Was 100
+            } else {
+                // Highlight (lighter)
+                imageData.data[px] = 255;
+                imageData.data[px + 1] = 255;
+                imageData.data[px + 2] = 255;
+                imageData.data[px + 3] = Math.round((shade - 0.5) * 100);  // Was 60
+            }
+        }
+
+        // Yield to UI after each chunk
+        if (end < totalPixels) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+
+    // Use createImageBitmap for better performance
+    createImageBitmap(hillshadeCanvas).then(bitmap => {
+        state.hillshadeBitmap = bitmap;
+        console.log('Hillshade created');
+    });
+}
+
+function renderSeaLevelToCanvas(seaLevel) {
+    const { seaCanvas, rasterData, rasterWidth, rasterHeight } = state;
+    if (!seaCanvas || !rasterData) return;
+
+    const ctx = seaCanvas.getContext('2d', { willReadFrequently: true });
+    const imageData = ctx.createImageData(rasterWidth, rasterHeight);
+
+    // Round sea level to avoid flickering from floating point precision issues
+    seaLevel = Math.round(seaLevel * 2) / 2;  // Round to nearest 0.5m
+
+    const beachMin = seaLevel - CONFIG.BEACH_WIDTH;
+    const beachMax = seaLevel + CONFIG.BEACH_WIDTH;
+
+    for (let i = 0; i < rasterWidth * rasterHeight; i++) {
+        const px = i * 4;
+        const depth = rasterData[i];
+
+        if (isNaN(depth)) {
+            imageData.data[px + 3] = 0;
+            continue;
+        }
+
+        if (depth > beachMax) {
+            // Above current sea level = ancient exposed land
+            if (depth <= 0) {
+                const color = getLandColor(depth);
+                imageData.data[px] = color[0];
+                imageData.data[px + 1] = color[1];
+                imageData.data[px + 2] = color[2];
+                imageData.data[px + 3] = color[3];
+            } else {
+                imageData.data[px + 3] = 0;
+            }
+        } else if (depth >= beachMin && depth <= beachMax) {
+            // Beach fringe
+            const [r, g, b, a] = CONFIG.BEACH_COLOR;
+            imageData.data[px] = r;
+            imageData.data[px + 1] = g;
+            imageData.data[px + 2] = b;
+            imageData.data[px + 3] = a;
+        } else {
+            // Ocean
+            if (seaLevel >= 0 && depth < 0) {
+                // When sea level is above present (0m), depths below 0 are dry land - make transparent
+                imageData.data[px + 3] = 0;
+            } else if (seaLevel < 0) {
+                // Sea level dropped below present, ocean is transparent to show exposed land
+                imageData.data[px + 3] = 0;
+            } else {
+                // Show ocean color for depths between 0 and sea level
+                const color = getOceanColor(depth - seaLevel);
+                imageData.data[px] = color[0];
+                imageData.data[px + 1] = color[1];
+                imageData.data[px + 2] = color[2];
+                imageData.data[px + 3] = color[3];
+            }
+        }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+
+}
+
+function updateDeckLayers() {
+    if (!state.deckOverlay || !state.bounds) return;
+
+    const { bounds, seaBitmap, hillshadeBitmap } = state;
+    const boundsArray = [bounds.west, bounds.south, bounds.east, bounds.north];
+
+    const layers = [];
+
+    // Sea level layer (below hillshade)
+    if (seaBitmap) {
+        layers.push(new deck.BitmapLayer({
+            id: 'sea-level',
+            bounds: boundsArray,
+            image: seaBitmap,
+            opacity: 1
+        }));
+    }
+
+    // Hillshade layer (on top)
+    if (hillshadeBitmap) {
+        layers.push(new deck.BitmapLayer({
+            id: 'hillshade',
+            bounds: boundsArray,
+            image: hillshadeBitmap,
+            opacity: 1
+        }));
+    }
+
+    // Update layers in place (no flicker!)
+    state.deckOverlay.setProps({ layers });
+}
+
+// ============================================
+// Color Functions
+// ============================================
+
+function getOceanColor(relativeDepth) {
+    const stops = CONFIG.OCEAN_COLORS;
+    for (let i = 0; i < stops.length - 1; i++) {
+        if (relativeDepth >= stops[i + 1].depth) {
+            const t = (relativeDepth - stops[i].depth) / (stops[i + 1].depth - stops[i].depth);
+            const c1 = stops[i].color, c2 = stops[i + 1].color;
+            return [
+                Math.round(c1[0] + t * (c2[0] - c1[0])),
+                Math.round(c1[1] + t * (c2[1] - c1[1])),
+                Math.round(c1[2] + t * (c2[2] - c1[2])),
+                Math.round(c1[3] + t * (c2[3] - c1[3]))
+            ];
+        }
+    }
+    return stops[stops.length - 1].color;
+}
+
+function getLandColor(depth) {
+    const stops = CONFIG.LAND_COLORS;
+    for (let i = 0; i < stops.length - 1; i++) {
+        if (depth >= stops[i + 1].depth) {
+            const t = (depth - stops[i].depth) / (stops[i + 1].depth - stops[i].depth);
+            const c1 = stops[i].color, c2 = stops[i + 1].color;
+            return [
+                Math.round(c1[0] + t * (c2[0] - c1[0])),
+                Math.round(c1[1] + t * (c2[1] - c1[1])),
+                Math.round(c1[2] + t * (c2[2] - c1[2])),
+                Math.round(c1[3] + t * (c2[3] - c1[3]))
+            ];
+        }
+    }
+    return stops[stops.length - 1].color;
+}
+
+async function computeHillshade(data, width, height) {
+    const hillshade = new Float32Array(width * height);
+    const azimuthRad = CONFIG.SUN_AZIMUTH * Math.PI / 180;
+    const altitudeRad = CONFIG.SUN_ALTITUDE * Math.PI / 180;
+    const sunX = Math.sin(azimuthRad) * Math.cos(altitudeRad);
+    const sunY = Math.cos(azimuthRad) * Math.cos(altitudeRad);
+    const sunZ = Math.sin(altitudeRad);
+
+    const cellSizeX = (state.bounds?.east - state.bounds?.west || 80) / width * 111000;
+    const cellSizeY = (state.bounds?.north - state.bounds?.south || 52) / height * 111000;
+    const cellSize = (cellSizeX + cellSizeY) / 2;
+
+    // Process in chunks to avoid blocking the UI
+    const chunkSize = 50; // Process 50 rows at a time
+    for (let startY = 1; startY < height - 1; startY += chunkSize) {
+        const endY = Math.min(startY + chunkSize, height - 1);
+
+        for (let y = startY; y < endY; y++) {
+            for (let x = 1; x < width - 1; x++) {
+                const idx = y * width + x;
+                const z = data[idx];
+
+                if (isNaN(z)) {
+                    hillshade[idx] = 0.5;
+                    continue;
+                }
+
+                const zL = data[idx - 1] || z;
+                const zR = data[idx + 1] || z;
+                const zU = data[(y - 1) * width + x] || z;
+                const zD = data[(y + 1) * width + x] || z;
+
+                if (isNaN(zL) || isNaN(zR) || isNaN(zU) || isNaN(zD)) {
+                    hillshade[idx] = 0.5;
+                    continue;
+                }
+
+                const dzdx = ((zR - zL) * CONFIG.EXAGGERATION) / (2 * cellSize);
+                const dzdy = ((zD - zU) * CONFIG.EXAGGERATION) / (2 * cellSize);
+                const shade = ((-dzdx * sunX - dzdy * sunY + sunZ) / Math.sqrt(dzdx * dzdx + dzdy * dzdy + 1));
+                hillshade[idx] = Math.max(0, Math.min(1, shade * 0.5 + 0.5));
+            }
+        }
+
+        // Yield to UI every chunk
+        await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    return hillshade;
+}
+
+// ============================================
+// Sea Level Updates
+// ============================================
+
+function updateSeaLevel(seaLevel) {
+    // Clamp to valid range
+    seaLevel = Math.max(-130, Math.min(20, seaLevel));
+
+    state.currentSeaLevel = seaLevel;
+    document.getElementById('level-value').textContent = seaLevel.toFixed(0);
+    document.getElementById('sea-level-slider').value = seaLevel;
+
+    // Only update input if user is not currently typing in it
+    const seaLevelInput = document.getElementById('sea-level-input');
+    if (document.activeElement !== seaLevelInput) {
+        seaLevelInput.value = seaLevel.toFixed(0);
+    }
+
+    updateChartHighlight(state.currentAge, seaLevel);
+    scheduleRender();
+}
+
+function updateAge(age) {
+    // Clamp to valid range
+    age = Math.max(0, Math.min(150, age));
+
+    state.currentAge = age;
+    const seaLevel = interpolateSeaLevel(age);
+    state.currentSeaLevel = seaLevel;
+
+    document.getElementById('age-value').textContent = age.toFixed(1);
+    document.getElementById('level-value').textContent = seaLevel.toFixed(0);
+    document.getElementById('age-slider').value = age;
+
+    // Only update input if user is not currently typing in it
+    const ageInput = document.getElementById('age-input');
+    if (document.activeElement !== ageInput) {
+        ageInput.value = age.toFixed(1);
+    }
+
+    document.getElementById('sea-level-slider').value = seaLevel;
+
+    // Only update input if user is not currently typing in it
+    const seaLevelInput = document.getElementById('sea-level-input');
+    if (document.activeElement !== seaLevelInput) {
+        seaLevelInput.value = seaLevel.toFixed(0);
+    }
+
+    updateChartHighlight(age, seaLevel);
+    scheduleRender();
+}
+
+function interpolateSeaLevel(age) {
+    const data = state.curveData;
+    if (data.length === 0) return 0;
+
+    for (let i = 0; i < data.length - 1; i++) {
+        if (age >= data[i].age && age <= data[i + 1].age) {
+            const t = (age - data[i].age) / (data[i + 1].age - data[i].age);
+            return data[i].seaLevel + t * (data[i + 1].seaLevel - data[i].seaLevel);
+        }
+    }
+
+    if (age <= data[0].age) return data[0].seaLevel;
+    return data[data.length - 1].seaLevel;
+}
+
+// ============================================
+// Chart
+// ============================================
+
+function initializeChart() {
+    const ctx = document.getElementById('sea-level-chart').getContext('2d');
+    const chartData = state.curveData; // Use all data points for rendering
+
+    state.chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: 'Sea Level',
+                data: chartData.map(d => ({ x: d.age, y: d.seaLevel })),
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 1.5,    // Show data points
+                pointBackgroundColor: '#2563eb',
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 0.5,
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,  // Disable initial animations to prevent freeze
+            interaction: { mode: 'index', intersect: false },
+            onClick: handleChartClick,
+            layout: {
+                padding: 0  // Let Chart.js use natural padding
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    min: 0,
+                    max: 150,
+                    reverse: true,
+                    ticks: {
+                        color: 'rgba(0,0,0,0.5)',
+                        callback: v => v === 0 ? 'Now' : v + 'ka',
+                        padding: 4  // Tighter spacing for X-axis labels
+                    },
+                    grid: { color: 'rgba(0,0,0,0.08)' }
+                },
+                y: {
+                    position: 'right',
+                    min: -130,
+                    max: 20,
+                    ticks: {
+                        stepSize: 20,
+                        color: 'rgba(0,0,0,0.5)',
+                        callback: v => v + 'm',
+                        padding: 4  // Tighter spacing for Y-axis labels
+                    },
+                    grid: { color: 'rgba(0,0,0,0.08)' }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false },
+                annotation: {
+                    animations: {
+                        numbers: { duration: 0 }  // Instant annotation updates
+                    },
+                    annotations: {
+                        currentLine: {
+                            type: 'line',
+                            xMin: 0, xMax: 0,
+                            borderColor: '#1a1a1a',
+                            borderWidth: 2
+                        },
+                        currentPoint: {
+                            type: 'point',
+                            xValue: 0,
+                            yValue: 0,
+                            backgroundColor: '#ffffff',
+                            radius: 6,
+                            borderColor: '#2563eb',
+                            borderWidth: 3
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // After chart is created, sync slider padding with chart's plot area
+    syncSliderPadding();
+
+    // Setup drag interaction
+    setupChartDrag();
+}
+
+function syncSliderPadding() {
+    if (!state.chart) return;
+
+    // Get the chart's plot area dimensions
+    const chartArea = state.chart.chartArea;
+    if (!chartArea) return;
+
+    const { left, right, top, bottom } = chartArea;
+    const canvas = state.chart.canvas;
+    const canvasWidth = canvas.offsetWidth;
+    const canvasHeight = canvas.offsetHeight;
+
+    // Calculate padding
+    const paddingLeft = left;
+    const paddingRight = canvasWidth - right;
+    const paddingTop = top;
+    const paddingBottom = canvasHeight - bottom;
+
+    // Apply to CSS custom properties
+    document.documentElement.style.setProperty('--chart-pad-left', `${paddingLeft}px`);
+    document.documentElement.style.setProperty('--chart-pad-right', `${paddingRight}px`);
+    document.documentElement.style.setProperty('--chart-pad-top', `${paddingTop}px`);
+    document.documentElement.style.setProperty('--chart-pad-bottom', `${paddingBottom}px`);
+}
+
+// Chart interaction handlers
+function handleChartClick(event, elements, chart) {
+    const chartArea = chart.chartArea;
+    if (!chartArea) return;
+
+    // Get click position relative to canvas
+    const rect = chart.canvas.getBoundingClientRect();
+    const x = event.native.clientX - rect.left;
+    const y = event.native.clientY - rect.top;
+
+    // Check if click is within plot area
+    if (x < chartArea.left || x > chartArea.right || y < chartArea.top || y > chartArea.bottom) {
+        return;
+    }
+
+    // Convert pixel position to data values
+    const xScale = chart.scales.x;
+    const yScale = chart.scales.y;
+    const age = xScale.getValueForPixel(x);
+    const seaLevel = yScale.getValueForPixel(y);
+
+    // Update age (which will update sea level from curve)
+    updateAge(Math.max(0, Math.min(150, age)));
+}
+
+// Setup drag interaction on chart
+function setupChartDrag() {
+    if (!state.chart) return;
+
+    const canvas = state.chart.canvas;
+    let isDragging = false;
+
+    const handleMove = (e) => {
+        if (!isDragging) return;
+
+        const chartArea = state.chart.chartArea;
+        if (!chartArea) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX || e.touches?.[0]?.clientX;
+        const clientY = e.clientY || e.touches?.[0]?.clientY;
+
+        if (!clientX || !clientY) return;
+
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+
+        // Check if within plot area
+        if (x < chartArea.left || x > chartArea.right || y < chartArea.top || y > chartArea.bottom) {
+            return;
+        }
+
+        // Convert to data values
+        const xScale = state.chart.scales.x;
+        const age = xScale.getValueForPixel(x);
+
+        // Update age
+        updateAge(Math.max(0, Math.min(150, age)));
+    };
+
+    const handleStart = (e) => {
+        isDragging = true;
+        canvas.style.cursor = 'grabbing';
+        handleMove(e); // Update immediately on click
+    };
+
+    const handleEnd = () => {
+        isDragging = false;
+        canvas.style.cursor = '';
+    };
+
+    // Mouse events
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    canvas.addEventListener('mouseup', handleEnd);
+    canvas.addEventListener('mouseleave', handleEnd);
+
+    // Touch events for mobile
+    canvas.addEventListener('touchstart', handleStart);
+    canvas.addEventListener('touchmove', handleMove);
+    canvas.addEventListener('touchend', handleEnd);
+}
+
+function updateChartHighlight(age, seaLevel) {
+    if (!state.chart) return;
+    const annotations = state.chart.options.plugins.annotation.annotations;
+    annotations.currentLine.xMin = age;
+    annotations.currentLine.xMax = age;
+    annotations.currentPoint.xValue = age;
+    annotations.currentPoint.yValue = seaLevel;
+    state.chart.update('none');
+}
+
+// ============================================
+// Sliders
+// ============================================
+
+function setupSliders() {
+    const ageSlider = document.getElementById('age-slider');
+    const seaLevelSlider = document.getElementById('sea-level-slider');
+    const ageInput = document.getElementById('age-input');
+    const seaLevelInput = document.getElementById('sea-level-input');
+
+    // Age slider -> updates age AND sea level (follows curve)
+    ageSlider.addEventListener('input', (e) => {
+        updateAge(parseFloat(e.target.value));
+    });
+
+    // Age text input -> updates age AND sea level (follows curve)
+    ageInput.addEventListener('input', (e) => {
+        let value = parseFloat(e.target.value);
+        if (isNaN(value)) return;
+        // Don't clamp during typing - allow user to enter full number
+        // Clamping happens on blur
+        updateAge(value);
+    });
+
+    ageInput.addEventListener('blur', (e) => {
+        // Format to 1 decimal on blur
+        let value = parseFloat(e.target.value);
+        if (isNaN(value)) value = 0;
+        value = Math.max(0, Math.min(150, value));
+        e.target.value = value.toFixed(1);
+    });
+
+    // Sea level slider -> ONLY updates sea level (doesn't change age)
+    seaLevelSlider.addEventListener('input', (e) => {
+        const level = parseFloat(e.target.value);
+        updateSeaLevel(level);
+    });
+
+    // Sea level text input -> ONLY updates sea level (doesn't change age)
+    seaLevelInput.addEventListener('input', (e) => {
+        let value = parseFloat(e.target.value);
+        if (isNaN(value)) return;
+        // Don't clamp during typing - allow user to enter full number
+        // Clamping happens on blur
+        updateSeaLevel(value);
+    });
+
+    seaLevelInput.addEventListener('blur', (e) => {
+        // Format to 0 decimals on blur
+        let value = parseFloat(e.target.value);
+        if (isNaN(value)) value = 0;
+        value = Math.max(-130, Math.min(20, value));
+        e.target.value = value.toFixed(0);
+    });
+}
+
+// ============================================
+// Animation
+// ============================================
+
+function setupAnimation() {
+    document.getElementById('play-btn').addEventListener('click', () => {
+        if (state.isPlaying) stopAnimation();
+        else startAnimation();
+    });
+}
+
+function startAnimation() {
+    state.isPlaying = true;
+    document.getElementById('play-btn').classList.add('playing');
+
+    state.animationTimer = setInterval(() => {
+        let newAge = state.currentAge + (0.2 * state.playDirection);  // playDirection = 1 = forward
+        if (newAge > 150) newAge = 0;  // Loop back to present when reaching end
+        if (newAge < 0) newAge = 150;
+        updateAge(newAge);
+    }, CONFIG.ANIMATION_SPEED);
+}
+
+function stopAnimation() {
+    state.isPlaying = false;
+    document.getElementById('play-btn').classList.remove('playing');
+    clearInterval(state.animationTimer);
+}
+
+// ============================================
+// Measurement Tool
+// ============================================
+
+function setupMeasureTool() {
+    const measureBtn = document.getElementById('measure-btn');
+
+    measureBtn.addEventListener('click', () => {
+        state.isMeasuring = !state.isMeasuring;
+        measureBtn.classList.toggle('active', state.isMeasuring);
+        map.getCanvas().style.cursor = state.isMeasuring ? 'crosshair' : '';
+        if (!state.isMeasuring) clearMeasurement();
+    });
+
+    document.getElementById('measure-clear').addEventListener('click', clearMeasurement);
+
+    map.on('click', (e) => {
+        if (!state.isMeasuring) return;
+
+        const { lng, lat } = e.lngLat;
+
+        // Click 1: Start new measurement (clear any previous)
+        if (state.measurePoints.length === 0) {
+            state.measurePoints.push([lng, lat]);
+            // Preview line will start tracking on mousemove
+        }
+        // Click 2: Complete the measurement
+        else if (state.measurePoints.length === 1) {
+            state.measurePoints.push([lng, lat]);
+            updateMeasurementLine();
+            updateMeasurementDisplay();
+            // Preview stops tracking (handled in mousemove)
+        }
+        // Click 3: Start fresh measurement (clear previous, add new first point)
+        else if (state.measurePoints.length === 2) {
+            state.measurePoints = [[lng, lat]];
+            if (map.getSource('measure-line')) {
+                map.getSource('measure-line').setData({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: [] }
+                });
+            }
+            document.getElementById('measure-display').classList.add('hidden');
+            // Preview line will start tracking on mousemove
+        }
+    });
+
+    // Mouse move handler for preview line
+    map.on('mousemove', (e) => {
+        // Only show preview when measuring and have exactly 1 point (tracking active)
+        if (!state.isMeasuring || state.measurePoints.length !== 1) {
+            if (map.getSource('measure-preview')) {
+                map.getSource('measure-preview').setData({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: [] }
+                });
+            }
+            return;
+        }
+
+        const { lng, lat } = e.lngLat;
+        const firstPoint = state.measurePoints[0];
+        const previewCoords = [firstPoint, [lng, lat]];
+
+        const geojson = {
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: previewCoords }
+        };
+
+        if (map.getSource('measure-preview')) {
+            map.getSource('measure-preview').setData(geojson);
+        } else {
+            map.addSource('measure-preview', { type: 'geojson', data: geojson });
+            map.addLayer({
+                id: 'measure-preview-layer',
+                type: 'line',
+                source: 'measure-preview',
+                paint: {
+                    'line-color': '#ffffff',
+                    'line-width': 2,
+                    'line-opacity': 0.8
+                }
+            });
+        }
+    });
+}
+
+function clearMeasurement() {
+    state.measurePoints = [];
+
+    if (map.getSource('measure-line')) {
+        map.removeLayer('measure-line-layer');
+        map.removeSource('measure-line');
+    }
+
+    if (map.getSource('measure-preview')) {
+        map.getSource('measure-preview').setData({
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: [] }
+        });
+    }
+
+    document.getElementById('measure-display').classList.add('hidden');
+}
+
+function updateMeasurementLine() {
+    const geojson = {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: state.measurePoints }
+    };
+
+    if (map.getSource('measure-line')) {
+        map.getSource('measure-line').setData(geojson);
+    } else {
+        map.addSource('measure-line', { type: 'geojson', data: geojson });
+        map.addLayer({
+            id: 'measure-line-layer',
+            type: 'line',
+            source: 'measure-line',
+            paint: {
+                'line-color': '#ffffff',
+                'line-width': 2,
+                'line-opacity': 0.8
+            }
+        });
+    }
+}
+
+function updateMeasurementDisplay() {
+    let totalDistance = 0;
+    for (let i = 1; i < state.measurePoints.length; i++) {
+        totalDistance += haversineDistance(state.measurePoints[i - 1], state.measurePoints[i]);
+    }
+    document.getElementById('measure-value').textContent = totalDistance.toFixed(1);
+    document.getElementById('measure-display').classList.remove('hidden');
+}
+
+function haversineDistance([lon1, lat1], [lon2, lat2]) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}

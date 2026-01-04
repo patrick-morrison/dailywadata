@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ancient Australian Coastlines</title>
+    <meta name="description"
+        content="Interactive visualization of Australia's changing coastlines through 130,000 years of sea level change">
+
+    <!-- External Dependencies -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/deck.gl@9.0.16/dist.min.js"></script>
+    <script src="https://unpkg.com/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="welcome-styles.css">
+</head>
+
+<body>
+    <!-- Welcome / Loading Screen -->
+    <div id="welcome-screen" class="welcome-screen">
+        <div class="welcome-content">
+            <!-- Welcome Content (visible immediately) -->
+            <div id="welcome-ready" class="welcome-ready">
+                <h2>Australian Submerged Landscapes</h2>
+                <p class="welcome-description">
+                    This is a map of the ancient Australian landscapes now under the sea. Long before the seas rose,
+                    Aboriginal people walked these places.
+                </p>
+                <p class="welcome-note">
+                    Local realities were complicated, but this scientific estimate is based on the
+                    2024 Australian Bathymetry Grid and sea level data from the Red Sea
+                    (<a href="methods.md" class="methods-link">see methods</a>).
+                </p>
+
+                <!-- Loading indicator when data is loading -->
+                <div id="buttons-loading" class="buttons-loading">
+                    <div class="small-spinner"></div>
+                    <span class="loading-message" id="loading-text">Loading data...</span>
+                </div>
+
+                <!-- Buttons (hidden until ready) -->
+                <div id="welcome-buttons" class="welcome-buttons hidden">
+                    <button id="guide-me-btn" class="btn-primary">Guide Me</button>
+                    <button id="explore-btn" class="btn-secondary">Explore</button>
+                </div>
+
+                <p class="welcome-attribution">
+                    Patrick Morrison 2026
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+
+
+    <!-- Info Panel -->
+    <div class="info-panel" id="info-panel">
+        <div class="info-age">
+            <span class="info-label">Age</span>
+            <span class="info-value" id="age-value">0</span>
+            <span class="info-unit">ka</span>
+        </div>
+        <div class="info-level">
+            <span class="info-label">Sea Level</span>
+            <span class="info-value" id="level-value">0</span>
+            <span class="info-unit">m</span>
+        </div>
+    </div>
+
+    <!-- Measure Button -->
+    <button class="measure-btn" id="measure-btn" title="Measure distance">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 21l18-18M7 21L21 7M9 3v2m0 4v2m0 4v2m0 4v2M3 9h2m4 0h2m4 0h2m4 0h2" />
+        </svg>
+    </button>
+
+    <!-- Measure Display -->
+    <div class="measure-display hidden" id="measure-display">
+        <span id="measure-value">0</span>
+        <span id="measure-unit">km</span>
+        <button class="measure-clear" id="measure-clear">×</button>
+    </div>
+
+    <!-- Bottom Shelf -->
+    <div class="shelf" id="shelf">
+        <div class="shelf-header">
+            <div class="shelf-title">
+                <h3>Australian Submerged Landscapes</h3>
+                <span class="shelf-subtitle">Bathymetry & Topography Grid 2024 · Sea Level Curve Grant et al. 2012 · <a
+                        href="methods.md" class="methods-link">methods</a></span>
+            </div>
+            <div class="shelf-controls">
+                <button class="play-btn" id="play-btn" title="Play/Pause animation">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5,3 19,12 5,21" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="shelf-content">
+            <div class="controls-grid">
+                <!-- Row 1: Chart -->
+                <div class="chart-container">
+                    <canvas id="sea-level-chart"></canvas>
+                </div>
+
+                <!-- Row 1: Vertical Slider -->
+                <div class="vertical-slider-wrapper">
+                    <input type="range" id="sea-level-slider" class="vertical-slider" min="-130" max="20" value="0"
+                        step="0.5" orient="vertical">
+                </div>
+
+                <!-- Row 1: Sea Level Input -->
+                <div class="sea-level-input-wrapper">
+                    <label for="sea-level-input" class="input-label">Sea Level</label>
+                    <input type="number" id="sea-level-input" class="slider-text-input" min="-130" max="20" value="0"
+                        step="0.5" placeholder="m">
+                </div>
+
+                <!-- Row 2: Age Slider -->
+                <div class="age-slider-wrapper">
+                    <input type="range" id="age-slider" class="age-slider" min="0" max="150" value="0" step="0.1"
+                        style="direction: rtl;">
+                    <div class="age-labels">
+                        <span class="age-marker" style="left: 85%;">Last Glacial Max.</span>
+                        <span class="age-marker" style="left: 55%;">Human Arrival</span>
+                        <span class="age-marker" style="left: 15%;">Last Interglacial</span>
+                        <span style="position: absolute; right: 0;">Now</span>
+                    </div>
+                </div>
+
+                <!-- Row 2: Year Input -->
+                <div class="year-input-wrapper">
+                    <input type="number" id="age-input" class="slider-text-input" min="0" max="150" value="0" step="0.1">
+                    <label for="age-input" class="input-label">Age (ka)</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Configuration -->
+    <script>
+        window.PAGE_CONFIG = {
+            curveUrl: 'curve_grant2012.csv'
+        };
+    </script>
+
+    <!-- Application Script -->
+    <script src="main.js"></script>
+</body>
+
+</html>
