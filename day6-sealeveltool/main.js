@@ -21,8 +21,8 @@ const CONFIG = {
     DEPTH_MIN: -150,
     DEPTH_MAX: 10,
 
-    // Beach fringe width in meters
-    BEACH_WIDTH: 2,
+    // Beach blend width in meters
+    BEACH_BLEND_WIDTH: 3,
 
     // Bounds in WGS84 (from clipped file)
     BOUNDS: {
@@ -35,7 +35,8 @@ const CONFIG = {
     // Hillshade parameters
     SUN_AZIMUTH: 315,
     SUN_ALTITUDE: 45,
-    EXAGGERATION: 6,
+    EXAGGERATION: 200,
+    HILLSHADE_MIN_DEPTH: -130,
 
     // Ocean color palette (extended to -150m)
     OCEAN_COLORS: [
@@ -107,6 +108,8 @@ const state = {
     // Loading state
     isLoading: true,
     isFullResLoaded: false,
+    isFullResLoading: false,
+    introHasPlayed: false,
 
     // Animation
     isPlaying: false,
@@ -124,7 +127,9 @@ const state = {
 
     // Render scheduling
     pendingRender: null,
-    seaRenderToken: 0
+    seaRenderToken: 0,
+    rasterToken: 0,
+    fullResLoadScheduled: false
 };
 
 // ============================================
@@ -142,7 +147,7 @@ const map = new maplibregl.Map({
                     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
                 ],
                 tileSize: 256,
-                maxzoom: 18,
+                maxzoom: 7,
                 attribution: '© Esri, Maxar, Earthstar Geographics'
             }
         },
@@ -153,9 +158,8 @@ const map = new maplibregl.Map({
         }]
     },
     center: [134, -28],
-    zoom: window.innerWidth < 768 ? 3 : 4,  // More zoomed out on mobile
     minZoom: 1,  // Allow zooming out much further
-    maxZoom: 10,
+    maxZoom: 7,
     maxPitch: 0,
     dragRotate: false,
     attributionControl: false
@@ -169,9 +173,10 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-ri
 
 map.on('load', async () => {
     // Fit map to data bounds immediately
+    const initialBounds = getInitialFitBounds();
     map.fitBounds([
-        [CONFIG.BOUNDS.west, CONFIG.BOUNDS.south], // Southwest
-        [CONFIG.BOUNDS.east, CONFIG.BOUNDS.north]  // Northeast
+        [initialBounds.west, initialBounds.south], // Southwest
+        [initialBounds.east, initialBounds.north]  // Northeast
     ], {
         padding: 20,
         duration: 0  // Instant, no animation
@@ -213,8 +218,7 @@ map.on('load', async () => {
         // Initial render with preview data
         scheduleRender();
 
-        // Load full resolution in background
-        loadFullResolution();
+        // Load full resolution after intro so the button stays responsive
 
     } catch (error) {
         console.error('Initialization failed:', error);
@@ -247,6 +251,91 @@ function showProgress(text, percent) {
     }
 }
 
+function getInitialFitBounds() {
+    if (window.innerWidth < 768) {
+        const width = CONFIG.BOUNDS.east - CONFIG.BOUNDS.west;
+        const height = CONFIG.BOUNDS.north - CONFIG.BOUNDS.south;
+        return {
+            west: CONFIG.BOUNDS.west,
+            south: CONFIG.BOUNDS.south + (height * 0.2),
+            east: CONFIG.BOUNDS.west + (width / 3),
+            north: CONFIG.BOUNDS.north
+        };
+    }
+    return CONFIG.BOUNDS;
+}
+
+function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function runExploreIntro() {
+    if (state.introHasPlayed) return;
+    state.introHasPlayed = true;
+
+    if (state.isPlaying) stopAnimation();
+
+    const startAge = 0;
+    const targetAge = 22;
+    const duration = 800;
+    const startTime = performance.now();
+
+    updateAge(startAge);
+
+    const step = (now) => {
+        const t = Math.min(1, (now - startTime) / duration);
+        const eased = easeInOutCubic(t);
+        const age = startAge + (targetAge - startAge) * eased;
+        updateAge(age);
+
+        if (t < 1) {
+            requestAnimationFrame(step);
+        } else {
+            queueFullResolutionLoad();
+        }
+    };
+
+    requestAnimationFrame(step);
+}
+
+function queueFullResolutionLoad() {
+    if (state.isFullResLoaded || state.isFullResLoading || state.fullResLoadScheduled) return;
+    state.fullResLoadScheduled = true;
+
+    const startLoad = () => {
+        if (!state.fullResLoadScheduled) return;
+        state.fullResLoadScheduled = false;
+        loadFullResolution();
+    };
+
+    const startAfterInteraction = () => {
+        window.removeEventListener('pointerdown', startAfterInteraction);
+        window.removeEventListener('keydown', startAfterInteraction);
+        setTimeout(startLoad, 0);
+    };
+
+    window.addEventListener('pointerdown', startAfterInteraction, { once: true, passive: true });
+    window.addEventListener('keydown', startAfterInteraction, { once: true });
+
+    const scheduleIdleStart = () => {
+        if (!state.fullResLoadScheduled) return;
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback((deadline) => {
+                if (!state.fullResLoadScheduled) return;
+                if (deadline.timeRemaining() > 8 || deadline.didTimeout) {
+                    startLoad();
+                } else {
+                    setTimeout(startLoad, 0);
+                }
+            }, { timeout: 2000 });
+        } else {
+            setTimeout(startLoad, 500);
+        }
+    };
+
+    setTimeout(scheduleIdleStart, 300);
+}
+
 function setupWelcomeButtons() {
     const exploreBtn = document.getElementById('explore-btn');
     const guideMeBtn = document.getElementById('guide-me-btn');
@@ -255,6 +344,7 @@ function setupWelcomeButtons() {
     if (exploreBtn) {
         exploreBtn.addEventListener('click', () => {
             welcomeScreen.classList.add('hidden');
+            runExploreIntro();
         });
     }
 
@@ -263,6 +353,7 @@ function setupWelcomeButtons() {
             // TODO: Wire up "Guide Me" tour
             welcomeScreen.classList.add('hidden');
             console.log('Guide Me clicked - will implement guided tour');
+            queueFullResolutionLoad();
         });
     }
 }
@@ -309,8 +400,10 @@ function updateEnviroBlendData(targetWidth, targetHeight) {
     state.enviroBlendHeight = targetHeight;
 }
 
-async function prepareEnviroBlend(targetWidth, targetHeight) {
+async function prepareEnviroBlend(targetWidth, targetHeight, rasterToken = state.rasterToken) {
+    const token = rasterToken;
     await loadEnviroBlendImage();
+    if (token !== state.rasterToken) return;
     updateEnviroBlendData(targetWidth, targetHeight);
     if (state.enviroBlendData) scheduleRender();
 }
@@ -355,7 +448,10 @@ async function loadPreview() {
         state.rasterHeight = height;
         state.bounds = CONFIG.BOUNDS;
 
-        prepareEnviroBlend(width, height);
+        state.rasterToken += 1;
+        const rasterToken = state.rasterToken;
+
+        prepareEnviroBlend(width, height, rasterToken);
 
         // Create persistent canvases
         state.hillshadeCanvas = document.createElement('canvas');
@@ -371,7 +467,7 @@ async function loadPreview() {
 
         // Precompute hillshade (async, non-blocking)
         state.hillshadeValues = await computeHillshade(data, width, height);
-        await renderHillshadeToCanvas();
+        await renderHillshadeToCanvas(rasterToken);
 
         // Initial render to display data
         scheduleRender();
@@ -386,7 +482,8 @@ async function loadPreview() {
 }
 
 async function loadFullResolution() {
-    if (state.isFullResLoaded) return;
+    if (state.isFullResLoaded || state.isFullResLoading) return;
+    state.isFullResLoading = true;
 
     showProgress('Loading full detail...', 60);
 
@@ -435,7 +532,10 @@ async function loadFullResolution() {
         state.rasterWidth = targetWidth;
         state.rasterHeight = targetHeight;
 
-        prepareEnviroBlend(targetWidth, targetHeight);
+        state.rasterToken += 1;
+        const rasterToken = state.rasterToken;
+
+        prepareEnviroBlend(targetWidth, targetHeight, rasterToken);
 
         // Recreate canvases at new size
         state.hillshadeCanvas = document.createElement('canvas');
@@ -449,9 +549,10 @@ async function loadFullResolution() {
         // Recompute hillshade (async, non-blocking)
         state.hillshadeValues = await computeHillshade(data, targetWidth, targetHeight);
         state.hillshadeImageUrl = null; // Force re-render
-        await renderHillshadeToCanvas();
+        await renderHillshadeToCanvas(rasterToken);
 
         state.isFullResLoaded = true;
+        state.isFullResLoading = false;
 
         // Re-render with full data
         scheduleRender();
@@ -460,6 +561,7 @@ async function loadFullResolution() {
 
     } catch (e) {
         console.error('Full resolution load failed:', e);
+        state.isFullResLoading = false;
     }
 }
 
@@ -502,7 +604,8 @@ function renderFrame() {
     });
 }
 
-async function renderHillshadeToCanvas() {
+async function renderHillshadeToCanvas(rasterToken = state.rasterToken) {
+    const token = rasterToken;
     const { hillshadeCanvas, hillshadeValues, rasterData, rasterWidth, rasterHeight } = state;
     if (!hillshadeCanvas || !hillshadeValues) return;
 
@@ -520,7 +623,7 @@ async function renderHillshadeToCanvas() {
             const px = i * 4;
             const depth = rasterData[i];
 
-            if (isNaN(depth)) {
+            if (isNaN(depth) || depth < CONFIG.HILLSHADE_MIN_DEPTH) {
                 imageData.data[px + 3] = 0;
                 continue;
             }
@@ -552,6 +655,10 @@ async function renderHillshadeToCanvas() {
 
     // Use createImageBitmap for better performance
     createImageBitmap(hillshadeCanvas).then(bitmap => {
+        if (token !== state.rasterToken) {
+            if (bitmap.close) bitmap.close();
+            return;
+        }
         state.hillshadeBitmap = bitmap;
         console.log('Hillshade created');
     });
@@ -572,8 +679,8 @@ function renderSeaLevelToCanvas(seaLevel) {
     // Round sea level to avoid flickering from floating point precision issues
     seaLevel = Math.round(seaLevel * 2) / 2;  // Round to nearest 0.5m
 
-    const beachMin = seaLevel - CONFIG.BEACH_WIDTH;
-    const beachMax = seaLevel + CONFIG.BEACH_WIDTH;
+    const beachBlendWidth = CONFIG.BEACH_BLEND_WIDTH;
+    const [beachR, beachG, beachB, beachA] = CONFIG.BEACH_COLOR;
 
     for (let i = 0; i < rasterWidth * rasterHeight; i++) {
         const px = i * 4;
@@ -584,49 +691,64 @@ function renderSeaLevelToCanvas(seaLevel) {
             continue;
         }
 
-        if (depth > beachMax) {
+        let baseR = 0;
+        let baseG = 0;
+        let baseB = 0;
+        let baseA = 0;
+
+        if (depth > seaLevel) {
             // Above current sea level = ancient exposed land
-            if (depth <= 0) {
+            if (depth <= CONFIG.DEPTH_MAX) {
                 const color = getLandColor(depth);
                 if (hasEnviroBlend) {
                     const blend = enviroBlendStrength;
-                    imageData.data[px] = Math.round(color[0] * (1 - blend) + enviroBlendData[px] * blend);
-                    imageData.data[px + 1] = Math.round(color[1] * (1 - blend) + enviroBlendData[px + 1] * blend);
-                    imageData.data[px + 2] = Math.round(color[2] * (1 - blend) + enviroBlendData[px + 2] * blend);
-                    imageData.data[px + 3] = color[3];
+                    baseR = Math.round(color[0] * (1 - blend) + enviroBlendData[px] * blend);
+                    baseG = Math.round(color[1] * (1 - blend) + enviroBlendData[px + 1] * blend);
+                    baseB = Math.round(color[2] * (1 - blend) + enviroBlendData[px + 2] * blend);
+                    baseA = color[3];
                 } else {
-                    imageData.data[px] = color[0];
-                    imageData.data[px + 1] = color[1];
-                    imageData.data[px + 2] = color[2];
-                    imageData.data[px + 3] = color[3];
+                    baseR = color[0];
+                    baseG = color[1];
+                    baseB = color[2];
+                    baseA = color[3];
                 }
-            } else {
-                imageData.data[px + 3] = 0;
             }
-        } else if (depth >= beachMin && depth <= beachMax) {
-            // Beach fringe
-            const [r, g, b, a] = CONFIG.BEACH_COLOR;
-            imageData.data[px] = r;
-            imageData.data[px + 1] = g;
-            imageData.data[px + 2] = b;
-            imageData.data[px + 3] = a;
         } else {
             // Ocean
             if (seaLevel >= 0 && depth < 0) {
                 // When sea level is above present (0m), depths below 0 are dry land - make transparent
-                imageData.data[px + 3] = 0;
+                baseA = 0;
             } else if (seaLevel < 0) {
                 // Sea level dropped below present, ocean is transparent to show exposed land
-                imageData.data[px + 3] = 0;
+                baseA = 0;
             } else {
                 // Show ocean color for depths between 0 and sea level
                 const color = getOceanColor(depth - seaLevel);
-                imageData.data[px] = color[0];
-                imageData.data[px + 1] = color[1];
-                imageData.data[px + 2] = color[2];
-                imageData.data[px + 3] = color[3];
+                baseR = color[0];
+                baseG = color[1];
+                baseB = color[2];
+                baseA = color[3];
             }
         }
+
+        let outR = baseR;
+        let outG = baseG;
+        let outB = baseB;
+        let outA = baseA;
+
+        const distance = Math.abs(depth - seaLevel);
+        if (distance <= beachBlendWidth) {
+            const blend = 1 - smoothstep(0, beachBlendWidth, distance);
+            outR = Math.round(baseR * (1 - blend) + beachR * blend);
+            outG = Math.round(baseG * (1 - blend) + beachG * blend);
+            outB = Math.round(baseB * (1 - blend) + beachB * blend);
+            outA = Math.round(baseA * (1 - blend) + beachA * blend);
+        }
+
+        imageData.data[px] = outR;
+        imageData.data[px + 1] = outG;
+        imageData.data[px + 2] = outB;
+        imageData.data[px + 3] = outA;
     }
 
     ctx.putImageData(imageData, 0, 0);
@@ -698,6 +820,11 @@ function updateDeckLayers() {
 // ============================================
 // Color Functions
 // ============================================
+
+function smoothstep(edge0, edge1, x) {
+    const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3 - 2 * t);
+}
 
 function getOceanColor(relativeDepth) {
     const stops = CONFIG.OCEAN_COLORS;
