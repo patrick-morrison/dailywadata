@@ -67,6 +67,11 @@ const CONFIG = {
     ANIMATION_SPEED: 50,
 };
 
+const DATASET_BOUNDS = [
+    [CONFIG.BOUNDS.west, CONFIG.BOUNDS.south],
+    [CONFIG.BOUNDS.east, CONFIG.BOUNDS.north]
+];
+
 // ============================================
 // State Management
 // ============================================
@@ -132,6 +137,134 @@ const state = {
     fullResPromise: null
 };
 
+const GUIDE_MAP_DURATION = 2000;
+const GUIDE_AGE_RATE = 0.2 / CONFIG.ANIMATION_SPEED; // ka per ms (match play speed)
+const GUIDE_FIT_PADDING = 40;
+const GUIDE_MAP_EASING = easeInOutCubic;
+
+const GUIDE_MARKERS = [
+    {
+        id: 'timor-roti',
+        label: 'Timor-Roti',
+        coords: [123.1293029044174, -10.736152684421901]
+    },
+    {
+        id: 'kimberley-shelf',
+        label: 'Kimberley Shelf',
+        coords: [127.284, -12.462]
+    },
+    {
+        id: 'devils-lair',
+        label: "Devil's Lair",
+        coords: [115.10714925986011, -34.07488475914267]
+    },
+    {
+        id: 'barrow',
+        label: 'Barrow Island',
+        coords: [115.39877059618634, -20.80907596896251]
+    },
+    {
+        id: 'rottnest',
+        label: 'Wadjemup Rottnest',
+        coords: [115.51780896562961, -32.01441404975342]
+    }
+];
+
+const GUIDE_STEPS = [
+    {
+        text: 'During the Ice age, sea level was much lower.',
+        age: 22,
+        ageDuration: 800
+    },
+    {
+        text: 'When people arrived in Australia 65,000 years ago, sea levels were 80-100 m lower than present.',
+        age: 65,
+        bounds: [
+            [111.90615953659926, -28.03733723916087],
+            [153.9798468910007, -5.464129522185658]
+        ]
+    },
+    {
+        text: 'Northern Australia was connected to what is now Papua New Guinea.',
+        bounds: [
+            [113.55447151356196, -27.340997615572803],
+            [149.8348800584082, -7.931606812657222]
+        ]
+    },
+    {
+        text: 'The crossing to the Kimberley shelf was much shorter from Timor-Roti.',
+        markers: ['timor-roti', 'kimberley-shelf'],
+        bounds: [
+            [116.7014095303714, -17.857812914303366],
+            [136.30664509442698, -7.066559065454442]
+        ]
+    },
+    {
+        text: 'People on what is now Barrow Island 50,000 years ago were far inland, but still using marine resources.',
+        markers: ['barrow'],
+        age: 50,
+        bounds: [
+            [110.08076044759872, -24.10614688271511],
+            [125.02300324434333, -16.19374322740167]
+        ]
+    },
+    {
+        text: "In the southwest of Western Australia 48 thousand years ago, people were already occupying a cave called 'Devil's Lair'.",
+        markers: ['devils-lair'],
+        age: 48,
+        bounds: [
+            [110.08496870427405, -37.68589435197455],
+            [124.08241024880016, -31.173903627393337]
+        ]
+    },
+    {
+        text: 'Winding the clock forward to 22,000 years ago. At the peak of the ice age, sea levels were 110-130 m below present.',
+        age: 22,
+        bounds: [
+            [111.24715945633682, -36.062081308768896],
+            [122.41602415702818, -30.802764382444558]
+        ]
+    },
+    {
+        text: 'Sea levels then rose to present by around 8,000 years ago, forming the modern coast and islands like Wadjemup Rottnest.',
+        markers: ['rottnest'],
+        age: 0,
+        bounds: [
+            [112.14753061659485, -34.751266319967115],
+            [119.55445654544212, -31.24475726423561]
+        ]
+    },
+    {
+        text: 'These ancient landscapes remain culturally important, and must contain archaeological traces.',
+        age: 22,
+        bounds: [
+            [138.89490193769524, -44.2746668280194],
+            [154.7018506771695, -37.53909595700242]
+        ]
+    },
+    {
+        text: 'This story of sea level rise is studied scientifically, and Aboriginal people all around the continent tell stories of a time before.',
+        bounds: DATASET_BOUNDS
+    }
+];
+
+const guide = {
+    isActive: false,
+    index: 0,
+    overlayEl: null,
+    textEl: null,
+    navEl: null,
+    prevBtn: null,
+    nextBtn: null,
+    finishBtn: null,
+    exploreBtn: null,
+    restartBtn: null,
+    textTimer: null,
+    ageToken: 0,
+    moveToken: 0,
+    markerMap: null
+};
+
 // ============================================
 // Map Initialization
 // ============================================
@@ -167,6 +300,18 @@ const map = new maplibregl.Map({
 
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
+// Quick console helper for current map bounds
+window.printBounds = () => {
+    const mapBounds = map?.getBounds?.();
+    if (!mapBounds) {
+        console.log('map not ready');
+        return null;
+    }
+    const boundsArray = mapBounds.toArray();
+    console.log(boundsArray);
+    return boundsArray;
+};
+
 // ============================================
 // Initialization
 // ============================================
@@ -186,6 +331,7 @@ map.on('load', async () => {
     setupSliders();
     setupMeasureTool();
     setupAnimation();
+    setupGuideTour();
 
     // Initialize single deck.gl overlay (never removed)
     // Keep interleaved false so deck layers (including measure lines) render on top
@@ -303,6 +449,182 @@ function runExploreIntro() {
     requestAnimationFrame(step);
 }
 
+// ============================================
+// Guide Tour
+// ============================================
+
+function setupGuideTour() {
+    guide.overlayEl = document.getElementById('guide-overlay');
+    guide.textEl = document.getElementById('guide-text');
+    guide.navEl = document.getElementById('guide-nav');
+    guide.prevBtn = document.getElementById('guide-prev');
+    guide.nextBtn = document.getElementById('guide-next');
+    guide.finishBtn = document.getElementById('guide-finish');
+    guide.exploreBtn = document.getElementById('guide-explore');
+    guide.restartBtn = document.getElementById('guide-restart');
+
+    if (!guide.overlayEl || !guide.textEl || !guide.navEl || !guide.prevBtn || !guide.nextBtn || !guide.finishBtn || !guide.exploreBtn || !guide.restartBtn) {
+        return;
+    }
+
+    guide.prevBtn.addEventListener('click', () => moveGuideStep(-1));
+    guide.nextBtn.addEventListener('click', () => moveGuideStep(1));
+    guide.finishBtn.addEventListener('click', () => finishGuideTour());
+    guide.exploreBtn.addEventListener('click', () => finishGuideTour());
+    guide.restartBtn.addEventListener('click', () => startGuideTour());
+}
+
+function setupGuideMarkers() {
+    if (guide.markerMap || !map) return;
+    guide.markerMap = new Map();
+    GUIDE_MARKERS.forEach((marker) => {
+        const el = document.createElement('div');
+        el.className = 'guide-marker is-hidden';
+
+        const label = document.createElement('div');
+        label.className = 'guide-marker-label';
+        label.textContent = marker.label;
+
+        const dot = document.createElement('div');
+        dot.className = 'guide-marker-dot';
+
+        el.appendChild(label);
+        el.appendChild(dot);
+
+        const mapMarker = new maplibregl.Marker({
+            element: el,
+            anchor: 'bottom',
+            offset: [0, -6]
+        }).setLngLat(marker.coords).addTo(map);
+
+        guide.markerMap.set(marker.id, { marker: mapMarker, el });
+    });
+}
+
+function setGuideMarkers(ids = []) {
+    setupGuideMarkers();
+    if (!guide.markerMap) return;
+    const active = new Set(ids);
+    guide.markerMap.forEach((entry, id) => {
+        entry.el.classList.toggle('is-hidden', !active.has(id));
+    });
+}
+
+function startGuideTour() {
+    if (!guide.overlayEl) setupGuideTour();
+    setupGuideMarkers();
+    guide.isActive = true;
+    guide.index = 0;
+    if (guide.textTimer) clearTimeout(guide.textTimer);
+    map.stop?.();
+    stopAnimation();
+    showGuideUI(true);
+    guide.exploreBtn?.classList.remove('is-hidden');
+    guide.restartBtn?.classList.add('is-hidden');
+    runGuideStep(0);
+}
+
+function finishGuideTour() {
+    guide.isActive = false;
+    guide.moveToken += 1;
+    guide.ageToken += 1;
+    showGuideUI(false);
+    setGuideMarkers([]);
+    guide.exploreBtn?.classList.add('is-hidden');
+    guide.restartBtn?.classList.remove('is-hidden');
+}
+
+function showGuideUI(show) {
+    if (!guide.overlayEl || !guide.navEl) return;
+    guide.overlayEl.classList.toggle('is-hidden', !show);
+    guide.navEl.classList.toggle('is-hidden', !show);
+}
+
+function updateGuideNav() {
+    if (!guide.prevBtn || !guide.nextBtn || !guide.finishBtn) return;
+    const isLast = guide.index >= GUIDE_STEPS.length - 1;
+    guide.prevBtn.disabled = guide.index <= 0;
+    guide.prevBtn.classList.toggle('is-hidden', guide.index <= 0);
+    guide.nextBtn.disabled = isLast;
+    guide.nextBtn.classList.toggle('is-hidden', isLast);
+    guide.finishBtn.classList.toggle('is-hidden', !isLast);
+}
+
+function setGuideText(text) {
+    if (!guide.textEl) return;
+    guide.textEl.classList.remove('is-visible');
+    if (guide.textTimer) clearTimeout(guide.textTimer);
+    guide.textTimer = setTimeout(() => {
+        guide.textEl.textContent = text;
+        guide.textEl.classList.add('is-visible');
+    }, 120);
+}
+
+function moveGuideStep(delta) {
+    if (!guide.isActive) return;
+    const nextIndex = Math.max(0, Math.min(GUIDE_STEPS.length - 1, guide.index + delta));
+    if (nextIndex === guide.index) return;
+    runGuideStep(nextIndex);
+}
+
+function runGuideStep(index) {
+    const step = GUIDE_STEPS[index];
+    if (!step) return;
+    guide.index = index;
+    guide.moveToken += 1;
+    guide.ageToken += 1;
+    updateGuideNav();
+    showGuideUI(true);
+    setGuideText(step.text);
+    setGuideMarkers(step.markers);
+    map.stop?.();
+
+    const applyAge = () => {
+        if (typeof step.age === 'number') {
+            animateAgeTo(step.age, step.ageDuration);
+        }
+    };
+
+    if (step.bounds && map?.fitBounds) {
+        const moveToken = guide.moveToken;
+        map.once('moveend', () => {
+            if (moveToken !== guide.moveToken) return;
+            applyAge();
+        });
+        map.fitBounds(step.bounds, {
+            padding: GUIDE_FIT_PADDING,
+            duration: step.mapDuration ?? GUIDE_MAP_DURATION,
+            easing: GUIDE_MAP_EASING
+        });
+    } else {
+        applyAge();
+    }
+}
+
+function animateAgeTo(targetAge, duration) {
+    const token = ++guide.ageToken;
+    const startAge = state.currentAge;
+    const totalDelta = targetAge - startAge;
+    const fallbackDuration = Math.abs(totalDelta) / GUIDE_AGE_RATE;
+    const resolvedDuration = duration ?? fallbackDuration;
+
+    if (!resolvedDuration || resolvedDuration <= 0) {
+        updateAge(targetAge);
+        return;
+    }
+    const startTime = performance.now();
+
+    const step = (now) => {
+        if (token !== guide.ageToken) return;
+        const t = Math.min(1, (now - startTime) / resolvedDuration);
+        const age = startAge + totalDelta * t;
+        updateAge(age);
+        if (t < 1) requestAnimationFrame(step);
+    };
+
+    requestAnimationFrame(step);
+}
+
 function queueHillshadeCompute(rasterToken) {
     const token = rasterToken;
     const start = () => {
@@ -341,9 +663,8 @@ function setupWelcomeButtons() {
 
     if (guideMeBtn) {
         guideMeBtn.addEventListener('click', () => {
-            // TODO: Wire up "Guide Me" tour
             welcomeScreen.classList.add('hidden');
-            console.log('Guide Me clicked - will implement guided tour');
+            startGuideTour();
         });
     }
 }
