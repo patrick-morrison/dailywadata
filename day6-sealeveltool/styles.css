@@ -913,6 +913,14 @@ body {
         height: 40px;
     }
 
+    .measure-display {
+        right: 12px;
+        bottom: calc(var(--shelf-height) + 56px);
+        padding: 5px 8px;
+        gap: 4px;
+        font-size: 0.8rem;
+    }
+
     .vertical-slider-container {
         width: 50px;
         padding-left: 8px;
