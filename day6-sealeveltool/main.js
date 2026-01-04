@@ -234,17 +234,17 @@ const GUIDE_STEPS = [
         ]
     },
     {
-        text: 'People on what is now Barrow Island 50,000 years ago were far inland, but still using marine resources like fish and shells.',
+        text: '50,000 years ago, the area now known as Barrow Island was far inland. People in this area still used marine resources such as fish and shells.',
         markers: ['barrow'],
         age: 50,
         ageDuration: 800,
         bounds: [
-            [110.08076044759872, -24.10614688271511],
-            [125.02300324434333, -16.19374322740167]
+            [108.80356764402444, -25.466780099357976],
+            [126.1317973144998, -16.33923503185291]
         ]
     },
     {
-        text: "In the southwest of Western Australia 48 thousand years ago, people were already occupying a cave called 'Devil's Lair'.",
+        text: "In the southwest of Western Australia 48,000 years ago, people were already occupying a cave called 'Devil's Lair'.",
         markers: ['devils-lair'],
         age: 48,
         ageDuration: 800,
@@ -262,7 +262,7 @@ const GUIDE_STEPS = [
         ]
     },
     {
-        text: "Off Perth, the coast was about 40 km out from today's.",
+        text: "Off Perth, the coast was about 40km farther out than it is today.",
         age: 22,
         bounds: [
             [111.44979337366522, -35.47617640205852],
