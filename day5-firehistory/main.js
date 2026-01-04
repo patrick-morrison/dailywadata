@@ -63,7 +63,7 @@ function playVideos() {
     videoWf.play();
     isPlaying = true;
     playIcon.style.display = 'none';
-    pauseIcon.style.display = 'inline';
+    pauseIcon.style.display = 'inline-flex';
     btnLabel.textContent = 'Pause';
 }
 
@@ -73,7 +73,7 @@ function pauseVideos() {
     videoPb.pause();
     videoWf.pause();
     isPlaying = false;
-    playIcon.style.display = 'inline';
+    playIcon.style.display = 'inline-flex';
     pauseIcon.style.display = 'none';
     btnLabel.textContent = 'Play';
 }
