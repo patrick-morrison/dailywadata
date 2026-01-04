@@ -338,17 +338,17 @@ body {
 
 .controls-grid {
     display: grid;
-    grid-template-columns: 1fr 44px 70px;
-    grid-template-rows: minmax(0, 1fr) auto;  /* Chart takes remaining space, bottom auto-sizes */
-    gap: 12px 12px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
     flex: 1;
     min-height: 0;
 }
 
 /* Row 1, Column 1: Chart */
 .chart-container {
-    grid-column: 1;
-    grid-row: 1;
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
     position: relative;
     min-width: 0;
     min-height: 0;
@@ -688,11 +688,50 @@ body {
 
 @media (max-width: 480px) {
     :root {
-        --shelf-height: 180px;
+        --shelf-height: 240px;
     }
 
     .overlay.header {
         display: none;
+    }
+
+    /* Hide sliders and inputs on mobile - chart interaction only */
+    .vertical-slider-wrapper,
+    .sea-level-input-wrapper,
+    .age-slider-wrapper,
+    .year-input-wrapper {
+        display: none !important;
+    }
+
+    /* Chart takes full grid width on mobile */
+    .chart-container {
+        grid-column: 1 / -1;
+        grid-row: 1 / -1;
+        padding: 0;
+        margin: 0;
+        width: 100%;
+    }
+
+    #sea-level-chart {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    /* Ensure controls grid gives chart full space */
+    .controls-grid {
+        gap: 0;
+        width: 100%;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    .shelf-content {
+        padding: 0;
+        width: 100%;
+    }
+
+    .shelf {
+        padding: 0;
     }
 
     .info-panel {

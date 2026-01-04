@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Ancient Australian Coastlines</title>
     <meta name="description"
         content="Interactive visualization of Australia's changing coastlines through 130,000 years of sea level change">
@@ -54,7 +54,7 @@
 
                 <!-- Buttons (hidden until ready) -->
                 <div id="welcome-buttons" class="welcome-buttons hidden">
-                    <button id="guide-me-btn" class="btn-primary">Guide Me</button>
+                    <button id="guide-me-btn" class="btn-primary">Guide</button>
                     <button id="explore-btn" class="btn-secondary">Explore</button>
                 </div>
 
@@ -123,37 +123,6 @@
                 <!-- Row 1: Chart -->
                 <div class="chart-container">
                     <canvas id="sea-level-chart"></canvas>
-                </div>
-
-                <!-- Row 1: Vertical Slider -->
-                <div class="vertical-slider-wrapper">
-                    <input type="range" id="sea-level-slider" class="vertical-slider" min="-130" max="20" value="0"
-                        step="0.5" orient="vertical">
-                </div>
-
-                <!-- Row 1: Sea Level Input -->
-                <div class="sea-level-input-wrapper">
-                    <label for="sea-level-input" class="input-label">Sea Level</label>
-                    <input type="number" id="sea-level-input" class="slider-text-input" min="-130" max="20" value="0"
-                        step="0.5" placeholder="m">
-                </div>
-
-                <!-- Row 2: Age Slider -->
-                <div class="age-slider-wrapper">
-                    <input type="range" id="age-slider" class="age-slider" min="0" max="150" value="0" step="0.1"
-                        style="direction: rtl;">
-                    <div class="age-labels">
-                        <span class="age-marker" style="left: 85%;">Last Glacial Max.</span>
-                        <span class="age-marker" style="left: 55%;">Human Arrival</span>
-                        <span class="age-marker" style="left: 15%;">Last Interglacial</span>
-                        <span style="position: absolute; right: 0;">Now</span>
-                    </div>
-                </div>
-
-                <!-- Row 2: Year Input -->
-                <div class="year-input-wrapper">
-                    <input type="number" id="age-input" class="slider-text-input" min="0" max="150" value="0" step="0.1">
-                    <label for="age-input" class="input-label">Age (ka)</label>
                 </div>
             </div>
         </div>

@@ -108,12 +108,14 @@ const state = {
     isMeasuring: false,
     measurePoints: [],
     measureMarkers: [],
+    measurePreview: null,
 
     // Chart
     chart: null,
 
     // Render scheduling
-    pendingRender: null
+    pendingRender: null,
+    seaRenderToken: 0
 };
 
 // ============================================
@@ -142,8 +144,8 @@ const map = new maplibregl.Map({
         }]
     },
     center: [134, -28],
-    zoom: 4,
-    minZoom: 3,
+    zoom: window.innerWidth < 768 ? 3 : 4,  // More zoomed out on mobile
+    minZoom: 1,  // Allow zooming out much further
     maxZoom: 10,
     maxPitch: 0,
     dragRotate: false,
@@ -172,6 +174,7 @@ map.on('load', async () => {
     setupAnimation();
 
     // Initialize single deck.gl overlay (never removed)
+    // Keep interleaved false so deck layers (including measure lines) render on top
     state.deckOverlay = new deck.MapboxOverlay({
         layers: [],
         interleaved: false
@@ -434,10 +437,15 @@ function scheduleRender() {
 function renderFrame() {
     if (!state.rasterData) return;
 
+    const renderToken = ++state.seaRenderToken;
     renderSeaLevelToCanvas(state.currentSeaLevel);
 
     // Use createImageBitmap for better performance (async)
     createImageBitmap(state.seaCanvas).then(bitmap => {
+        if (renderToken !== state.seaRenderToken) {
+            if (bitmap.close) bitmap.close();
+            return;
+        }
         state.seaBitmap = bitmap;
         updateDeckLayers();
     });
@@ -575,7 +583,7 @@ function updateDeckLayers() {
             id: 'sea-level',
             bounds: boundsArray,
             image: seaBitmap,
-            opacity: 1
+            opacity: 0.98
         }));
     }
 
@@ -585,9 +593,39 @@ function updateDeckLayers() {
             id: 'hillshade',
             bounds: boundsArray,
             image: hillshadeBitmap,
-            opacity: 1
+            opacity: 0.98
         }));
     }
+
+    const measureLineData = state.measurePoints.length >= 2
+        ? [{ path: state.measurePoints }]
+        : [];
+    layers.push(new deck.PathLayer({
+        id: 'measure-line',
+        data: measureLineData,
+        getPath: (d) => d.path,
+        getColor: [255, 255, 255, 230],
+        widthUnits: 'pixels',
+        getWidth: 3,
+        pickable: false,
+        capRounded: true,
+        jointRounded: true
+    }));
+
+    const measurePreviewData = state.measurePreview
+        ? [{ path: state.measurePreview }]
+        : [];
+    layers.push(new deck.PathLayer({
+        id: 'measure-preview',
+        data: measurePreviewData,
+        getPath: (d) => d.path,
+        getColor: [255, 255, 255, 160],
+        widthUnits: 'pixels',
+        getWidth: 2,
+        pickable: false,
+        capRounded: true,
+        jointRounded: true
+    }));
 
     // Update layers in place (no flicker!)
     state.deckOverlay.setProps({ layers });
@@ -692,11 +730,12 @@ function updateSeaLevel(seaLevel) {
 
     state.currentSeaLevel = seaLevel;
     document.getElementById('level-value').textContent = seaLevel.toFixed(0);
-    document.getElementById('sea-level-slider').value = seaLevel;
+    const seaLevelSlider = document.getElementById('sea-level-slider');
+    if (seaLevelSlider) seaLevelSlider.value = seaLevel;
 
     // Only update input if user is not currently typing in it
     const seaLevelInput = document.getElementById('sea-level-input');
-    if (document.activeElement !== seaLevelInput) {
+    if (seaLevelInput && document.activeElement !== seaLevelInput) {
         seaLevelInput.value = seaLevel.toFixed(0);
     }
 
@@ -714,19 +753,21 @@ function updateAge(age) {
 
     document.getElementById('age-value').textContent = age.toFixed(1);
     document.getElementById('level-value').textContent = seaLevel.toFixed(0);
-    document.getElementById('age-slider').value = age;
+    const ageSlider = document.getElementById('age-slider');
+    if (ageSlider) ageSlider.value = age;
 
     // Only update input if user is not currently typing in it
     const ageInput = document.getElementById('age-input');
-    if (document.activeElement !== ageInput) {
+    if (ageInput && document.activeElement !== ageInput) {
         ageInput.value = age.toFixed(1);
     }
 
-    document.getElementById('sea-level-slider').value = seaLevel;
+    const seaLevelSlider = document.getElementById('sea-level-slider');
+    if (seaLevelSlider) seaLevelSlider.value = seaLevel;
 
     // Only update input if user is not currently typing in it
     const seaLevelInput = document.getElementById('sea-level-input');
-    if (document.activeElement !== seaLevelInput) {
+    if (seaLevelInput && document.activeElement !== seaLevelInput) {
         seaLevelInput.value = seaLevel.toFixed(0);
     }
 
@@ -909,28 +950,37 @@ function setupChartDrag() {
         if (!chartArea) return;
 
         const rect = canvas.getBoundingClientRect();
-        const clientX = e.clientX || e.touches?.[0]?.clientX;
-        const clientY = e.clientY || e.touches?.[0]?.clientY;
+        const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+        const clientY = e.clientY ?? e.touches?.[0]?.clientY;
 
-        if (!clientX || !clientY) return;
+        if (clientX == null || clientY == null) return;
 
         const x = clientX - rect.left;
-        const y = clientY - rect.top;
-
-        // Check if within plot area
-        if (x < chartArea.left || x > chartArea.right || y < chartArea.top || y > chartArea.bottom) {
-            return;
-        }
+        const clampedX = Math.max(chartArea.left, Math.min(chartArea.right, x));
 
         // Convert to data values
         const xScale = state.chart.scales.x;
-        const age = xScale.getValueForPixel(x);
+        const age = xScale.getValueForPixel(clampedX);
 
         // Update age
         updateAge(Math.max(0, Math.min(150, age)));
     };
 
     const handleStart = (e) => {
+        const chartArea = state.chart.chartArea;
+        if (!chartArea) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+        const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+        if (clientX == null || clientY == null) return;
+
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        if (x < chartArea.left || x > chartArea.right || y < chartArea.top || y > chartArea.bottom) {
+            return;
+        }
+
         isDragging = true;
         canvas.style.cursor = 'grabbing';
         handleMove(e); // Update immediately on click
@@ -972,6 +1022,7 @@ function setupSliders() {
     const seaLevelSlider = document.getElementById('sea-level-slider');
     const ageInput = document.getElementById('age-input');
     const seaLevelInput = document.getElementById('sea-level-input');
+    if (!ageSlider || !seaLevelSlider || !ageInput || !seaLevelInput) return;
 
     // Age slider -> updates age AND sea level (follows curve)
     ageSlider.addEventListener('input', (e) => {
@@ -1077,6 +1128,7 @@ function setupMeasureTool() {
         // Click 2: Complete the measurement
         else if (state.measurePoints.length === 1) {
             state.measurePoints.push([lng, lat]);
+            state.measurePreview = null;
             updateMeasurementLine();
             updateMeasurementDisplay();
             // Preview stops tracking (handled in mousemove)
@@ -1084,12 +1136,8 @@ function setupMeasureTool() {
         // Click 3: Start fresh measurement (clear previous, add new first point)
         else if (state.measurePoints.length === 2) {
             state.measurePoints = [[lng, lat]];
-            if (map.getSource('measure-line')) {
-                map.getSource('measure-line').setData({
-                    type: 'Feature',
-                    geometry: { type: 'LineString', coordinates: [] }
-                });
-            }
+            state.measurePreview = null;
+            updateDeckLayers();
             document.getElementById('measure-display').classList.add('hidden');
             // Preview line will start tracking on mousemove
         }
@@ -1099,81 +1147,31 @@ function setupMeasureTool() {
     map.on('mousemove', (e) => {
         // Only show preview when measuring and have exactly 1 point (tracking active)
         if (!state.isMeasuring || state.measurePoints.length !== 1) {
-            if (map.getSource('measure-preview')) {
-                map.getSource('measure-preview').setData({
-                    type: 'Feature',
-                    geometry: { type: 'LineString', coordinates: [] }
-                });
+            if (state.measurePreview) {
+                state.measurePreview = null;
+                updateDeckLayers();
             }
             return;
         }
 
         const { lng, lat } = e.lngLat;
         const firstPoint = state.measurePoints[0];
-        const previewCoords = [firstPoint, [lng, lat]];
-
-        const geojson = {
-            type: 'Feature',
-            geometry: { type: 'LineString', coordinates: previewCoords }
-        };
-
-        if (map.getSource('measure-preview')) {
-            map.getSource('measure-preview').setData(geojson);
-        } else {
-            map.addSource('measure-preview', { type: 'geojson', data: geojson });
-            map.addLayer({
-                id: 'measure-preview-layer',
-                type: 'line',
-                source: 'measure-preview',
-                paint: {
-                    'line-color': '#ffffff',
-                    'line-width': 2,
-                    'line-opacity': 0.8
-                }
-            });
-        }
+        state.measurePreview = [firstPoint, [lng, lat]];
+        updateDeckLayers();
     });
 }
 
 function clearMeasurement() {
     state.measurePoints = [];
-
-    if (map.getSource('measure-line')) {
-        map.removeLayer('measure-line-layer');
-        map.removeSource('measure-line');
-    }
-
-    if (map.getSource('measure-preview')) {
-        map.getSource('measure-preview').setData({
-            type: 'Feature',
-            geometry: { type: 'LineString', coordinates: [] }
-        });
-    }
+    state.measurePreview = null;
+    updateDeckLayers();
 
     document.getElementById('measure-display').classList.add('hidden');
 }
 
 function updateMeasurementLine() {
-    const geojson = {
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: state.measurePoints }
-    };
-
-    if (map.getSource('measure-line')) {
-        map.getSource('measure-line').setData(geojson);
-    } else {
-        map.addSource('measure-line', { type: 'geojson', data: geojson });
-        map.addLayer({
-            id: 'measure-line-layer',
-            type: 'line',
-            source: 'measure-line',
-            paint: {
-                'line-color': '#ffffff',
-                'line-width': 2,
-                'line-opacity': 0.8
-            }
-        });
-    }
+    // Update deck.gl layers to include measure line on top
+    updateDeckLayers();
 }
 
 function updateMeasurementDisplay() {
