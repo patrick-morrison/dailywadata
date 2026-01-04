@@ -42,8 +42,16 @@
         <!-- Controls -->
         <div class="controls">
             <button id="play-pause-btn" class="control-btn">
-                <span id="play-icon">▶</span>
-                <span id="pause-icon" style="display: none;">⏸</span>
+                <span id="play-icon" class="icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M7 5.5v13l11-6.5z"></path>
+                    </svg>
+                </span>
+                <span id="pause-icon" class="icon" aria-hidden="true" style="display: none;">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M6.5 5.5h4v13h-4zm7 0h4v13h-4z"></path>
+                    </svg>
+                </span>
                 <span id="btn-label">Play</span>
             </button>
             <button id="prev-frame-btn" class="control-btn">
@@ -63,21 +71,21 @@
     <div class="video-container">
         <div class="video-wrapper">
             <h3>All Fires</h3>
-            <video id="video-overall" muted loop autoplay>
+            <video id="video-overall" muted loop autoplay playsinline webkit-playsinline>
                 <source src="firedays_per_year_2000_smallgrid.mp4" type="video/mp4">
                 Your browser does not support the video tag.
             </video>
         </div>
         <div class="video-wrapper">
             <h3>Wildfires</h3>
-            <video id="video-wf" muted loop autoplay>
+            <video id="video-wf" muted loop autoplay playsinline webkit-playsinline>
                 <source src="firedays_per_year_2000_smallgrid_wf.mp4" type="video/mp4">
                 Your browser does not support the video tag.
             </video>
         </div>
         <div class="video-wrapper">
             <h3>Prescribed Burns</h3>
-            <video id="video-pb" muted loop autoplay>
+            <video id="video-pb" muted loop autoplay playsinline webkit-playsinline>
                 <source src="firedays_per_year_2000_smallgrid_pb.mp4" type="video/mp4">
                 Your browser does not support the video tag.
             </video>

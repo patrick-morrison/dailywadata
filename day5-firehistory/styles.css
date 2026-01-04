@@ -152,6 +152,7 @@ video {
     height: auto;
     display: block;
     border: 1px solid var(--line);
+    pointer-events: none;
 }
 
 /* Controls */
@@ -179,6 +180,19 @@ video {
     align-items: center;
     gap: 0.5rem;
     white-space: nowrap;
+}
+
+.control-btn .icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.control-btn .icon svg {
+    width: 1em;
+    height: 1em;
+    display: block;
+    fill: currentColor;
 }
 
 .control-btn:hover {
