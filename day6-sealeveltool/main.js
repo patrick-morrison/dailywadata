@@ -209,7 +209,7 @@ const GUIDE_STEPS = [
         ageDuration: 800
     },
     {
-        text: 'When people arrived in Australia 65,000 years ago, sea levels were 80-100 m lower than present.',
+        text: 'When people arrived in Australia 65,000 years ago, sea levels were 80-100m lower than present.',
         age: 65,
         bounds: [
             [111.90615953659926, -28.03733723916087],
@@ -259,6 +259,18 @@ const GUIDE_STEPS = [
         bounds: [
             [111.24715945633682, -36.062081308768896],
             [122.41602415702818, -30.802764382444558]
+        ]
+    },
+    {
+        text: "Off Perth, the coast was about 40 km out from today's.",
+        age: 22,
+        bounds: [
+            [111.44979337366522, -35.47617640205852],
+            [121.36157813370096, -30.792167363037876]
+        ],
+        measurePoints: [
+            [115.7440, -32.0734],
+            [115.3342, -32.1021]
         ]
     },
     {
@@ -613,6 +625,7 @@ function runGuideStep(index) {
     showGuideUI(true);
     setGuideText(step.text);
     setGuideMarkers(step.markers);
+    setGuideMeasurement(step.measurePoints);
     map.stop?.();
 
     const applyAge = () => {
@@ -635,6 +648,34 @@ function runGuideStep(index) {
     } else {
         applyAge();
     }
+}
+
+function setGuideMeasurement(points) {
+    if (points && points.length >= 2) {
+        state.measurePoints = points.slice(0, 2);
+        state.measurePreview = null;
+        updateDeckLayers();
+        updateMeasurementDisplay();
+        pulseMeasurementDisplay(true);
+        return;
+    }
+
+    state.measurePoints = [];
+    state.measurePreview = null;
+    updateDeckLayers();
+    const measureDisplay = document.getElementById('measure-display');
+    if (measureDisplay) {
+        measureDisplay.classList.add('hidden');
+        measureDisplay.classList.remove('pulse-once', 'pulse-loop');
+    }
+}
+
+function pulseMeasurementDisplay(loop = false) {
+    const el = document.getElementById('measure-display');
+    if (!el) return;
+    el.classList.remove('pulse-once', 'pulse-loop');
+    void el.offsetWidth;
+    el.classList.add(loop ? 'pulse-loop' : 'pulse-once');
 }
 
 function animateAgeTo(targetAge, duration) {
