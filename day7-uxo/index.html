@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>WA DFES UXO Potential</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.2.1/ol.css">
+    <script src="https://cdn.jsdelivr.net/npm/ol@10.2.1/dist/ol.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
+</head>
+
+<body>
+    <div id="disclaimer" class="disclaimer">
+        <div id="disclaimer-popup" class="disclaimer-popup">
+            <h1> WARNING! </h1>
+            <h2> NEVER RELY ON THIS MAP OR DATASET FOR SAFETY! </h2>
+            <h3> DFES DISCLAIMER: </h3>
+            <h5> The information within this dataset is made available in the understanding that the Western Australian
+                Government, its agencies, instrumentalities and officers will not be responsible for any use made or the
+                results of any actions taken on the basis of this information, nor for any errors or omissions from this
+                information. The Western Australian Government and its agencies, instrumentalities and officers
+                expressly disclaim all and any liability whether in contract or negligence and whether to a direct
+                recipient of this information or any other person who may obtain or read it in respect of any damage or
+                loss flowing therefrom whether direct or consequential.</h5>
+            <h3> DAILY WA DATA DISCLAIMER: </h3>
+            <h5> This webpage is an independent visualisation of the DFES UXO Probability Dataset. Neither the data nor
+                this visualisation is guaranteed to be accurate, complete, or up-to-date. It should never be used to
+                determine if an area is safe or contains Unexploded Ordnance. Daily WA Data and its members disclaim all
+                liability for any injury, loss, or damage resulting from the use of or reliance on this visualisation.
+            </h5>
+            <button id="close-disclaimer">
+                <h1>I UNDERSTAND</h1>
+            </button>
+        </div>
+    </div>
+
+    <div id="popup" class="ol-popup">
+        <div id="popup-content-name"></div>
+        <div id="popup-content-description"></div>
+        <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+    </div>
+
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <div id="map"></div>
+    <script src="main.js"></script>
+
+    <div class="overlay header">
+        <div class="title-card">
+            <h1>WA DFES UXO Potential</h1>
+            <div class="subtitle">Department Of Fire and Emergency Services</div>
+            <div class="title-meta"><span class="attribution">Webpage by Jack Langoulant, 2026</span><a
+                    href="../sources.html" class="methods-link">Show methods notes →</a></div>
+        </div>
+    </div>
+
+    <div class="overlay legend">
+        <div class="legend-card">
+            <div class="legend-title">UXO Categories</div>
+            <div class="legend-content">
+                <div class="legend-item active" data-bulb-type="Substantial">
+                    <div class="legend-color" style="background: #ff4500ff;"></div>
+                    <span>Substantial</span>
+                </div>
+                <div class="legend-item active" data-bulb-type="Slight">
+                    <div class="legend-color" style="background: #ffb300ff;"></div>
+                    <span>Slight</span>
+                </div>
+                <div class="legend-item active" data-bulb-type="Other">
+                    <div class="legend-color" style="background: #e5ff00ff;"></div>
+                    <span>Other</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay footer" id="copyNotification">
+        <div class="title-card">
+            <h1>Link Copied!</h1>
+        </div>
+    </div>
+</body>
+
+</html>
