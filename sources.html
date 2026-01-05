@@ -330,6 +330,51 @@
                 </div>
             </div>
 
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">06</span>
+                    <h3 class="day-name"><a href="day6-sealeveltool/index.html">Australian Submerged Landscapes</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">This interactive tool explores the ancient landscapes now submerged
+                            beneath Australia's waters. During the last ice age, sea levels were up to 130m lower,
+                            revealing landscapes where Aboriginal people lived for tens of thousands of years. This
+                            visualization combines modern bathymetry data with sea level reconstructions to show how
+                            Australia's coastline has changed over 130,000 years.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text">2024 Australian Bathymetry and Topography Grid (AusBathyTopo) from <a
+                                href="https://www.ga.gov.au/scientific-topics/marine/bathymetry-and-topography">Geoscience
+                                Australia</a> (250m resolution, 2.6 GB Float32). Sea level curve from Grant et al. 2012
+                            (<a href="https://doi.org/10.1038/nature10902">Red Sea Sea-level Reconstruction</a>),
+                            published in Nature.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">The original bathymetry was clipped to +10m to -150m depth range and
+                            quantized to 8-bit (63cm precision) using gdal_calc.py, reducing size by 99.5% to 14 MB.
+                            Reprojected to Web Mercator (EPSG:3857) for web compatibility and clipped to Australian
+                            extent. Preview file (360 KB) created at 10% resolution for instant loading. See <a
+                                href="day6-sealeveltool/methods.md">full processing workflow</a>.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">HTML/CSS/JS application using MapLibre GL for base mapping and
+                            GeoTIFF.js for raster data loading. Custom WebGL shaders render real-time depth coloring
+                            with hillshading and environmental blending. Chart.js visualizes the sea level curve with
+                            interactive scrubbing. Includes guided tour system highlighting archaeological sites and
+                            ancient land bridges.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Patrick Morrison</div>
+                    </div>
+                </div>
+            </div>
+
             <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each
                 day is published.</p>
 
