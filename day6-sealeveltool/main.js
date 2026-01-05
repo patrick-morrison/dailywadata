@@ -42,17 +42,19 @@ const CONFIG = {
     // Hillshade parameters
     SUN_AZIMUTH: 315,
     SUN_ALTITUDE: 45,
-    EXAGGERATION: 200,
+    EXAGGERATION: 70,
     HILLSHADE_MIN_DEPTH: -130,
 
     // Ocean color palette (extended to -150m)
     OCEAN_COLORS: [
-        { depth: 0, color: [100, 180, 220, 180] },
-        { depth: -20, color: [60, 140, 190, 200] },
-        { depth: -50, color: [40, 100, 160, 210] },
-        { depth: -80, color: [25, 70, 120, 220] },
-        { depth: -130, color: [15, 40, 80, 230] },
-        { depth: -150, color: [10, 30, 60, 240] }
+        { depth: 0, color: [105, 185, 225, 180] },
+        { depth: -15, color: [75, 155, 200, 195] },
+        { depth: -35, color: [50, 125, 175, 205] },
+        { depth: -60, color: [35, 100, 150, 215] },
+        { depth: -90, color: [25, 75, 120, 222] },
+        { depth: -115, color: [18, 55, 95, 228] },
+        { depth: -135, color: [12, 40, 75, 235] },
+        { depth: -150, color: [8, 28, 60, 240] }
     ],
 
     // Beach color
@@ -60,13 +62,16 @@ const CONFIG = {
 
     // Ancient land colors (exposed seafloor, extended to -150m)
     LAND_COLORS: [
-        { depth: 10, color: [200, 180, 150, 180] },
-        { depth: 0, color: [180, 160, 130, 200] },
-        { depth: -20, color: [160, 140, 110, 210] },
-        { depth: -50, color: [140, 120, 90, 220] },
-        { depth: -80, color: [120, 100, 75, 225] },
-        { depth: -130, color: [100, 85, 65, 230] },
-        { depth: -150, color: [90, 75, 60, 235] }
+        { depth: 10, color: [210, 190, 155, 180] },
+        { depth: 0, color: [195, 175, 140, 190] },
+        { depth: -10, color: [180, 160, 125, 200] },
+        { depth: -25, color: [165, 145, 110, 210] },
+        { depth: -40, color: [150, 130, 95, 215] },
+        { depth: -60, color: [135, 115, 85, 220] },
+        { depth: -85, color: [120, 100, 75, 225] },
+        { depth: -110, color: [105, 88, 68, 228] },
+        { depth: -130, color: [95, 80, 62, 232] },
+        { depth: -150, color: [85, 72, 58, 235] }
     ],
 
     ENVIRO_BLEND_STRENGTH: .6,
@@ -1051,19 +1056,21 @@ async function renderHillshadeToCanvas(rasterToken = state.rasterToken) {
             }
 
             const shade = hillshadeValues[i];
-            // Stronger hillshade effect
+            // Simple hillshade - no tone mapping, just linear shadows/highlights
             if (shade < 0.5) {
                 // Shadow (darker)
+                const shadowAlpha = (0.5 - shade) * 2; // 0 to 1
                 imageData.data[px] = 0;
                 imageData.data[px + 1] = 0;
                 imageData.data[px + 2] = 0;
-                imageData.data[px + 3] = Math.round((0.5 - shade) * 220);
+                imageData.data[px + 3] = Math.round(shadowAlpha * 180);
             } else {
                 // Highlight (lighter)
+                const highlightAlpha = (shade - 0.5) * 2; // 0 to 1
                 imageData.data[px] = 255;
                 imageData.data[px + 1] = 255;
                 imageData.data[px + 2] = 255;
-                imageData.data[px + 3] = Math.round((shade - 0.5) * 150);
+                imageData.data[px + 3] = Math.round(highlightAlpha * 120);
             }
         }
 
@@ -1084,6 +1091,7 @@ async function renderHillshadeToCanvas(rasterToken = state.rasterToken) {
         }
         state.hillshadeBitmap = bitmap;
         console.log('Hillshade created');
+        updateDeckLayers(); // Update layers to show the hillshade
     });
 }
 
