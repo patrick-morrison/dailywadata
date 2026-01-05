@@ -211,10 +211,12 @@ body {
         box-shadow: 0 0 0 0 rgba(29, 77, 43, 0.45);
         transform: translateY(0);
     }
+
     70% {
         box-shadow: 0 0 0 12px rgba(29, 77, 43, 0);
         transform: translateY(-1px);
     }
+
     100% {
         box-shadow: 0 0 0 0 rgba(29, 77, 43, 0);
         transform: translateY(0);
@@ -248,6 +250,8 @@ body {
     background: #ffffff;
     box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
     animation: guide-pulse 1.8s ease-out infinite;
+    margin-bottom: -4px;
+    /* Center the dot at the coordinate */
 }
 
 .guide-marker-label {
@@ -266,11 +270,13 @@ body {
         opacity: 0.9;
         transform: scale(0.95);
     }
+
     70% {
         box-shadow: 0 0 0 14px rgba(255, 255, 255, 0);
         opacity: 0.7;
         transform: scale(1);
     }
+
     100% {
         box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
         opacity: 0.85;
@@ -407,6 +413,7 @@ body {
 .measure-display.pulse-loop {
     animation: measure-pulse 1.8s ease-out infinite;
 }
+
 .measure-clear {
     background: none;
     border: none;
@@ -421,10 +428,12 @@ body {
         transform: scale(1);
         box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.45);
     }
+
     60% {
         transform: scale(1.03);
         box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
     }
+
     100% {
         transform: scale(1);
         box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
@@ -631,7 +640,8 @@ body {
     display: flex;
     align-items: stretch;
     justify-content: center;
-    padding: var(--chart-pad-top, 10px) 0 var(--chart-pad-bottom, 30px) 0;  /* Match chart plot area */
+    padding: var(--chart-pad-top, 10px) 0 var(--chart-pad-bottom, 30px) 0;
+    /* Match chart plot area */
 }
 
 .vertical-slider {
@@ -684,7 +694,8 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: var(--chart-pad-top, 10px) 0 var(--chart-pad-bottom, 30px) 0;  /* Match chart plot area */
+    padding: var(--chart-pad-top, 10px) 0 var(--chart-pad-bottom, 30px) 0;
+    /* Match chart plot area */
     gap: 6px;
 }
 
@@ -696,7 +707,8 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    padding: 4px var(--chart-pad-right, 50px) 0 var(--chart-pad-left, 10px);  /* Match chart plot area */
+    padding: 4px var(--chart-pad-right, 50px) 0 var(--chart-pad-left, 10px);
+    /* Match chart plot area */
     min-height: min-content;
 }
 

@@ -543,8 +543,7 @@ function setupGuideMarkers() {
 
         const mapMarker = new maplibregl.Marker({
             element: el,
-            anchor: 'bottom',
-            offset: [0, -6]
+            anchor: 'bottom'
         }).setLngLat(marker.coords).addTo(map);
 
         guide.markerMap.set(marker.id, { marker: mapMarker, el });
