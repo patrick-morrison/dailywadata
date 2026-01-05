@@ -47,31 +47,31 @@ const CONFIG = {
 
     // Ocean color palette (extended to -150m)
     OCEAN_COLORS: [
-        { depth: 0, color: [105, 185, 225, 180] },
-        { depth: -15, color: [75, 155, 200, 195] },
-        { depth: -35, color: [50, 125, 175, 205] },
-        { depth: -60, color: [35, 100, 150, 215] },
-        { depth: -90, color: [25, 75, 120, 222] },
-        { depth: -115, color: [18, 55, 95, 228] },
-        { depth: -135, color: [12, 40, 75, 235] },
-        { depth: -150, color: [8, 28, 60, 240] }
+        { depth: 0, color: [126, 222, 255, 180] },
+        { depth: -15, color: [90, 186, 240, 195] },
+        { depth: -35, color: [60, 150, 210, 205] },
+        { depth: -60, color: [42, 120, 180, 215] },
+        { depth: -90, color: [30, 90, 144, 222] },
+        { depth: -115, color: [22, 66, 114, 228] },
+        { depth: -135, color: [14, 48, 90, 235] },
+        { depth: -150, color: [10, 34, 72, 240] }
     ],
 
     // Beach color
-    BEACH_COLOR: [210, 190, 140, 220],
+    BEACH_COLOR: [252, 228, 168, 220],
 
     // Ancient land colors (exposed seafloor, extended to -150m)
     LAND_COLORS: [
-        { depth: 10, color: [210, 190, 155, 180] },
-        { depth: 0, color: [195, 175, 140, 190] },
-        { depth: -10, color: [180, 160, 125, 200] },
-        { depth: -25, color: [165, 145, 110, 210] },
-        { depth: -40, color: [150, 130, 95, 215] },
-        { depth: -60, color: [135, 115, 85, 220] },
-        { depth: -85, color: [120, 100, 75, 225] },
-        { depth: -110, color: [105, 88, 68, 228] },
-        { depth: -130, color: [95, 80, 62, 232] },
-        { depth: -150, color: [85, 72, 58, 235] }
+        { depth: 10, color: [252, 228, 186, 180] },
+        { depth: 0, color: [234, 210, 168, 190] },
+        { depth: -10, color: [216, 192, 150, 200] },
+        { depth: -25, color: [198, 174, 132, 210] },
+        { depth: -40, color: [180, 156, 114, 215] },
+        { depth: -60, color: [162, 138, 102, 220] },
+        { depth: -85, color: [144, 120, 90, 225] },
+        { depth: -110, color: [126, 106, 82, 228] },
+        { depth: -130, color: [114, 96, 74, 232] },
+        { depth: -150, color: [102, 86, 70, 235] }
     ],
 
     ENVIRO_BLEND_STRENGTH: .6,
