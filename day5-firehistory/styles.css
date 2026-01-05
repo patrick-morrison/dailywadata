@@ -1,0 +1,353 @@
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --ink: #1a1a1a;
+    --paper: #fbfdfb;
+    --accent: #2d6a4f;
+    --muted: #5b615c;
+    --line: #e4e6e4;
+}
+
+body {
+    font-family: 'Instrument Serif', Georgia, serif;
+    background: var(--paper);
+    background-image:
+        linear-gradient(180deg, rgba(74, 124, 148, 0.05) 0%, rgba(74, 124, 148, 0) 26%),
+        linear-gradient(120deg, rgba(45, 106, 79, 0.03) 0%, rgba(45, 106, 79, 0) 44%);
+    color: var(--ink);
+    min-height: 100vh;
+    line-height: 1.6;
+    padding: 1.5rem;
+}
+
+/* Navigation */
+.back-link {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 2rem;
+    transition: color 0.2s;
+}
+
+.back-link:hover {
+    color: var(--accent);
+}
+
+/* Header */
+.header {
+    max-width: 1200px;
+    margin: 0 auto 2.5rem;
+    padding-bottom: 1.75rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.title-card h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+}
+
+.title-card h1 em {
+    font-style: italic;
+    color: var(--accent);
+}
+
+.subtitle {
+    font-size: 1.125rem;
+    color: var(--muted);
+    font-style: italic;
+    margin-bottom: 0.875rem;
+}
+
+.title-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+}
+
+.attribution {
+    font-style: normal;
+}
+
+.methods-link {
+    color: var(--accent);
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+
+.methods-link:hover {
+    opacity: 0.7;
+}
+
+/* Description */
+.description {
+    max-width: 1200px;
+    margin: 0 auto 2rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+}
+
+.description p {
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+}
+
+.description p:last-child {
+    margin-bottom: 0;
+}
+
+.sources-note {
+    font-size: 0.9rem;
+    font-style: italic;
+    color: var(--muted);
+}
+
+.sources-note a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+/* Video Container */
+.video-container {
+    max-width: 1200px;
+    margin: 0 auto 2rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.video-wrapper {
+    border: 1px solid var(--line);
+    padding: 1rem;
+    background: var(--paper);
+}
+
+.video-wrapper h3 {
+    font-size: 1.125rem;
+    font-weight: 400;
+    margin-bottom: 0.875rem;
+    color: var(--ink);
+}
+
+video {
+    width: 100%;
+    height: auto;
+    display: block;
+    border: 1px solid var(--line);
+    pointer-events: none;
+}
+
+/* Controls */
+.controls {
+    max-width: 1200px;
+    margin: 0 auto 2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.control-btn {
+    font-family: 'JetBrains Mono', monospace;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.control-btn .icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.9rem;
+    height: 0.9rem;
+}
+
+.control-btn .icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    fill: currentColor;
+}
+
+.control-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.year-input {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 400;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 0.75rem 1rem;
+    letter-spacing: 0.05em;
+    width: 140px;
+    text-align: center;
+    line-height: 1;
+}
+
+.year-input:focus {
+    outline: none;
+    border-color: var(--ink);
+}
+
+/* Remove spinner arrows from number input */
+.year-input::-webkit-outer-spin-button,
+.year-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.year-input[type=number] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+
+
+.year-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+}
+
+.year-selector label {
+    color: var(--muted);
+}
+
+.year-select {
+    font-family: 'JetBrains Mono', monospace;
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.year-select:hover,
+.year-select:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+
+/* Medium Screen Layout (Tablets) - 2 column grid */
+@media (max-width: 1100px) and (min-width: 769px) {
+    .video-container {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    body {
+        padding: 1rem;
+    }
+
+    .header {
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+    }
+
+    .title-card h1 {
+        font-size: 2rem;
+    }
+
+    .subtitle {
+        font-size: 1rem;
+    }
+
+    .title-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .description {
+        padding: 1rem;
+        font-size: 0.95rem;
+    }
+
+    /* Stack all three videos on mobile */
+    .video-container {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    /* Keep controls in a single compact row on mobile */
+    .controls {
+        gap: 0.5rem;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        justify-content: center;
+        padding: 0.25rem 0;
+    }
+
+    .control-btn {
+        padding: 0.5rem 0.75rem;
+        font-size: 1.2rem;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    /* Hide text, show only symbols on mobile */
+    .control-btn {
+        font-size: 0;
+        justify-content: center;
+    }
+
+    .control-btn span {
+        font-size: 1.2rem;
+    }
+
+    .control-btn .icon {
+        width: 1.2rem;
+        height: 1.2rem;
+    }
+
+    /* Hide play/pause label text on mobile */
+    #btn-label {
+        display: none;
+    }
+
+    .year-input {
+        width: 80px;
+        padding: 0.5rem 0.5rem;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+}
