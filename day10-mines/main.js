@@ -24,6 +24,13 @@ const CONFIG = {
         'Open Stope': [205, 133, 63],        // Peru
         'Waste Dump': [160, 120, 80],        // Medium brown
         'Tailings Dump': [180, 140, 100],    // Light brown
+        'Rubbish Dump': [145, 110, 90],      // Dark tan
+        'Building': [120, 100, 90],          // Dark gray-brown
+        'Other Infrastructure': [150, 140, 130], // Warm gray
+        'Subsidence': [190, 100, 70],        // Orange-brown
+        'Dam/Sump': [100, 130, 150],         // Blue-gray
+        'Rock and Soil Dump': [170, 145, 110], // Medium tan
+        'Machinery': [110, 110, 100],        // Dark warm gray
         'Other': [169, 169, 169],            // Gray for other/unknown
         '__NULL__': [200, 200, 200]          // Light gray for null
     },
@@ -36,10 +43,21 @@ const CONFIG = {
         '__NULL__': [150, 150, 150]          // Gray
     },
 
-    // Color mapping for base condition (subsidence severity)
+    // Color mapping for base condition (fill material)
     BASE_CONDITION_COLORS: {
+        'Rock': [120, 110, 100],                 // Gray-brown
+        'Empty': [200, 200, 210],                // Light blue-gray
+        'Rubbish': [140, 120, 100],              // Brown-gray
+        'Water': [80, 120, 160],                 // Blue
+        'Tailings': [160, 140, 120],             // Tan-brown
+        'Water and Rubbish': [100, 130, 140],    // Blue-gray
+        'Oversize': [150, 130, 110],             // Medium brown
+        '__NULL__': [180, 180, 180]              // Light gray
+    },
+
+    // Color mapping for edge stability (subsidence severity and edge condition)
+    EDGE_STABILITY_COLORS: {
         'Severe Subsidence': [150, 40, 40],      // Deep red
-        'Moderate Subsidence': [190, 80, 60],    // Red-orange
         'Slight Subsidence': [210, 140, 90],     // Orange-brown
         'Firm': [100, 130, 100],                 // Green-gray
         'Undercut/Overhang': [180, 60, 60],      // Red
@@ -50,25 +68,25 @@ const CONFIG = {
         '__NULL__': [170, 170, 170]              // Light gray
     },
 
-    // Color mapping for commodities (top commodities + Other)
+    // Color mapping for commodities (using dataset abbreviations)
     COMMODITY_COLORS: {
-        'Gold': [218, 165, 32],              // Goldenrod
-        'Iron': [139, 90, 90],               // Dark red-brown
-        'Copper': [184, 115, 51],            // Copper color
-        'Nickel': [192, 192, 192],           // Silver
-        'Tin': [169, 169, 169],              // Gray
-        'Manganese': [80, 60, 80],           // Purple-gray
-        'Lead': [120, 120, 140],             // Blue-gray
-        'Zinc': [160, 170, 180],             // Light blue-gray
-        'Silver': [220, 220, 230],           // Bright silver
-        'Tantalum': [100, 80, 120],          // Purple
-        'Tungsten': [140, 140, 130],         // Warm gray
-        'Coal': [40, 40, 40],                // Near black
-        'Phosphate': [200, 180, 140],        // Beige
-        'Gypsum': [240, 235, 230],           // Off-white
-        'Lithium': [230, 230, 250],          // Lavender
-        'Other': [170, 150, 130],            // Medium brown
-        '__NULL__': [180, 180, 180]          // Light gray
+        'Au': [218, 165, 32],                // Gold - Goldenrod
+        'Fe': [139, 90, 90],                 // Iron - Dark red-brown
+        'Cu': [184, 115, 51],                // Copper - Copper color
+        'Ni': [192, 192, 192],               // Nickel - Silver
+        'Sn': [169, 169, 169],               // Tin - Gray
+        'Mn': [80, 60, 80],                  // Manganese - Purple-gray
+        'Pb': [120, 120, 140],               // Lead - Blue-gray
+        'Zn': [160, 170, 180],               // Zinc - Light blue-gray
+        'Ag': [220, 220, 230],               // Silver - Bright silver
+        'Ta': [100, 80, 120],                // Tantalum - Purple
+        'W': [140, 140, 130],                // Tungsten - Warm gray
+        'Coal': [40, 40, 40],                // Coal - Near black
+        'Gp': [240, 235, 230],               // Gypsum - Off-white
+        'Lst': [210, 200, 190],              // Limestone - Light beige
+        'Sd': [220, 200, 170],               // Sand - Sandy
+        'Other': [170, 150, 130],            // Other/mixed - Medium brown
+        '__NULL__': [180, 180, 180]          // Unknown - Light gray
     },
 
     // Map bounds (will be calculated from data)
@@ -88,9 +106,9 @@ const CONFIG = {
  */
 const FILTER_FIELD_MAP = {
     'feature-type': 'FEATURE_TY',
-    'site-subtype': 'SITE_SUB_T',
-    'base-condition': 'BASE_CONDI',
-    'condition': 'CONDITION',
+    'site-subtype': 'SITE_SUB_T',    'condition': 'CONDITION',
+    'base-condition': 'BASE_CONDI',      // Fill material (rock, water, empty, etc.)
+    'edge-stability': 'EDGE_STABI',      // Edge stability (subsidence, firmness, etc.)
     'visibility': 'VISIBILITY',
     'commodity': 'COMMODITIE',
     'excavation': 'EXCAVATION'
@@ -182,6 +200,7 @@ function computeFilterStatistics(geojson) {
         'feature-type': {},
         'site-subtype': {},
         'base-condition': {},
+        'edge-stability': {},
         'condition': {},
         'visibility': {},
         'commodity': {},
@@ -227,8 +246,9 @@ function getTopCommodities(stats) {
 function getColorFunctionForDisplayMode(displayMode) {
     const colorMaps = {
         'feature-type': CONFIG.FEATURE_COLORS,
-        'condition': CONFIG.CONDITION_COLORS,
         'base-condition': CONFIG.BASE_CONDITION_COLORS,
+        'edge-stability': CONFIG.EDGE_STABILITY_COLORS,
+        'condition': CONFIG.CONDITION_COLORS,
         'commodity': CONFIG.COMMODITY_COLORS
     };
 
@@ -259,6 +279,7 @@ function getColorForValue(filterType, value) {
         'feature-type': CONFIG.FEATURE_COLORS,
         'condition': CONFIG.CONDITION_COLORS,
         'base-condition': CONFIG.BASE_CONDITION_COLORS,
+        'edge-stability': CONFIG.EDGE_STABILITY_COLORS,
         'commodity': CONFIG.COMMODITY_COLORS
     };
 
@@ -296,7 +317,7 @@ const state = {
 
     // Active tab and display mode
     activeTab: 'feature-type',
-    displayMode: 'feature-type', // 'feature-type' | 'condition' | 'base-condition' | 'commodity'
+    displayMode: 'feature-type', // 'feature-type' | 'condition' | 'base-condition' | 'edge-stability' | 'commodity'
 
     // Multi-dimensional filters (Set-based for performance)
     // Empty Set = all visible (no filter active)
@@ -304,6 +325,7 @@ const state = {
         'feature-type': new Set(),
         'site-subtype': new Set(),
         'base-condition': new Set(),
+        'edge-stability': new Set(),
         'condition': new Set(),
         'visibility': new Set(),
         'commodity': new Set(),
@@ -573,8 +595,8 @@ function renderMines(geojson) {
 function initializeFilterPanels(stats) {
     const panels = {
         'feature-type': document.querySelector('[data-panel="feature-type"]'),
-        'site-subtype': document.querySelector('[data-panel="site-subtype"]'),
         'base-condition': document.querySelector('[data-panel="base-condition"]'),
+        'edge-stability': document.querySelector('[data-panel="edge-stability"]'),
         'condition': document.querySelector('[data-panel="condition"]'),
         'visibility': document.querySelector('[data-panel="visibility"]'),
         'commodity': document.querySelector('[data-panel="commodity"]'),
@@ -614,6 +636,7 @@ function createFilterItem(filterType, value, count) {
         filterType === 'feature-type' ||
         filterType === 'condition' ||
         filterType === 'base-condition' ||
+        filterType === 'edge-stability' ||
         filterType === 'commodity'
     );
 
