@@ -711,103 +711,273 @@ body {
    Mobile Responsive
    ============================================ */
 
+/* Hide mobile-only elements on desktop */
+.drawer-handle,
+.filter-fab {
+    display: none;
+}
+
 @media (max-width: 768px) {
-    .maplibregl-ctrl-attrib.maplibregl-compact {
+    /* Show mobile elements */
+    .drawer-handle,
+    .filter-fab {
         display: block;
     }
 
-    .maplibregl-ctrl-attrib.maplibregl-compact::after {
-        content: '';
-        display: block;
+    /* FAB Button */
+    .filter-fab {
+        position: fixed;
+        bottom: 30px;
+        right: 20px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: #8b4513;
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s ease, opacity 0.2s ease;
+        cursor: pointer;
     }
 
-    .maplibregl-ctrl-attrib-inner {
+    .filter-fab:active {
+        transform: scale(0.95);
+    }
+
+    .filter-fab.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .filter-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: #dc2626;
+        color: white;
+        border-radius: 12px;
+        min-width: 24px;
+        height: 24px;
+        font-size: 0.7rem;
         display: none;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        padding: 0 6px;
     }
 
-    .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
-        display: block;
+    .filter-badge:not(:empty) {
+        display: flex;
     }
 
-    .title-card h1 {
-        font-size: 1.2rem;
+    /* Bottom Sheet Drawer */
+    .legend {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        top: auto;
+        max-width: 100%;
+        max-height: 85vh;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
     }
 
-    .title-card {
-        padding: 14px 18px;
+    .legend[data-state="minimized"] {
+        transform: translateY(calc(100% - 68px));
     }
 
+    .legend[data-state="expanded"] {
+        transform: translateY(0);
+    }
+
+    .legend-card {
+        padding: 0;
+        max-height: none;
+        overflow: visible;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(12px);
+    }
+
+    /* Drawer Handle */
+    .drawer-handle {
+        padding: 8px 20px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .drawer-handle:active {
+        background: rgba(139, 69, 19, 0.05);
+    }
+
+    .drawer-handle-bar {
+        width: 40px;
+        height: 4px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 2px;
+        margin: 0 auto 8px;
+    }
+
+    .drawer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 44px;
+        gap: 12px;
+    }
+
+    .drawer-toggle-btn {
+        min-width: 44px;
+        min-height: 44px;
+        border: none;
+        background: none;
+        color: #8b4513;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .drawer-toggle-btn .chevron-icon {
+        transition: transform 0.3s ease;
+    }
+
+    .legend[data-state="expanded"] .chevron-icon {
+        transform: rotate(180deg);
+    }
+
+    /* Drawer Content */
+    .drawer-content {
+        overflow-y: auto;
+        max-height: calc(85vh - 68px);
+        padding: 16px 20px;
+    }
+
+    /* Hide cursor info on mobile */
     .cursor-info {
         display: none;
     }
 
-    .legend-card {
-        padding: 12px 16px;
-        max-height: 70vh;
-        overflow-y: auto;
+    /* Stats */
+    .legend-stats {
+        margin-bottom: 16px;
     }
 
-    /* Filter tabs */
-    .filter-tabs {
-        gap: 2px;
-        padding-bottom: 2px;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .filter-tab {
-        padding: 6px 10px;
-        font-size: 0.6rem;
-        flex-shrink: 0;
-    }
-
-    /* Display mode selector */
+    /* Display Mode Selector */
     .display-mode-selector {
         flex-direction: column;
         align-items: stretch;
-        gap: 6px;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    .display-mode-selector label {
+        font-size: 0.7rem;
     }
 
     .display-mode-selector select {
         width: 100%;
     }
 
-    /* Filter panels */
+    /* Filter Tabs with Scroll Indicator */
+    .filter-tabs {
+        position: relative;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        margin: 0 -20px 16px;
+        padding: 0 20px;
+    }
+
+    .filter-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .filter-tabs::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 40px;
+        background: linear-gradient(to left, rgba(255, 255, 255, 0.98), transparent);
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+    }
+
+    .filter-tabs.at-scroll-end::after {
+        opacity: 0;
+    }
+
+    /* Larger Touch Targets for Tabs */
+    .filter-tab {
+        flex-shrink: 0;
+        padding: 12px 16px;
+        min-height: 44px;
+        font-size: 0.7rem;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Filter Panels */
     .filter-panels {
-        max-height: 300px;
-        min-height: 150px;
+        margin-bottom: 16px;
     }
 
     .filter-panel {
-        gap: 6px;
+        min-height: 180px;
+        max-height: 320px;
+        gap: 8px;
     }
 
+    /* Filter Items */
     .filter-item {
-        padding: 6px 8px;
-        margin: -6px -8px;
-        font-size: 0.65rem;
+        padding: 10px 12px;
+        min-height: 44px;
+        font-size: 0.7rem;
+        -webkit-tap-highlight-color: transparent;
     }
 
-    /* Quick action buttons */
-    .quick-action-btn {
-        font-size: 0.55rem;
-        padding: 3px 6px;
-    }
-
-    /* Active filter summary */
+    /* Active Filters Summary */
     .active-filters-summary {
-        font-size: 0.6rem;
+        padding-top: 16px;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
     }
 
     .clear-filters-btn {
-        font-size: 0.6rem;
-        padding: 3px 8px;
+        min-height: 44px;
+        padding: 10px 16px;
     }
 
-    /* Popup mobile styles */
-    .maplibregl-popup-content {
+    /* Header adjustments */
+    .header .title-card {
+        padding: 14px 18px;
+    }
+
+    .header .title-card h1 {
+        font-size: 1.2rem;
+    }
+
+    .header .subtitle {
+        font-size: 0.65rem;
+    }
+
+    /* Popups */
+    .mine-popup {
+        max-width: 85vw;
+    }
+
+    .mine-popup .maplibregl-popup-content {
         max-height: 60vh;
         overflow-y: auto;
-        max-width: 85vw;
     }
 
     .popup-section-title {
@@ -831,6 +1001,24 @@ body {
     .popup-web-link-btn {
         font-size: 0.65rem;
         padding: 8px 12px;
+    }
+
+    /* MapLibre Attribution */
+    .maplibregl-ctrl-attrib.maplibregl-compact {
+        display: block;
+    }
+
+    .maplibregl-ctrl-attrib.maplibregl-compact::after {
+        content: '';
+        display: block;
+    }
+
+    .maplibregl-ctrl-attrib-inner {
+        display: none;
+    }
+
+    .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
+        display: block;
     }
 }
 

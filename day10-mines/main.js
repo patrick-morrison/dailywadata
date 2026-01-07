@@ -394,7 +394,12 @@ map.on('load', () => {
     loadMines();
     initializeTabNavigation();
     initializeDisplayModeSelector();
-    initializeMobileLegendCollapse();
+
+    // Initialize mobile features on small screens
+    if (window.innerWidth <= 768) {
+        initializeBottomSheetDrawer();
+        initializeTabScrollIndicator();
+    }
 
     // Wire up clear filters button
     document.querySelector('.clear-filters-btn').addEventListener('click', clearAllFilters);
@@ -464,34 +469,112 @@ map.on('contextmenu', async (e) => {
 
 document.getElementById('location-btn').addEventListener('click', toggleGeolocation);
 
-// Mobile Legend Collapse
-function initializeMobileLegendCollapse() {
-    const legendTitle = document.querySelector('.legend-title');
-    const legendContent = document.querySelector('.legend-content');
+/**
+ * Initialize bottom sheet drawer for mobile
+ */
+function initializeBottomSheetDrawer() {
+    const drawer = document.getElementById('legend-drawer');
+    const fab = document.getElementById('filter-fab');
+    const toggleBtn = document.getElementById('drawer-toggle');
+    const handle = document.getElementById('drawer-handle');
 
-    // Only collapse on mobile (check viewport width)
-    const isMobile = () => window.innerWidth <= 768;
+    if (!drawer || !fab || !toggleBtn || !handle) return;
 
-    // Start collapsed on mobile
-    if (isMobile()) {
-        legendTitle.classList.add('collapsed');
-        legendContent.classList.add('collapsed');
+    // Restore saved state or default to minimized
+    const savedState = localStorage.getItem('mines-drawer-state') || 'minimized';
+    drawer.dataset.state = savedState;
+    updateFabVisibility();
+
+    // Toggle function
+    function toggleDrawer() {
+        const currentState = drawer.dataset.state;
+        const newState = currentState === 'minimized' ? 'expanded' : 'minimized';
+        drawer.dataset.state = newState;
+
+        // Save state
+        localStorage.setItem('mines-drawer-state', newState);
+
+        updateFabVisibility();
     }
 
-    legendTitle.addEventListener('click', () => {
-        if (isMobile()) {
-            legendTitle.classList.toggle('collapsed');
-            legendContent.classList.toggle('collapsed');
+    function updateFabVisibility() {
+        if (drawer.dataset.state === 'expanded') {
+            fab.classList.add('hidden');
+        } else {
+            fab.classList.remove('hidden');
         }
-    });
+    }
 
-    // Re-check on resize
-    window.addEventListener('resize', () => {
-        if (!isMobile()) {
-            legendTitle.classList.remove('collapsed');
-            legendContent.classList.remove('collapsed');
+    // Click handlers
+    fab.addEventListener('click', toggleDrawer);
+    toggleBtn.addEventListener('click', toggleDrawer);
+    handle.addEventListener('click', toggleDrawer);
+
+    // Touch swipe support
+    let startY = 0;
+    let currentY = 0;
+    let isDragging = false;
+
+    handle.addEventListener('touchstart', (e) => {
+        startY = e.touches[0].clientY;
+        isDragging = true;
+    }, { passive: true });
+
+    handle.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        currentY = e.touches[0].clientY;
+    }, { passive: true });
+
+    handle.addEventListener('touchend', () => {
+        if (!isDragging) return;
+
+        const deltaY = currentY - startY;
+        const threshold = 50;
+
+        if (drawer.dataset.state === 'expanded' && deltaY > threshold) {
+            toggleDrawer();
+        } else if (drawer.dataset.state === 'minimized' && deltaY < -threshold) {
+            toggleDrawer();
         }
-    });
+
+        isDragging = false;
+    }, { passive: true });
+}
+
+/**
+ * Initialize tab scroll indicator
+ */
+function initializeTabScrollIndicator() {
+    const tabs = document.querySelector('.filter-tabs');
+    if (!tabs) return;
+
+    function updateScrollIndicator() {
+        const atEnd = tabs.scrollLeft >= (tabs.scrollWidth - tabs.clientWidth - 5);
+        tabs.classList.toggle('at-scroll-end', atEnd);
+    }
+
+    tabs.addEventListener('scroll', updateScrollIndicator);
+
+    // Check initial state
+    updateScrollIndicator();
+
+    // Re-check on window resize
+    window.addEventListener('resize', updateScrollIndicator);
+}
+
+/**
+ * Update FAB badge count
+ */
+function updateFilterBadge() {
+    const badge = document.getElementById('filter-badge');
+    if (!badge) return;
+
+    let activeCount = 0;
+    for (const filterSet of Object.values(state.filters)) {
+        activeCount += filterSet.size;
+    }
+
+    badge.textContent = activeCount || '';
 }
 
 // ============================================
@@ -738,6 +821,9 @@ function updateActiveFilterSummary() {
     } else {
         countEl.textContent = `${activeCount} filter${activeCount === 1 ? '' : 's'} active`;
     }
+
+    // Update mobile badge
+    updateFilterBadge();
 }
 
 /**
