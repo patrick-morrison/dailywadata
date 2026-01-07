@@ -987,7 +987,7 @@ function generatePopupContent(props, coordinates) {
     const fieldConfig = {
         'Primary Info': [
             { key: 'WABMINES_N', label: 'Site Name' },
-            { key: 'FEATURE_TY', label: 'Feature Type', transform: normalizeFilterValue },
+            { key: 'FEATURE_TY', label: 'Feature Type'},
             { key: 'SITE_TYPE', label: 'Site Type' },
             { key: 'SITE_CODE', label: 'Site Code' }
         ],
