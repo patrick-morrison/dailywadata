@@ -640,7 +640,6 @@ function createFilterItem(filterType, value, count) {
 
     // Click handler
     item.addEventListener('click', () => {
-        item.classList.toggle('active');
         toggleFilter(filterType, value);
     });
 
@@ -657,6 +656,22 @@ function toggleFilter(filterType, value) {
         filterSet.delete(value);
     } else {
         filterSet.add(value);
+    }
+
+    // Update visual state of all filter items in this panel
+    const panel = document.querySelector(`[data-panel="${filterType}"]`);
+    if (panel) {
+        panel.querySelectorAll('.filter-item').forEach(item => {
+            const itemValue = item.dataset.filterValue;
+
+            // If filter Set is empty, all items should be active
+            // If filter Set has values, only items in the Set should be active
+            if (filterSet.size === 0 || filterSet.has(itemValue)) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
     }
 
     // Re-render with updated filters
