@@ -412,6 +412,9 @@ map.on('contextmenu', async (e) => {
     const { lng, lat } = e.lngLat;
     const coords = formatCoordinates(lng, lat);
 
+    // Check if we're clicking on a mine feature
+    const mine = queryNearestMine({ coordinate: [lng, lat], x: e.point.x, y: e.point.y });
+
     // Create menu
     const menu = document.createElement('div');
     menu.id = 'context-menu';
@@ -430,11 +433,17 @@ map.on('contextmenu', async (e) => {
             <span>Copy Decimal Minutes</span>
             <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${coords.display}</span>
         </div>
-        <div class="context-menu-separator"></div>
-        <div class="context-menu-item" id="copy-link">
-            <span>Copy Link</span>
-        </div>
     `;
+
+    // Only show copy link if we're on a mine feature
+    if (mine && mine.properties.WABMINES_N) {
+        menuHtml += `
+            <div class="context-menu-separator"></div>
+            <div class="context-menu-item" id="copy-link">
+                <span>Copy Link to Mine</span>
+            </div>
+        `;
+    }
 
     menu.innerHTML = menuHtml;
     document.body.appendChild(menu);
@@ -450,11 +459,14 @@ map.on('contextmenu', async (e) => {
         menu.remove();
     });
 
-    document.getElementById('copy-link').addEventListener('click', () => {
-        const url = `${globalThis.location.origin}${globalThis.location.pathname}#${lat.toFixed(6)},${lng.toFixed(6)}`;
-        navigator.clipboard.writeText(url);
-        menu.remove();
-    });
+    if (mine && mine.properties.WABMINES_N) {
+        document.getElementById('copy-link').addEventListener('click', () => {
+            const siteName = encodeURIComponent(mine.properties.WABMINES_N);
+            const url = `${globalThis.location.origin}${globalThis.location.pathname}#site=${siteName}`;
+            navigator.clipboard.writeText(url);
+            menu.remove();
+        });
+    }
 
     // Close on map click/move
     const removeMenu = () => {
@@ -586,6 +598,40 @@ function setLoadingText(text) {
     if (el) el.textContent = text;
 }
 
+/**
+ * Handle URL hash navigation to specific mine sites
+ */
+function handleURLHash() {
+    const hash = globalThis.location.hash;
+    if (!hash || !hash.startsWith('#site=')) return;
+
+    // Extract site name from hash
+    const siteName = decodeURIComponent(hash.replace('#site=', ''));
+
+    // Find the mine in the dataset
+    const mine = state.geojsonData.features.find(
+        f => f.properties.WABMINES_N === siteName
+    );
+
+    if (!mine) {
+        console.warn(`Mine not found: ${siteName}`);
+        return;
+    }
+
+    // Zoom to the mine
+    const [lng, lat] = mine.geometry.coordinates;
+    map.flyTo({
+        center: [lng, lat],
+        zoom: 16,
+        duration: 1500
+    });
+
+    // Show popup after zoom animation
+    setTimeout(() => {
+        showClickPopup(mine, lng, lat);
+    }, 1600);
+}
+
 async function loadMines() {
     try {
         setLoadingText('Loading abandoned mines data...');
@@ -614,6 +660,9 @@ async function loadMines() {
         setTimeout(() => {
             document.getElementById('loading').classList.add('hidden');
         }, 500);
+
+        // Handle URL hash navigation (e.g., #site=SITENAME)
+        handleURLHash();
 
     } catch (error) {
         console.error('Failed to load mines:', error);
@@ -1112,7 +1161,8 @@ function showClickPopup(mine, lng, lat) {
     const shareBtn = document.querySelector('.popup-share-btn');
     if (shareBtn) {
         shareBtn.addEventListener('click', () => {
-            const url = `${globalThis.location.origin}${globalThis.location.pathname}#${lat.toFixed(6)},${lng.toFixed(6)}`;
+            const siteName = encodeURIComponent(props.WABMINES_N);
+            const url = `${globalThis.location.origin}${globalThis.location.pathname}#site=${siteName}`;
             navigator.clipboard.writeText(url);
             shareBtn.querySelector('span').textContent = 'Copied!';
             setTimeout(() => {
