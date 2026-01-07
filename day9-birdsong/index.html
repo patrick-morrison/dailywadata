@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WA Birdsong Archive</title>
+    <meta name="description"
+        content="Random birdsong recordings from John Hutchinson's collection at the State Library of Western Australia">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="header">
+            <h1>WA Birdsong Archive</h1>
+            <div class="subtitle">State Library of Western Australia</div>
+            <div class="meta">
+                <span class="attribution">Patrick Morrison 2026</span>
+                <a href="../sources.html" class="methods-link">Show methods notes →</a>
+            </div>
+        </div>
+
+        <div class="content" id="content">
+            <div class="loading">Loading recording...</div>
+        </div>
+
+        <button class="shuffle-btn" id="shuffle-btn" title="Load another recording">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 3 21 3 21 8"></polyline>
+                <line x1="4" y1="20" x2="21" y2="3"></line>
+                <polyline points="21 16 21 21 16 21"></polyline>
+                <line x1="15" y1="15" x2="21" y2="21"></line>
+                <line x1="4" y1="4" x2="9" y2="9"></line>
+            </svg>
+            <span>Another recording</span>
+        </button>
+    </div>
+
+    <!-- Application Script -->
+    <script src="main.js"></script>
+</body>
+
+</html>
