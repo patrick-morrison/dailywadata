@@ -372,7 +372,6 @@ map.on('load', () => {
     loadMines();
     initializeTabNavigation();
     initializeDisplayModeSelector();
-    initializeQuickActions();
     initializeMobileLegendCollapse();
 
     // Wire up clear filters button
@@ -647,6 +646,28 @@ function createFilterItem(filterType, value, count) {
 }
 
 /**
+ * Update the visual state of filter items based on current filter Set
+ */
+function updateFilterItemsUI(filterType) {
+    const filterSet = state.filters[filterType];
+    const panel = document.querySelector(`[data-panel="${filterType}"]`);
+
+    if (!panel) return;
+
+    panel.querySelectorAll('.filter-item').forEach(item => {
+        const itemValue = item.dataset.filterValue;
+
+        // If filter Set is empty, all items should be active
+        // If filter Set has values, only items in the Set should be active
+        if (filterSet.size === 0 || filterSet.has(itemValue)) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+    });
+}
+
+/**
  * Toggle a filter value
  */
 function toggleFilter(filterType, value) {
@@ -658,23 +679,8 @@ function toggleFilter(filterType, value) {
         filterSet.add(value);
     }
 
-    // Update visual state of all filter items in this panel
-    const panel = document.querySelector(`[data-panel="${filterType}"]`);
-    if (panel) {
-        panel.querySelectorAll('.filter-item').forEach(item => {
-            const itemValue = item.dataset.filterValue;
-
-            // If filter Set is empty, all items should be active
-            // If filter Set has values, only items in the Set should be active
-            if (filterSet.size === 0 || filterSet.has(itemValue)) {
-                item.classList.add('active');
-            } else {
-                item.classList.remove('active');
-            }
-        });
-    }
-
-    // Re-render with updated filters
+    // Update visual state and re-render
+    updateFilterItemsUI(filterType);
     renderMines(state.geojsonData);
     updateActiveFilterSummary();
     updateTabIndicators();
@@ -684,14 +690,10 @@ function toggleFilter(filterType, value) {
  * Clear all filters across all dimensions
  */
 function clearAllFilters() {
-    for (const filterSet of Object.values(state.filters)) {
-        filterSet.clear();
+    for (const filterType of Object.keys(state.filters)) {
+        state.filters[filterType].clear();
+        updateFilterItemsUI(filterType);
     }
-
-    // Update all filter items to active
-    document.querySelectorAll('.filter-item').forEach(item => {
-        item.classList.add('active');
-    });
 
     renderMines(state.geojsonData);
     updateActiveFilterSummary();
@@ -825,92 +827,6 @@ function updateLegendForDisplayMode(displayMode) {
             // Update existing color
             const color = getColorForValue(filterType, value);
             colorDiv.style.background = `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.7)`;
-        }
-    });
-}
-
-/**
- * Initialize quick action buttons (All/None/Invert) for filter panels
- */
-function initializeQuickActions() {
-    document.querySelectorAll('.filter-panel').forEach(panel => {
-        const panelType = panel.dataset.panel;
-        const header = panel.querySelector('.filter-panel-header');
-
-        if (!header) return;
-
-        // Select All
-        const selectAllBtn = header.querySelector('[data-action="select-all"]');
-        if (selectAllBtn) {
-            selectAllBtn.addEventListener('click', () => {
-                state.filters[panelType].clear();
-                panel.querySelectorAll('.filter-item').forEach(item => {
-                    item.classList.add('active');
-                });
-                renderMines(state.geojsonData);
-                updateActiveFilterSummary();
-                updateTabIndicators();
-            });
-        }
-
-        // Select None
-        const selectNoneBtn = header.querySelector('[data-action="select-none"]');
-        if (selectNoneBtn) {
-            selectNoneBtn.addEventListener('click', () => {
-                // Get all values from the panel
-                const allValues = Array.from(panel.querySelectorAll('.filter-item'))
-                    .map(item => item.dataset.filterValue);
-
-                // Add all values to filter (inverted logic - empty Set = all visible)
-                state.filters[panelType] = new Set(allValues);
-
-                panel.querySelectorAll('.filter-item').forEach(item => {
-                    item.classList.remove('active');
-                });
-                renderMines(state.geojsonData);
-                updateActiveFilterSummary();
-                updateTabIndicators();
-            });
-        }
-
-        // Invert Selection
-        const invertBtn = header.querySelector('[data-action="invert"]');
-        if (invertBtn) {
-            invertBtn.addEventListener('click', () => {
-                const allValues = Array.from(panel.querySelectorAll('.filter-item'))
-                    .map(item => item.dataset.filterValue);
-
-                const currentFilter = state.filters[panelType];
-                const newFilter = new Set();
-
-                // If filter is empty (all visible), invert means select all to hide
-                if (currentFilter.size === 0) {
-                    allValues.forEach(v => newFilter.add(v));
-                } else {
-                    // Otherwise, invert the selection
-                    allValues.forEach(value => {
-                        if (!currentFilter.has(value)) {
-                            newFilter.add(value);
-                        }
-                    });
-                }
-
-                state.filters[panelType] = newFilter;
-
-                // Update UI
-                panel.querySelectorAll('.filter-item').forEach(item => {
-                    const value = item.dataset.filterValue;
-                    if (newFilter.size === 0 || !newFilter.has(value)) {
-                        item.classList.add('active');
-                    } else {
-                        item.classList.remove('active');
-                    }
-                });
-
-                renderMines(state.geojsonData);
-                updateActiveFilterSummary();
-                updateTabIndicators();
-            });
         }
     });
 }
