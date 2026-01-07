@@ -119,6 +119,8 @@
             content: '← ';
         }
     </style>
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
 </head>
 
 <body>
@@ -131,6 +133,9 @@
 
         <div class="sources-content">
             <p>Data sources and methodologies for each day of the project.</p>
+            <p><a href="https://github.com/patrick-morrison/dailywadata" target="_blank"
+                    style="font-weight: bold; color: var(--accent); text-decoration: underline;">View the code on GitHub
+                    &rarr;</a></p>
 
             <div class="day-entry">
                 <div class="day-header">
@@ -138,6 +143,14 @@
                     <h3 class="day-name"><a href="day1-dotlidar/index.html">Wadjemup Rottnest Bathymetry</a></h3>
                 </div>
                 <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Finding this Department of Transport LiDAR data on National Map years
+                            ago got me interested in subsea data. It reveals the path of the river, the ancient
+                            shorelines
+                            and dunes offshore around Wadjemup Rottnest, and the deep scars of sand mining. Please
+                            explore it, and click to share links of anything you find interesting.</div>
+                    </div>
                     <div class="detail-section">
                         <div class="detail-label">Source</div>
                         <div class="detail-text">Perth Bathymetric LiDAR from the <a
@@ -150,11 +163,247 @@
                             as a 25% Float32 DEFLATE COG (from 568 MB to 14 MB).</div>
                     </div>
                     <div class="detail-section">
-                        <div class="detail-label">Tech Stack</div>
+                        <div class="detail-label">Implementation Details</div>
                         <div class="detail-text">HTML/CSS/JS webmap. I wanted a chance to upgrade from my Leaflet map
                             experience, so this uses the modern and open MapLibre GL for basemap rendering. deck.gl:
                             colours and hillshades the bathymetry on the client side. GeoTIFF.js reads the COG to show
                             depth on click.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Patrick Morrison</div>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">02</span>
+                    <h3 class="day-name"><a href="day2-shipwrecks/index.html">WA Shipwrecks Map</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">The WA Museum's shipwreck database is a huge, detailed resource that's
+                            well worth taking a look at. It's hard to believe just how many shipwrecks lie off our coast
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text">Maritime Archaeology databases from the <a
+                                href="https://catalogue.data.wa.gov.au/dataset/shipwrecks">Western Australian Museum</a>
+                            via Data WA. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">None. The data was used as-is from the source GeoJSON.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">Built with OpenLayers to render the GeoJSON points. Added a simple
+                            method to share shipwrecks.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Jack Langoulant</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">03</span>
+                    <h3 class="day-name"><a href="day3-streetlamps/index.html">Public Lighting Infrastructure</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Streetlights of the WA area as managed by Western Power, and thus does
+                            not cover all of WA. The dataset has the ID of each streetlamp, as well as the wattage and
+                            type of bulb installed.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://catalogue.data.wa.gov.au/dataset/streetlights-wp-043">Download data from
+                                dataWA</a></div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Licence</div>
+                        <div class="detail-text">
+                            <strong>Map:</strong> CC BY 4.0 — <a
+                                href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution</a><br>
+                            <strong>Data:</strong> <a
+                                href="https://catalogue.data.wa.gov.au/dataset/wp-licence-terms-and-conditions/resource/5c0d580f-85a6-42de-ab47-036e70bcd2ad">Western
+                                Power Data</a>
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">The only preprocessing needed was converting the downloaded dataset
+                            (GDA94 Geopackage) to a EPSG:4326 GeoJSON for easy handling on the web.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">HTML/CSS/JS webmap. Utilising the modern and open MapLibre GL for
+                            basemap rendering, the streetlamps are then added as a scatterplot layer on top, with the
+                            size and color of the bulb determined by the wattage and type respectively.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Aren Leishman</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">04</span>
+                    <h3 class="day-name"><a href="day4-swantides/index.html">Freo Tides</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">We are often planning our fieldwork around tides: highs for remote
+                            sensing
+                            clearance, lows for access, or slacks for diving. We need to know if these fall during
+                            work hours or after. This lets us scan the BOM data quickly for the perfect day.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text">Tide predictions from the <a
+                                href="https://www.bom.gov.au/oceanography/projects/ntc/wa_tide_tables.shtml">Bureau of
+                                Meteorology</a> (Fremantle &
+                            Barrack Street Jetty, 2026). © Commonwealth of Australia.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">BOM publishes tides as PDF charts, not machine-readable data. A Python
+                            script extracts times and heights using pdfplumber, with regex handling for merged text
+                            tokens. Tide types inferred from neighbouring heights. This took a lot of iteration.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation details</div>
+                        <div class="detail-text">HTML/CSS/JS calendar matching the style, but with a responsive grid
+                            layout. Designed for quickly scanning on desktop or mobile.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Patrick Morrison</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">05</span>
+                    <h3 class="day-name"><a href="`-firehistory/index.html">Fire History</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Showing the patterns and intensity of fire activity in Western
+                            Australia, from 2000-2025. Separated by wildfires and prescribed burns. </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://catalogue.data.wa.gov.au/dataset/dbca-fire-history/resource/086c43d0-3e00-45a2-9161-c0e9f4700830">DBCA
+                                Fire History Dataset</a> - Department of Biodiversity, Conservation and Attractions fire
+                            history records. Geographic boundaries from <a
+                                href="https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs-edition-3/jul2021-jun2026/access-and-downloads/digital-boundary-files">Australian
+                                Bureau of Statistics ASGS Edition 3</a>.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">Animated visualizations created using <a
+                                href="https://gganimate.com/index.html">gganimate</a> in R, with gradient fill
+                            techniques from <a
+                                href="https://www.andrewheiss.com/blog/2023/07/28/gradient-map-fills-r-sf">Andrew
+                                Heiss's tutorial</a>.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Daisy Evans</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">07</span>
+                    <h3 class="day-name"><a href="day7-uxo/index.html">UXO Potential</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Large tracts of Western Australian land are designated as potential sites for Unexploded Ordnance (UXO) due to historical military activity, including in what is now the Perth and Geraldton metro areas. This visualization aims to make these legacy risk zones more visible, showing the historical defense footprints persist within the current landscape.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a href="https://catalogue.data.wa.gov.au/dataset/unexploded-ordnance">UXO Potential Dataset</a>
+                            from the Department of Fire and Emergency Services via Data WA. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">None. The data was used as-is from the source GeoJSON.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">Built ontop of OpenLayers. Dataset utilised as a geoJSON.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Jack Langoulant</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">06</span>
+                    <h3 class="day-name"><a href="day6-sealeveltool/index.html">Australian Submerged Landscapes</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">As an archaeologist, I study ancient sites under the sea. During the
+                            last ice age, sea levels were up to 130m lower, revealing landscapes where Aboriginal people
+                            lived for tens of thousands of years. Visualising these landscapes is the first step to
+                            understanding them, and I have previously made a <a
+                                href="https://github.com/patrick-morrison/qgis_sea_level_tool">sea level tool for
+                                QGIS</a> to do this. However, the interactive Flash-based map Sahultime by Matthew
+                            Coller is what showed me what ancient Australia looked like, and so this is an attempt to
+                            capture that magic, by allowing people to explore the ancient landscapes to the best our
+                            continent-wide data will allow. This visualization combines modern bathymetry data with sea
+                            level reconstructions to show how Australia's coastline has changed over 130,000 years. A
+                            guide feature shows people around key Western Australian archaeological sites in the context
+                            of the ancient land extent, using the sea level and measurement tools.
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text">2024 Australian Bathymetry and Topography Grid (AusBathyTopo) from <a
+                                href="https://www.ga.gov.au/scientific-topics/marine/bathymetry-and-topography">Geoscience
+                                Australia</a> (250m resolution, 2.6 GB Float32). Sea level curve from Grant et al. 2012
+                            (<a href="https://doi.org/10.1038/nature10902">Red Sea Sea-level Reconstruction</a>),
+                            published in Nature.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">The original bathymetry was clipped to +10m to -150m depth range and
+                            quantized to 8-bit (63cm precision) using gdal_calc.py, reducing size by 99.5% to 14 MB.
+                            Reprojected to Web Mercator (EPSG:3857) for web compatibility and clipped to Australian
+                            extent. Preview file (360 KB) created at 10% resolution for instant loading.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">HTML/CSS/JS application using MapLibre GL for base mapping and
+                            GeoTIFF.js for raster data loading. Custom WebGL shaders render real-time depth coloring
+                            with hillshading and environmental blending. Chart.js visualizes the sea level curve with
+                            interactive scrubbing. Includes guided tour system highlighting archaeological sites and
+                            ancient land extent.</div>
                     </div>
                     <div class="detail-section">
                         <div class="detail-label">Author</div>
