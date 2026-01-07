@@ -100,7 +100,7 @@ function displayRecording(recording) {
 
             <div class="audio-section">
                 <audio controls preload="metadata">
-                    <source src="${recording['URL']}" type="audio/mpeg">
+                    <source src="${recording['URL']}.mp3" type="audio/mpeg">
                     Your browser does not support the audio element.
                 </audio>
                 <a href="${recording['URL']}" target="_blank" class="audio-link">Open recording in new tab →</a>
@@ -128,7 +128,7 @@ function loadRandomRecording() {
 async function init() {
     try {
         // Load CSV data
-        const response = await fetch('birdsongonlinefinal2021.csv');
+        const response = await fetch('birdsongonlinefinal2021_minimised.csv');
         const text = await response.text();
         csvData = parseCSV(text);
 
