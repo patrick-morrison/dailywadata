@@ -1,12 +1,10 @@
-# Day 3 - Public Lighting Infrastructure
+# Day 10 - Abandoned Mines
 
 **Author:** Aren Leishman
 
-Streetlights of the WA area as managed by Western Power, and thus does not cover all of WA.
+Western Australia has a very mining oriented history and economy, and a critical part of a mines lifecycle is its remediation and cleanup once the extraction of the commodity is complete. Knowing the condition and status of various abandoned mine features is valuable not just from the perspective of safety and land management, but also from a historical and archaeological lens. The remains of past mining operations give insight into the history of regions and work practices throughout WA.
 
-The dataset has the ID of each streetlamp, as well as the wattage and type of bulb installed.
-
-[Download data from dataWA](https://catalogue.data.wa.gov.au/dataset/streetlights-wp-043)
+[Download data from dataWA](https://catalogue.data.wa.gov.au/dataset/abandoned-mines)
 
 **Licence:** CC BY 4.0 — [Creative Commons Attribution](https://creativecommons.org/licenses/by/4.0/)
 
