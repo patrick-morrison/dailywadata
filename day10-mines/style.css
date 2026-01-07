@@ -287,6 +287,7 @@ body {
     overflow-x: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(139, 69, 19, 0.3) transparent;
+    max-width: 400px;
 }
 
 .filter-tabs::-webkit-scrollbar {
@@ -345,6 +346,7 @@ body {
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(139, 69, 19, 0.3) transparent;
+    overflow-x: hidden;
 }
 
 .filter-panels::-webkit-scrollbar {
@@ -443,6 +445,7 @@ body {
     font-size: 0.6rem;
     color: rgba(0, 0, 0, 0.4);
     font-variant-numeric: tabular-nums;
+    padding-right: 1rem;
 }
 
 /* Active Filter Summary */

@@ -394,11 +394,11 @@ map.on('load', () => {
     loadMines();
     initializeTabNavigation();
     initializeDisplayModeSelector();
+    initializeTabScrollIndicator();
 
-    // Initialize mobile features on small screens
+    // Initialize mobile-specific features on small screens
     if (window.innerWidth <= 768) {
         initializeBottomSheetDrawer();
-        initializeTabScrollIndicator();
     }
 
     // Wire up clear filters button
