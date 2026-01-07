@@ -924,7 +924,7 @@ function updateCursorInfo(mine, lng, lat) {
     if (mine) {
         const r = formatCoordinates(lng, lat);
         const props = mine.properties;
-        const featureType = normalizeFeatureType(props.FEATURE_TY);
+        const featureType = normalizeFilterValue(props, 'feature-type');
         const siteName = props.WABMINES_N || 'Unknown';
         valueEl.textContent = `${featureType} - ${siteName}`;
         coordsEl.innerHTML = `<span class="copyable" title="Copy decimal">${r.gmaps}</span><br><span class="copyable" title="Copy DM">${r.display}</span>`;
@@ -947,7 +947,7 @@ function generatePopupContent(props, coordinates) {
     const fieldConfig = {
         'Primary Info': [
             { key: 'WABMINES_N', label: 'Site Name' },
-            { key: 'FEATURE_TY', label: 'Feature Type', transform: normalizeFeatureType },
+            { key: 'FEATURE_TY', label: 'Feature Type', transform: normalizeFilterValue },
             { key: 'SITE_TYPE', label: 'Site Type' },
             { key: 'SITE_CODE', label: 'Site Code' }
         ],
