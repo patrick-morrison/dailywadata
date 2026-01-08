@@ -10,7 +10,7 @@ const CONFIG = {
     CSV_URL: 'Trees_in_the_City.csv',
     RADAR_RADIUS: 30, // meters (Interaction/List Limit - 30m)
     VISUAL_RADIUS: 30, // meters (Rendering Limit - 30m)
-    FADE_START: 5,  // Alpha = 255 until here
+    FADE_START: 10,  // Alpha = 255 until here
     FADE_END: 30,   // Alpha = 0 by here (Invisible at outer ring)
     COLORS: {
         NORMAL: [85, 107, 85],           // Deep Sage (#556b55) - Dark on light
@@ -36,6 +36,8 @@ const state = {
     nearbyTrees: [],
     // Initialize with NULL (Waiting for location)
     userPos: null,
+    smoothedPos: null, // GPS smoothing filter
+    displayPos: null, // Interpolated display position for smooth rendering
     heading: 0,
     deckOverlay: null,
     selectedIndex: -1,
@@ -44,7 +46,9 @@ const state = {
     radarRings: [], // GeoJSON features
     seenSpecies: {}, // { speciesName: { firstSeenAt, firstTreeId, firstTreeName } }
     activeTab: 'nearby', // 'nearby' or 'collection'
-    selectedCollectionSpecies: null // speciesName selected in collection tab
+    selectedCollectionSpecies: null, // speciesName selected in collection tab
+    lastListUpdate: 0, // Timestamp of last list update (for throttling)
+    positionLoop: null // Animation loop for position interpolation
 };
 
 // ============================================
@@ -163,17 +167,13 @@ function toggleTab(tabName) {
     // Map Mode Switch
     try {
         if (isNearby) {
-            // Nearby mode: DO NOT auto-enable tracking. 
-            // User must explicitly click "Enable Location" or "Start"
-            // if (!state.isTracking) {
-            //    toggleTracking(); 
-            // }
-
-            // Show base map layer (visible in radar view)
+            // Nearby mode: Show base map layer
             if (map.getLayer('carto-positron')) {
                 map.setLayoutProperty('carto-positron', 'visibility', 'visible');
             }
-            updatePosition({ coords: { longitude: state.userPos.lng, latitude: state.userPos.lat } }); // Reset zoom/pitch
+
+            // Don't reset position - just let the interpolation loop continue
+            // The updatePositionPhysics loop handles map updates automatically
 
             // Disable interaction for pure radar feel
             map.boxZoom.disable();
@@ -188,12 +188,31 @@ function toggleTab(tabName) {
             if (map.getLayer('carto-positron')) {
                 map.setLayoutProperty('carto-positron', 'visibility', 'visible');
             }
-            map.jumpTo({
-                center: [state.userPos.lng, state.userPos.lat],
-                zoom: 13,
-                pitch: 0,
-                bearing: 0 // Lock to north
-            });
+
+            // Fit to bounds of collected species, not user location
+            const collectedTrees = state.allTrees.filter(t => isSpeciesSeen(t.name));
+            if (collectedTrees.length > 0) {
+                const lngs = collectedTrees.map(t => t.position[0]);
+                const lats = collectedTrees.map(t => t.position[1]);
+                const bounds = [
+                    [Math.min(...lngs), Math.min(...lats)],
+                    [Math.max(...lngs), Math.max(...lats)]
+                ];
+                map.fitBounds(bounds, {
+                    padding: 50,
+                    pitch: 0,
+                    bearing: 0,
+                    duration: 500
+                });
+            } else if (state.userPos) {
+                // Fallback if no species collected yet
+                map.jumpTo({
+                    center: [state.userPos.lng, state.userPos.lat],
+                    zoom: 13,
+                    pitch: 0,
+                    bearing: 0
+                });
+            }
 
             // Enable interaction for exploration
             map.boxZoom.enable();
@@ -211,7 +230,12 @@ function toggleTab(tabName) {
     // Reset selection when switching
     state.selectedCollectionSpecies = null;
     renderDeck();
-    updateUI();
+
+    // Only update UI if switching TO collection tab
+    // Nearby tab will keep its existing content (don't clear it)
+    if (!isNearby) {
+        updateCollectionList();
+    }
 }
 
 // Init Tabs
@@ -409,7 +433,8 @@ function toggleTracking() {
         document.getElementById('locate-btn').classList.add('active');
         hideLocationMessage(); // Show map (even if waiting)
 
-        hideLocationMessage(); // Show map (even if waiting)
+        // Request compass permission NOW (iOS requires user gesture)
+        requestCompassPermission();
 
         // Use startWatch for robust handling (retries, high/low accuracy)
         startWatch(true);
@@ -431,8 +456,7 @@ function startWatch(useHighAccuracy) {
     state.watchId = navigator.geolocation.watchPosition(
         (pos) => {
             updatePosition(pos);
-            // Also enable compass if available
-            enableCompass();
+            // Compass already requested in toggleTracking (needs user gesture on iOS)
         },
         (err) => {
             // Quietly handle errors - no alerts for transient issues
@@ -463,26 +487,36 @@ function startWatch(useHighAccuracy) {
     );
 }
 
-function enableCompass() {
-    if (state.compassLoop) return; // Already running
-
-    // Request Compass Permission (iOS 13+)
+// Request compass permission (must be called from user gesture on iOS)
+function requestCompassPermission() {
     if (typeof DeviceOrientationEvent !== 'undefined' &&
         typeof DeviceOrientationEvent.requestPermission === 'function') {
+        // iOS 13+ requires explicit permission
         DeviceOrientationEvent.requestPermission()
             .then(response => {
                 if (response === 'granted') {
-                    window.addEventListener('deviceorientation', handleOrientation, true);
+                    enableCompass();
                 }
             })
-            .catch(console.error);
+            .catch(err => {
+                console.warn('Compass permission denied:', err);
+            });
     } else {
-        if ('ondeviceorientationabsolute' in window) {
-            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
-        } else {
-            window.addEventListener('deviceorientation', handleOrientation, true);
-        }
+        // Android/other - enable directly
+        enableCompass();
     }
+}
+
+function enableCompass() {
+    if (state.compassLoop) return; // Already running
+
+    // Add event listeners (permission already granted or not needed)
+    if ('ondeviceorientationabsolute' in window) {
+        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    } else {
+        window.addEventListener('deviceorientation', handleOrientation, true);
+    }
+
     // Start smoothing loop
     state.compassLoop = requestAnimationFrame(updateCompassPhysics);
 }
@@ -499,6 +533,9 @@ function showEnableLocationButton() {
             <button id="enable-location-btn" class="enable-location-btn">
                 Enable Location
             </button>
+            <p style="margin-top: 20px; font-size: 0.75rem; color: #6b7b6b;">
+                Patrick Morrison 2026. <a href="../sources.html" style="color: #4a5d4a; text-decoration: underline; text-underline-offset: 2px;">Methods →</a>
+            </p>
         </div>
     `;
     // Attach click handler
@@ -531,7 +568,9 @@ function showLocationMessage() {
 
 function hideLocationMessage() {
     enableRadar();
-    // Will be repopulated by updateUI()
+    // Clear the intro message immediately
+    const list = document.getElementById('tree-list');
+    list.innerHTML = '<div class="empty-state">Waiting for GPS...</div>';
 }
 
 function handleOrientation(e) {
@@ -583,20 +622,84 @@ function updateCompassPhysics() {
     }
 }
 
+// Smoothly interpolate display position toward target position
+function updatePositionPhysics() {
+    if (state.userPos && state.displayPos && state.isTracking) {
+        // Lerp display position toward user position
+        const lerpFactor = 0.15; // Smooth interpolation speed
+        state.displayPos = {
+            lng: state.displayPos.lng + lerpFactor * (state.userPos.lng - state.displayPos.lng),
+            lat: state.displayPos.lat + lerpFactor * (state.userPos.lat - state.displayPos.lat)
+        };
+
+        // Update map in nearby mode only
+        if (state.activeTab === 'nearby') {
+            const newZoom = calculateOptimalZoom(state.displayPos.lat);
+            map.jumpTo({
+                center: [state.displayPos.lng, state.displayPos.lat],
+                zoom: newZoom,
+                pitch: CONFIG.LOCKED_PITCH
+            });
+        }
+
+        // Update radar rings with display position
+        state.radarRings = generateRadarRings(state.displayPos);
+        renderDeck();
+    }
+
+    // Continue loop if tracking
+    if (state.isTracking) {
+        state.positionLoop = requestAnimationFrame(updatePositionPhysics);
+    }
+}
+
 function updatePosition(pos) {
-    state.userPos = {
-        lng: pos.coords.longitude,
-        lat: pos.coords.latitude
+    // TEMPORARY OFFSET FOR TESTING
+    // Shifts your location to Perth CBD where the trees are
+    const LAT_OFFSET = 0.07546385012283;  // -31.9583206 - (-32.03378445012283)
+    const LNG_OFFSET = 0.04959651696883;  // 115.8470700 - 115.79747348303117
+
+    console.log('RAW GPS:', pos.coords.latitude, pos.coords.longitude);
+
+    const rawPos = {
+        lng: pos.coords.longitude + LNG_OFFSET,
+        lat: pos.coords.latitude + LAT_OFFSET
     };
 
-    // Dynamic Zoom update on position change
-    const newZoom = calculateOptimalZoom(state.userPos.lat);
+    console.log('OFFSET GPS:', rawPos.lat, rawPos.lng);
 
-    map.jumpTo({
-        center: [state.userPos.lng, state.userPos.lat],
-        zoom: newZoom,
-        pitch: CONFIG.LOCKED_PITCH
-    });
+    // GPS Smoothing: Exponential moving average for less jitter
+    // Alpha = 0.5 balances smoothness with responsiveness (very responsive but smooth)
+    if (!state.smoothedPos) {
+        // First position - initialize everything
+        state.smoothedPos = rawPos;
+        state.userPos = state.smoothedPos;
+        state.displayPos = { ...state.userPos }; // Start display at same position
+
+        // First position - use jumpTo
+        const newZoom = calculateOptimalZoom(state.userPos.lat);
+        map.jumpTo({
+            center: [state.userPos.lng, state.userPos.lat],
+            zoom: newZoom,
+            pitch: CONFIG.LOCKED_PITCH
+        });
+
+        // Start interpolation loop
+        if (!state.positionLoop) {
+            state.positionLoop = requestAnimationFrame(updatePositionPhysics);
+        }
+    } else {
+        // Smooth using exponential moving average
+        const alpha = 0.5; // 50/50 blend: responsive but filters high-frequency GPS noise
+        state.smoothedPos = {
+            lng: state.smoothedPos.lng + alpha * (rawPos.lng - state.smoothedPos.lng),
+            lat: state.smoothedPos.lat + alpha * (rawPos.lat - state.smoothedPos.lat)
+        };
+        state.userPos = state.smoothedPos;
+        // displayPos will be interpolated by updatePositionPhysics loop
+    }
+
+    console.log('FINAL POS:', state.userPos.lat, state.userPos.lng);
 
     updateRadar();
 }
@@ -890,15 +993,19 @@ function renderDeck() {
 // ============================================
 
 function updateUI() {
-    const listTrees = state.nearbyTrees.filter(t => t.distance <= CONFIG.RADAR_RADIUS);
+    // Throttle list updates to every 3 seconds to give users time to interact
+    const now = Date.now();
+    const LIST_UPDATE_INTERVAL = 3000; // 3 seconds
 
+    // Always update count immediately
+    const listTrees = state.nearbyTrees.filter(t => t.distance <= CONFIG.RADAR_RADIUS);
     document.getElementById('radar-count').textContent = listTrees.length;
 
     const list = document.getElementById('tree-list');
-    list.innerHTML = '';
 
     // If not tracking (or waiting for location for the first time), show enable button
     if (!state.isTracking && !state.userPos) {
+        list.innerHTML = '';
         showEnableLocationButton();
         return;
     }
@@ -931,18 +1038,50 @@ function updateUI() {
         return;
     }
 
-    listTrees.forEach(tree => {
-        const item = document.createElement('div');
+    // Throttle list DOM updates (but not count updates above)
+    if (now - state.lastListUpdate < LIST_UPDATE_INTERVAL) {
+        return; // Skip this update, too soon
+    }
+    state.lastListUpdate = now;
+
+    // Smart update: only modify items that changed, preserve existing items to avoid flicker
+    const currentIds = Array.from(list.querySelectorAll('.tree-item')).map(el => el.id);
+    const newIds = listTrees.map(t => `tree-${t.id}`);
+
+    // Remove items no longer in range
+    currentIds.forEach(id => {
+        if (!newIds.includes(id)) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => el.remove(), 200);
+            }
+        }
+    });
+
+    // Update or create items in correct order
+    listTrees.forEach((tree, index) => {
+        const itemId = `tree-${tree.id}`;
+        let item = document.getElementById(itemId);
+        const isNew = !item;
+
+        if (isNew) {
+            item = document.createElement('div');
+            item.className = 'tree-item';
+            item.id = itemId;
+            item.style.opacity = '0';
+        }
+
+        // Update class and click handler
         item.className = `tree-item ${tree.id === state.selectedIndex ? 'selected' : ''}`;
-        item.id = `tree-${tree.id}`;
         item.onclick = () => selectTree(tree.id);
 
+        // Build content
         let metaHtml = '';
         if (tree.botanical) metaHtml += `<span class="botanical">${tree.botanical}</span>`;
         if (tree.height) metaHtml += `<span>${tree.height}m</span>`;
         if (tree.age) metaHtml += `<span>${tree.age} yrs</span>`;
 
-        // Add badge for special trees
         let badgeHtml = '';
         if (tree.isRare) {
             badgeHtml = '<span class="tree-badge rare" title="Rare Species">RARE</span>';
@@ -954,7 +1093,6 @@ function updateUI() {
             badgeHtml = '<span class="tree-badge significant-group" title="Significant Group">GROUP</span>';
         }
 
-        // Plus button - only show if species not yet seen
         const speciesSeen = isSpeciesSeen(tree.name);
         const escapedName = tree.name.replace(/'/g, "\\'");
         const escapedBotanical = (tree.botanical || '').replace(/'/g, "\\'");
@@ -962,6 +1100,7 @@ function updateUI() {
             `<button class="collect-btn collected" disabled>✓</button>` :
             `<button class="collect-btn" onclick="event.stopPropagation(); markSpeciesSeen('${escapedName}', {id: ${tree.id}, name: '${escapedName}', botanical: '${escapedBotanical}'})">+</button>`;
 
+        // Update innerHTML
         item.innerHTML = `
             <div class="tree-info">
                 <h3>${tree.name} ${badgeHtml}</h3>
@@ -972,8 +1111,47 @@ function updateUI() {
                 ${plusBtnHtml}
             </div>
         `;
-        list.appendChild(item);
+
+        // Insert in correct position (ordered by distance)
+        if (isNew) {
+            // Find correct position and insert
+            const children = Array.from(list.children);
+            let insertBefore = null;
+            for (let i = 0; i < children.length; i++) {
+                const childId = children[i].id;
+                const childIndex = newIds.indexOf(childId);
+                if (childIndex > index) {
+                    insertBefore = children[i];
+                    break;
+                }
+            }
+            if (insertBefore) {
+                list.insertBefore(item, insertBefore);
+            } else {
+                list.appendChild(item);
+            }
+            // Fade in new items
+            requestAnimationFrame(() => {
+                item.style.opacity = '1';
+            });
+        } else {
+            // Existing item - ensure it's in correct position
+            const children = Array.from(list.children);
+            const currentIndex = children.indexOf(item);
+            let targetIndex = 0;
+            for (let i = 0; i < index; i++) {
+                if (children.includes(document.getElementById(newIds[i]))) {
+                    targetIndex++;
+                }
+            }
+            if (currentIndex !== targetIndex && children[targetIndex] !== item) {
+                list.insertBefore(item, children[targetIndex]);
+            }
+        }
     });
+
+    // Restore scroll position
+    list.scrollTop = currentScroll;
 
     // Update Collection UI if on that tab
     if (state.activeTab === 'collection') {
@@ -1080,6 +1258,16 @@ function selectTree(id) {
     if (!id) return;
     state.selectedIndex = id;
     renderDeck();
+
+    // Force immediate visual update in list - bypass throttle for selection changes
+    const listItems = document.querySelectorAll('.tree-item');
+    listItems.forEach(item => {
+        if (item.id === `tree-${id}`) {
+            item.classList.add('selected');
+        } else {
+            item.classList.remove('selected');
+        }
+    });
     updateUI();
     const el = document.getElementById(`tree-${id}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });

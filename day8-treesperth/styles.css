@@ -314,7 +314,7 @@ body {
     margin-bottom: 1px;
     background: rgba(30, 35, 30, 0.5);
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s, opacity 0.2s ease-out, transform 0.2s ease-out;
     gap: 16px;
 }
 
@@ -340,7 +340,9 @@ body {
     font-size: 0.85rem;
     color: #8b9b8b;
     display: flex;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    align-items: baseline;
 }
 
 .tree-meta span.botanical {
