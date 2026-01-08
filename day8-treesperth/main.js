@@ -8,22 +8,20 @@
 
 const CONFIG = {
     CSV_URL: 'Trees_in_the_City.csv',
-    RADAR_RADIUS: 30, // meters (Interaction/List Limit - 30m)
-    VISUAL_RADIUS: 30, // meters (Rendering Limit - 30m)
-    FADE_START: 10,  // Alpha = 255 until here
-    FADE_END: 30,   // Alpha = 0 by here (Invisible at outer ring)
+    RADAR_RADIUS: 30,
+    VISUAL_RADIUS: 30,
+    FADE_START: 10,
+    FADE_END: 30,
     COLORS: {
-        NORMAL: [85, 107, 85],           // Deep Sage (#556b55) - Dark on light
-        RARE: [218, 165, 32],            // Goldenrod - rare species
-        HISTORIC: [70, 130, 180],        // Steel Blue - historic significance
-        COMMUNITY: [100, 149, 237],      // Cornflower Blue - community significance
-        SIGNIFICANT_GROUP: [65, 105, 225], // Royal Blue - significant group
-        SELECTED: [50, 200, 50],         // Vibrant Lime Green - highly visible
-        RINGS: [0, 0, 0, 0],             // Transparent Fill
-        RING_STROKE: [74, 93, 74, 80]    // Visible dark rings (increased opacity from 25)
+        NORMAL: [85, 107, 85],
+        RARE: [218, 165, 32],
+        HISTORIC: [70, 130, 180],
+        COMMUNITY: [100, 149, 237],
+        SIGNIFICANT_GROUP: [65, 105, 225],
+        SELECTED: [50, 200, 50],
+        RINGS: [0, 0, 0, 0],
+        RING_STROKE: [74, 93, 74, 80]
     },
-    // Locked Pitch - REMOVED (Allow user to tilt? Or keep locked 0)
-    // Actually keep 0 for pure radar feel
     LOCKED_PITCH: 0
 };
 
@@ -34,21 +32,22 @@ const CONFIG = {
 const state = {
     allTrees: [],
     nearbyTrees: [],
-    // Initialize with NULL (Waiting for location)
     userPos: null,
-    smoothedPos: null, // GPS smoothing filter
-    displayPos: null, // Interpolated display position for smooth rendering
+    smoothedPos: null,
+    displayPos: null,
     heading: 0,
     deckOverlay: null,
     selectedIndex: -1,
     watchId: null,
     isTracking: false,
-    radarRings: [], // GeoJSON features
-    seenSpecies: {}, // { speciesName: { firstSeenAt, firstTreeId, firstTreeName } }
-    activeTab: 'nearby', // 'nearby' or 'collection'
-    selectedCollectionSpecies: null, // speciesName selected in collection tab
-    lastListUpdate: 0, // Timestamp of last list update (for throttling)
-    positionLoop: null // Animation loop for position interpolation
+    radarRings: [],
+    seenSpecies: {},
+    activeTab: 'nearby',
+    selectedCollectionSpecies: null,
+    lastListUpdate: 0,
+    positionLoop: null,
+    lastPositionTime: null,
+    watchdogTimer: null
 };
 
 // ============================================
@@ -86,7 +85,7 @@ function getBearing(lat1, lon1, lat2, lon2) {
         Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
 
     const θ = Math.atan2(y, x);
-    return (θ * 180 / Math.PI + 360) % 360; // Degrees 0-360
+    return (θ * 180 / Math.PI + 360) % 360;
 }
 
 function findNearestTree(lat, lng) {
@@ -154,34 +153,24 @@ function markSpeciesSeen(speciesName, tree) {
 function toggleTab(tabName) {
     state.activeTab = tabName;
 
-    // Update Tab UI
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tabName);
     });
 
-    // Set data-tab on body for CSS control (e.g., wedge visibility)
     document.body.setAttribute('data-tab', tabName);
 
-    // Update Content Visibility
     const isNearby = tabName === 'nearby';
     document.getElementById('tree-list').style.display = isNearby ? 'block' : 'none';
     document.getElementById('collection-list').style.display = isNearby ? 'none' : 'block';
-    // Keep progress bar visible in both views
     document.getElementById('progress-container').style.display = 'block';
     document.querySelector('.radar-status').style.display = isNearby ? 'block' : 'none';
 
-    // Map Mode Switch
     try {
         if (isNearby) {
-            // Nearby mode: Show base map layer
             if (map.getLayer('carto-positron')) {
                 map.setLayoutProperty('carto-positron', 'visibility', 'visible');
             }
 
-            // Don't reset position - just let the interpolation loop continue
-            // The updatePositionPhysics loop handles map updates automatically
-
-            // Disable interaction for pure radar feel
             map.boxZoom.disable();
             map.doubleClickZoom.disable();
             map.dragPan.disable();
@@ -190,12 +179,10 @@ function toggleTab(tabName) {
             map.scrollZoom.disable();
             map.touchZoomRotate.disable();
         } else {
-            // Collection Map Mode
             if (map.getLayer('carto-positron')) {
                 map.setLayoutProperty('carto-positron', 'visibility', 'visible');
             }
 
-            // Fit to bounds of collected species, not user location
             const collectedTrees = state.allTrees.filter(t => isSpeciesSeen(t.name));
             if (collectedTrees.length > 0) {
                 const lngs = collectedTrees.map(t => t.position[0]);
@@ -211,7 +198,6 @@ function toggleTab(tabName) {
                     duration: 500
                 });
             } else if (state.userPos) {
-                // Fallback if no species collected yet
                 map.jumpTo({
                     center: [state.userPos.lng, state.userPos.lat],
                     zoom: 13,
@@ -220,7 +206,6 @@ function toggleTab(tabName) {
                 });
             }
 
-            // Enable interaction for exploration
             map.boxZoom.enable();
             map.doubleClickZoom.enable();
             map.dragPan.enable();
@@ -233,18 +218,14 @@ function toggleTab(tabName) {
         console.warn("Map interaction error:", e);
     }
 
-    // Reset selection when switching
     state.selectedCollectionSpecies = null;
     renderDeck();
 
-    // Only update UI if switching TO collection tab
-    // Nearby tab will keep its existing content (don't clear it)
     if (!isNearby) {
         updateCollectionList();
     }
 }
 
-// Init Tabs
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => toggleTab(btn.dataset.tab));
 });
@@ -287,9 +268,8 @@ function calculateOptimalZoom(lat) {
 // Map Initialization
 // ============================================
 
-// Initial zoom based on Perth CBD Default
 const initialZoom = 13;
-const defaultCenter = [115.8605, -31.9505]; // Perth CBD
+const defaultCenter = [115.8605, -31.9505];
 
 const map = new maplibregl.Map({
     container: 'map',
@@ -311,8 +291,8 @@ const map = new maplibregl.Map({
                 id: 'carto-positron',
                 type: 'raster',
                 source: 'carto',
-                layout: { visibility: 'visible' }, // Visible to show map background
-                paint: { 'raster-opacity': 0.8 } // Increased opacity for better visibility
+                layout: { visibility: 'visible' },
+                paint: { 'raster-opacity': 0.8 }
             }
         ]
     },
@@ -323,7 +303,6 @@ const map = new maplibregl.Map({
     interactive: false
 });
 
-// Handle resize to keep fit
 map.on('resize', () => {
     if (state.userPos) {
         const newZoom = calculateOptimalZoom(state.userPos.lat);
@@ -331,14 +310,12 @@ map.on('resize', () => {
     }
 });
 
-// Force update on load to ensure container dim is correct
 map.on('load', () => {
     if (state.userPos) {
         const newZoom = calculateOptimalZoom(state.userPos.lat);
         map.jumpTo({ zoom: newZoom });
     }
 
-    // Default to location OFF - show enable button
     setTimeout(() => {
         showEnableLocationButton();
         if (!state.userPos) greyOutRadar();
@@ -412,10 +389,17 @@ document.getElementById('locate-btn').addEventListener('click', toggleTracking);
 
 function toggleTracking() {
     if (state.isTracking) {
-        // Stop tracking
         if (state.watchId) {
             navigator.geolocation.clearWatch(state.watchId);
             state.watchId = null;
+        }
+        if (state.watchdogTimer) {
+            clearInterval(state.watchdogTimer);
+            state.watchdogTimer = null;
+        }
+        if (state.positionLoop) {
+            cancelAnimationFrame(state.positionLoop);
+            state.positionLoop = null;
         }
         window.removeEventListener('deviceorientation', handleOrientation);
         window.removeEventListener('deviceorientationabsolute', handleOrientation);
@@ -423,13 +407,17 @@ function toggleTracking() {
             cancelAnimationFrame(state.compassLoop);
             state.compassLoop = null;
         }
+
         state.isTracking = false;
         state.targetHeading = undefined;
         state.currentHeading = undefined;
+        state.smoothedPos = null;
+        state.displayPos = null;
+        state.lastPositionTime = null;
+
         document.getElementById('locate-btn').classList.remove('active');
         showLocationMessage();
     } else {
-        // Start tracking
         if (!navigator.geolocation) {
             alert("Geolocation is not supported by your browser");
             return;
@@ -437,20 +425,14 @@ function toggleTracking() {
 
         state.isTracking = true;
         document.getElementById('locate-btn').classList.add('active');
-        hideLocationMessage(); // Show map (even if waiting)
+        hideLocationMessage();
 
-        // Request compass permission NOW (iOS requires user gesture)
         requestCompassPermission();
-
-        // Use startWatch for robust handling (retries, high/low accuracy)
         startWatch(true);
-
-        console.log("Tracking started (Requesting GPS)");
     }
 }
 
 function startWatch(useHighAccuracy) {
-    // Clear existing if any (prevent duplicates on retry)
     if (state.watchId) navigator.geolocation.clearWatch(state.watchId);
 
     const options = {
@@ -462,42 +444,49 @@ function startWatch(useHighAccuracy) {
     state.watchId = navigator.geolocation.watchPosition(
         (pos) => {
             updatePosition(pos);
-            // Compass already requested in toggleTracking (needs user gesture on iOS)
         },
         (err) => {
-            // Quietly handle errors - no alerts for transient issues
-
-            // Code 1: Permission Denied - Fatal
             if (err.code === 1) {
-                console.warn("Location error (Fatal): Permission denied.");
                 alert("Location permission denied. Please enable it in settings.");
-                toggleTracking(); // Stop tracking cleanly
+                toggleTracking();
                 return;
             }
 
-            // Code 2 (Unavailable) & 3 (Timeout): Transient
-            // Only log as debug/info to avoid "freaking out" the console/user
-            // console.debug(`Location error (${useHighAccuracy ? 'High' : 'Low'} Accuracy):`, err.message);
-
-            // If using High Accuracy and failing, fallback to Low Accuracy
             if ((err.code === 2 || err.code === 3) && useHighAccuracy) {
-                console.log("Falling back to low accuracy...");
                 startWatch(false);
                 return;
             }
-
-            // If already on low accuracy, just keep waiting. The browser will retry.
-            // Do NOT stop tracking.
         },
         options
     );
+
+    startLocationWatchdog();
 }
 
-// Request compass permission (must be called from user gesture on iOS)
+function startLocationWatchdog() {
+    if (state.watchdogTimer) {
+        clearInterval(state.watchdogTimer);
+    }
+
+    state.watchdogTimer = setInterval(() => {
+        if (!state.isTracking) {
+            clearInterval(state.watchdogTimer);
+            state.watchdogTimer = null;
+            return;
+        }
+
+        const now = Date.now();
+        const timeSinceLastPosition = state.lastPositionTime ? now - state.lastPositionTime : Infinity;
+
+        if (timeSinceLastPosition > 15000 && state.lastPositionTime) {
+            startWatch(true);
+        }
+    }, 15000);
+}
+
 function requestCompassPermission() {
     if (typeof DeviceOrientationEvent !== 'undefined' &&
         typeof DeviceOrientationEvent.requestPermission === 'function') {
-        // iOS 13+ requires explicit permission
         DeviceOrientationEvent.requestPermission()
             .then(response => {
                 if (response === 'granted') {
@@ -508,22 +497,19 @@ function requestCompassPermission() {
                 console.warn('Compass permission denied:', err);
             });
     } else {
-        // Android/other - enable directly
         enableCompass();
     }
 }
 
 function enableCompass() {
-    if (state.compassLoop) return; // Already running
+    if (state.compassLoop) return;
 
-    // Add event listeners (permission already granted or not needed)
     if ('ondeviceorientationabsolute' in window) {
         window.addEventListener('deviceorientationabsolute', handleOrientation, true);
     } else {
         window.addEventListener('deviceorientation', handleOrientation, true);
     }
 
-    // Start smoothing loop
     state.compassLoop = requestAnimationFrame(updateCompassPhysics);
 }
 
@@ -574,7 +560,6 @@ function showLocationMessage() {
 
 function hideLocationMessage() {
     enableRadar();
-    // Clear the intro message immediately
     const list = document.getElementById('tree-list');
     list.innerHTML = '<div class="empty-state"><div style="margin-bottom:8px">Waiting for GPS</div><div style="font-size:0.85em;color:#8b9b8b">Are you outside?</div></div>';
 }
@@ -583,13 +568,10 @@ function handleOrientation(e) {
     let heading = null;
 
     if (e.webkitCompassHeading) {
-        // iOS
         heading = e.webkitCompassHeading;
     } else if (e.absolute && e.alpha !== null) {
-        // Android (Absolute North)
         heading = 360 - e.alpha;
     } else if (e.alpha !== null) {
-        // Fallback (Relative)
         heading = 360 - e.alpha;
     }
 
@@ -598,47 +580,36 @@ function handleOrientation(e) {
     }
 }
 
-// Smoothly interpolate current heading to target
 function updateCompassPhysics() {
     if (state.targetHeading !== undefined && state.isTracking) {
-        // Initialize if needed
         if (state.currentHeading === undefined) {
             state.currentHeading = state.targetHeading;
         }
 
-        // Handle the 359->0 wrap-around
         let diff = state.targetHeading - state.currentHeading;
         while (diff < -180) diff += 360;
         while (diff > 180) diff -= 360;
 
-        // Lerp factor (0.1 = heavy/smooth, 0.3 = responsive)
-        // "Like compass app" implies some weight. Try 0.15
         state.currentHeading += diff * 0.15;
 
-        // Only rotate map in "nearby" tab (proximity collecting screen)
-        // Keep collection map north-up for easier browsing
         if (state.activeTab === 'nearby') {
             map.setBearing(state.currentHeading);
         }
     }
 
-    // Continue loop if tracking is active
     if (state.isTracking) {
         state.compassLoop = requestAnimationFrame(updateCompassPhysics);
     }
 }
 
-// Smoothly interpolate display position toward target position
 function updatePositionPhysics() {
     if (state.userPos && state.displayPos && state.isTracking) {
-        // Lerp display position toward user position
-        const lerpFactor = 0.15; // Smooth interpolation speed
+        const lerpFactor = 0.15;
         state.displayPos = {
             lng: state.displayPos.lng + lerpFactor * (state.userPos.lng - state.displayPos.lng),
             lat: state.displayPos.lat + lerpFactor * (state.userPos.lat - state.displayPos.lat)
         };
 
-        // Update map in nearby mode only
         if (state.activeTab === 'nearby') {
             const newZoom = calculateOptimalZoom(state.displayPos.lat);
             map.jumpTo({
@@ -648,40 +619,29 @@ function updatePositionPhysics() {
             });
         }
 
-        // Update radar rings with display position
         state.radarRings = generateRadarRings(state.displayPos);
         renderDeck();
     }
 
-    // Continue loop if tracking
     if (state.isTracking) {
         state.positionLoop = requestAnimationFrame(updatePositionPhysics);
     }
 }
 
 function updatePosition(pos) {
-    // GPS offset (set to 0 for production)
-    const LAT_OFFSET = 0;
-    const LNG_OFFSET = 0;
-
-    console.log('RAW GPS:', pos.coords.latitude, pos.coords.longitude);
-
     const rawPos = {
-        lng: pos.coords.longitude + LNG_OFFSET,
-        lat: pos.coords.latitude + LAT_OFFSET
+        lng: pos.coords.longitude,
+        lat: pos.coords.latitude
     };
 
-    console.log('OFFSET GPS:', rawPos.lat, rawPos.lng);
+    const isFirstPosition = !state.smoothedPos;
+    state.lastPositionTime = Date.now();
 
-    // GPS Smoothing: Exponential moving average for less jitter
-    // Alpha = 0.5 balances smoothness with responsiveness (very responsive but smooth)
-    if (!state.smoothedPos) {
-        // First position - initialize everything
+    if (isFirstPosition) {
         state.smoothedPos = rawPos;
         state.userPos = state.smoothedPos;
-        state.displayPos = { ...state.userPos }; // Start display at same position
+        state.displayPos = { ...state.userPos };
 
-        // First position - use jumpTo
         const newZoom = calculateOptimalZoom(state.userPos.lat);
         map.jumpTo({
             center: [state.userPos.lng, state.userPos.lat],
@@ -689,35 +649,25 @@ function updatePosition(pos) {
             pitch: CONFIG.LOCKED_PITCH
         });
 
-        // Start interpolation loop
         if (!state.positionLoop) {
             state.positionLoop = requestAnimationFrame(updatePositionPhysics);
         }
+
+        state.lastListUpdate = 0;
     } else {
-        // Smooth using exponential moving average
-        const alpha = 0.5; // 50/50 blend: responsive but filters high-frequency GPS noise
+        const alpha = 0.5;
         state.smoothedPos = {
             lng: state.smoothedPos.lng + alpha * (rawPos.lng - state.smoothedPos.lng),
             lat: state.smoothedPos.lat + alpha * (rawPos.lat - state.smoothedPos.lat)
         };
         state.userPos = state.smoothedPos;
-        // displayPos will be interpolated by updatePositionPhysics loop
     }
-
-    console.log('FINAL POS:', state.userPos.lat, state.userPos.lng);
 
     updateRadar();
 }
 
-// Used for rings
 function getDestinationPoint(lng, lat, distanceMeters, bearing) {
-    // Simple spherical approximation is enough for short distances (<100m)
-    // but Turf is cleaner if available. Assuming turf.min.js handles this via turf.destination
-    // fallback to manual calculation if needed to stay dependency-light?
-    // Let's rely on turf since we use turf.circle
-
     const point = turf.point([lng, lat]);
-    const dest = turf.destination(point, distanceMeters / 1000, 0, { units: 'kilometers' }); // Hacky: re-calc below properly
     return turf.destination(point, distanceMeters, bearing, { units: 'meters' }).geometry.coordinates;
 }
 
@@ -725,8 +675,6 @@ function generateRadarRings(center) {
     if (!center) return [];
 
     const features = [];
-
-    // 1. Concentric Circles: 10m, 20m, 30m
     const radii = [10, 20, 30];
     radii.forEach(r => {
         features.push(turf.circle([center.lng, center.lat], r, {
@@ -735,8 +683,6 @@ function generateRadarRings(center) {
             properties: { type: 'ring', radius: r }
         }));
     });
-
-    // Crosshairs removed - keeping only circles for cleaner view
 
     return features;
 }
@@ -839,14 +785,15 @@ function renderDeck() {
             getLineWidth: 0.5,
             lineWidthMinPixels: 0.5,
             pickable: true,
+            pickingRadius: 10,
             onClick: info => {
                 if (info.object && info.object.distance <= CONFIG.RADAR_RADIUS) {
                     selectTree(info.object.id);
                 }
             },
             updateTriggers: {
-                getFillColor: [state.selectedIndex], // Corrected syntax
-                getRadius: [state.selectedIndex]     // Corrected syntax
+                getFillColor: [state.selectedIndex],
+                getRadius: [state.selectedIndex]
             }
         }),
 
@@ -911,8 +858,7 @@ function renderDeck() {
         new deck.ScatterplotLayer({
             id: 'collection-my-trees',
             data: Object.values(state.seenSpecies).map(seen => {
-                // Hydrate with full tree data found by ID
-                return state.allTrees.find(t => t.id === seen.firstTreeId);
+                return state.allTrees.find(t => t.id === seen.treeId);
             }).filter(Boolean),
             visible: state.activeTab === 'collection',
             getPosition: d => d.position,
@@ -928,7 +874,7 @@ function renderDeck() {
             stroked: true,
             getLineColor: [255, 255, 255, 150],
             getLineWidth: 1,
-            pickable: false,
+            pickable: true,
             getElevation: d => {
                 // Selected species should render on top
                 if (d.name === state.selectedCollectionSpecies) {
@@ -945,18 +891,14 @@ function renderDeck() {
             }
         }),
 
-        // Labels
         new deck.TextLayer({
             id: 'trees-text-common',
             data: state.nearbyTrees,
-            visible: false, // Labels hidden
+            visible: false,
             getPosition: d => d.position,
             getText: d => d.name,
             getSize: 13,
-            getColor: d => {
-                // Labels always fully opaque - no fading
-                return [26, 26, 26, 255];
-            },
+            getColor: [26, 26, 26, 255],
             getPixelOffset: [0, -18],
             fontFamily: 'Roboto',
             fontWeight: 700,
@@ -966,19 +908,17 @@ function renderDeck() {
             background: false,
             extensions: [new deck.CollisionFilterExtension()],
             collisionEnabled: true,
-            getCollisionPriority: d => -d.distance, // Closer trees get priority
+            getCollisionPriority: d => -d.distance,
             collisionTestProps: {
-                sizeScale: 1.2, // Smaller test box = more labels can fit (was default 2)
+                sizeScale: 1.2,
                 sizeMinPixels: 0,
                 sizeMaxPixels: 100
             },
             collisionGroup: 'trees',
-            // Stabilize labels during rotation - only update when data changes
             updateTriggers: {
                 getPosition: [state.nearbyTrees.length],
                 getText: [state.nearbyTrees.length]
             },
-            // GPU acceleration for smooth rendering
             parameters: {
                 depthTest: false
             }
@@ -1018,7 +958,6 @@ function updateUI() {
     if (listTrees.length === 0) {
         let msg = "No trees found within 30m.";
 
-        // Find nearest tree if we have user position
         if (state.userPos && state.allTrees.length > 0) {
             const nearest = findNearestTree(state.userPos.lat, state.userPos.lng);
             if (nearest && nearest.tree) {
@@ -1039,15 +978,29 @@ function updateUI() {
             }
         }
 
+        // Remove all existing tree items before showing empty state
+        list.querySelectorAll('.tree-item').forEach(item => item.remove());
         list.innerHTML = `<div class="empty-state">${msg}</div>`;
         return;
     }
 
-    // Throttle list DOM updates (but not count updates above)
-    if (now - state.lastListUpdate < LIST_UPDATE_INTERVAL) {
-        return; // Skip this update, too soon
+    const emptyState = list.querySelector('.empty-state');
+    if (emptyState) {
+        emptyState.remove();
+    }
+
+    // Check if list is currently populated with tree items
+    const hasTreeItems = list.querySelectorAll('.tree-item').length > 0;
+
+    // Only apply throttle if list already has items (to prevent flicker during updates)
+    // Always allow update when transitioning from empty to populated state
+    if (hasTreeItems && now - state.lastListUpdate < LIST_UPDATE_INTERVAL) {
+        return;
     }
     state.lastListUpdate = now;
+
+    // Preserve scroll position
+    const currentScroll = list.scrollTop;
 
     // Smart update: only modify items that changed, preserve existing items to avoid flicker
     const currentIds = Array.from(list.querySelectorAll('.tree-item')).map(el => el.id);
@@ -1380,6 +1333,10 @@ setTimeout(() => {
             }
             saveSeenSpecies();
             updateCollectionList();
+            renderDeck();
+            // Force immediate UI update to refresh checkmarks - bypass throttle
+            state.lastListUpdate = 0;
+            updateUI();
             closeLoadModal();
             alert(`Added ${added} species!`);
         };
@@ -1402,6 +1359,9 @@ setTimeout(() => {
             saveSeenSpecies();
             updateCollectionList();
             renderDeck();
+            // Force immediate UI update to refresh checkmarks - bypass throttle
+            state.lastListUpdate = 0;
+            updateUI();
             closeLoadModal();
             alert(`Loaded ${lines.length} species!`);
         };

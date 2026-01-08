@@ -10,6 +10,12 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+html {
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+}
+
 /* Collection Tooltip */
 .collection-tooltip {
     position: absolute;
