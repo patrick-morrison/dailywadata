@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trees Perth — Radar</title>
+
+    <!-- Dependencies -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/deck.gl@9.0.16/dist.min.js"></script>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
+    <!-- Fonts: Roboto (Material) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,400;0,500;0,700;1,400&display=swap"
+        rel="stylesheet">
+
+    <link rel="stylesheet" href="styles.css?v=20">
+</head>
+
+<body>
+    <!-- Desktop Blocker -->
+    <div id="desktop-blocker">
+        <h1>Touch grass!</h1>
+        <p>Please use on a smaller screen.<br>This is designed for walking around on your phone.<br>Ideally, not in
+            front of traffic.</p>
+        <a href="../index.html" style="margin-top: 2rem; color: #8b8b80; text-decoration: none; font-size: 0.9rem;">←
+            Back to calendar</a>
+    </div>
+
+    <!-- App Container -->
+    <div id="app">
+        <!-- Map -->
+        <div id="map"></div>
+
+        <!-- UI Overlay -->
+        <div class="ui-layer">
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <a href="../index.html" class="back-btn">←</a>
+                <div class="radar-status">
+                    <span id="radar-count">0</span> trees nearby
+                </div>
+                <button id="locate-btn" class="icon-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+                        <circle cx="12" cy="12" r="3" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="attribution">
+                Data: <a href="https://catalogue.data.wa.gov.au/dataset/perth-trees-in-the-city" target="_blank">City of
+                    Perth</a> | Patrick Morrison 2026 | <a href="../sources.html" target="_blank">Methods</a>
+            </div>
+
+            <!-- Collection Tooltip -->
+            <div id="collection-tooltip" class="collection-tooltip" style="display: none;"></div>
+
+            <!-- Save Progress Modal -->
+            <div id="save-modal" class="modal-overlay" style="display: none;">
+                <div class="modal-content">
+                    <h2>Save Progress</h2>
+                    <p style="margin-bottom: 20px; color: #8b9b8b; font-size: 0.9rem; line-height: 1.5;">
+                        This will download a backup file of your collected species with timestamps.
+                        You can load this backup later to restore your progress.
+                    </p>
+                    <button id="download-btn" class="modal-btn">Download Backup</button>
+                    <button id="save-cancel-btn" class="modal-btn secondary">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Load Progress Modal -->
+            <div id="load-modal" class="modal-overlay" style="display: none;">
+                <div class="modal-content">
+                    <h2>Load Backup</h2>
+                    <input type="file" id="file-input" class="file-input-large" accept=".txt">
+                    <div id="file-actions" style="display: none;">
+                        <p style="margin-bottom: 20px; color: #8b9b8b; font-size: 0.9rem;">
+                            Choose how to apply this backup:
+                        </p>
+                        <button id="update-btn" class="modal-btn">Update (Merge)</button>
+                        <button id="overwrite-btn" class="modal-btn">Overwrite (Replace All)</button>
+                    </div>
+                    <button id="clear-btn" class="modal-btn danger" style="margin-top: 20px;">Clear All
+                        Progress</button>
+                    <button id="cancel-btn" class="modal-btn secondary">Cancel</button>
+                </div>
+            </div>
+
+            <!-- Bottom Shelf -->
+            <div class="shelf-container">
+                <!-- Progress Bar (Above Tabs) -->
+                <div id="progress-container" class="progress-bar-container">
+                    <div class="progress-info">
+                        <span id="progress-text">0 / 0 Species</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Tab Bar -->
+                <div class="tab-bar">
+                    <button class="tab-btn active" data-tab="nearby">Nearby</button>
+                    <button class="tab-btn" data-tab="collection">My Species</button>
+                </div>
+
+                <div class="shelf-scroll" id="tree-list">
+                    <!-- Items injected here -->
+                    <div class="empty-state">
+                        Move around to scan area
+                    </div>
+                </div>
+
+                <div class="shelf-scroll" id="collection-list" style="display: none;">
+                    <!-- Collected items injected here -->
+                    <div class="empty-state">
+                        No species collected yet.<br>Walk around to find trees!
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js?v=47"></script>
+</body>
+
+</html>
