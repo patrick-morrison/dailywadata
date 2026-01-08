@@ -600,3 +600,111 @@ body {
     color: #c4a35a;
     border-bottom-style: solid;
 }
+
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: all;
+}
+
+.modal-content {
+    background: #1e231e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    pointer-events: all;
+}
+
+.modal-content h2 {
+    color: #e8e4dc;
+    margin-bottom: 20px;
+    font-size: 1.4rem;
+}
+
+.modal-btn {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #4a5d4a;
+    color: #f4f1ea;
+}
+
+.modal-btn:hover {
+    background: #5a6d5a;
+    transform: translateY(-2px);
+}
+
+.modal-btn.secondary {
+    background: #3a3a3a;
+}
+
+.modal-btn.secondary:hover {
+    background: #4a4a4a;
+}
+
+.modal-btn.danger {
+    background: #8b3a3a;
+}
+
+.modal-btn.danger:hover {
+    background: #a04a4a;
+}
+
+/* Backup Footer */
+.backup-footer {
+    padding: 20px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(30, 35, 30, 0.5);
+}
+
+.backup-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.backup-btn {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid rgba(74, 93, 74, 0.3);
+    border-radius: 6px;
+    background: rgba(74, 93, 74, 0.2);
+    color: #e8e4dc;
+    font-family: 'Roboto', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.backup-btn:hover {
+    background: rgba(74, 93, 74, 0.3);
+    border-color: rgba(74, 93, 74, 0.5);
+}
+
+.backup-description {
+    font-size: 0.75rem;
+    color: #6b7b6b;
+    text-align: center;
+    line-height: 1.4;
+}.backup-btn:disabled{opacity:.3;cursor:not-allowed}.backup-btn:disabled:hover{background:rgba(74,93,74,.2);border-color:rgba(74,93,74,.3);transform:none}
+.file-input-large{width:100%;padding:16px;margin-bottom:20px;border:2px dashed rgba(74,93,74,.5);border-radius:8px;background:rgba(74,93,74,.1);color:#e8e4dc;font-family:Roboto,sans-serif;font-size:1rem;cursor:pointer;transition:all .2s}.file-input-large:hover{border-color:rgba(74,93,74,.8);background:rgba(74,93,74,.2)}

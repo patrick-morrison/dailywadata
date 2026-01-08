@@ -1,19 +1,21 @@
 # Methods: Trees in the City
 
 ## Source
-**Local Government Authority (LGA) Tree Data** from the [City of Perth](https://catalogue.data.wa.gov.au/dataset/perth-trees-in-the-city), accessed via data.wa.gov.au. The dataset contains point locations for street trees within the City of Perth boundaries.
+[City of Perth - Trees in the City](https://catalogue.data.wa.gov.au/dataset/perth-trees-in-the-city) - 314 species across ~30,000 public trees.
 
 ## Processing
-The CSV data was parsed directly in the browser using PapaParse. Key fields used:
-- `Scientific Name` for species identification.
-- `Latitude` / `Longitude` for positioning.
-- `Year Planted` (where available) for potential future visualization.
+CSV parsed in-browser with PapaParse. Uses `Scientific Name`, `Latitude`, `Longitude`, `Common Name`, and tree significance attributes. No server-side processing.
 
-## Tech Stack
-- **MapLibre GL JS**: Handles the light paper base map rendering.
-- **Deck.gl**: Renders the high-performance scatterplot layer for tree points and the "Radar" visuals (rings, crosshairs).
-- **Turf.js**: Performs geospatial calculations for the "Radar" filter (distance collection) and bearing calculations.
-- **Custom CSS/JS**: Implements the "Light Paper Radar" aesthetic with a "North Wedge" beam and dark UI shelf.
+## Implementation
+- **MapLibre GL JS**: Base map rendering
+- **Deck.gl**: High-performance point rendering and radar visuals
+- **Turf.js**: Distance calculations and geospatial operations
+- **localStorage**: Species collection persistence with save/load
 
-## Author
+## Features
+- 30m proximity radar with smooth GPS interpolation
+- 314 species collection tracking
+- Offline-capable with localStorage backup
+- iOS-compatible compass rotation
+
 Patrick Morrison (2026)

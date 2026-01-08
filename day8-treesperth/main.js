@@ -138,7 +138,13 @@ function markSpeciesSeen(speciesName, tree) {
         botanical: tree.botanical || null
     };
     saveSeenSpecies();
+
+    // Force immediate update - bypass throttle
+    state.lastListUpdate = 0;
     updateUI();
+    updateProgressBar();
+    updateCollectionList();
+    renderDeck();
 }
 
 // ============================================
@@ -570,7 +576,7 @@ function hideLocationMessage() {
     enableRadar();
     // Clear the intro message immediately
     const list = document.getElementById('tree-list');
-    list.innerHTML = '<div class="empty-state">Waiting for GPS...</div>';
+    list.innerHTML = '<div class="empty-state"><div style="margin-bottom:8px">Waiting for GPS</div><div style="font-size:0.85em;color:#8b9b8b">Are you outside?</div></div>';
 }
 
 function handleOrientation(e) {
@@ -654,10 +660,9 @@ function updatePositionPhysics() {
 }
 
 function updatePosition(pos) {
-    // TEMPORARY OFFSET FOR TESTING
-    // Shifts your location to Perth CBD where the trees are
-    const LAT_OFFSET = 0.07546385012283;  // -31.9583206 - (-32.03378445012283)
-    const LNG_OFFSET = 0.04959651696883;  // 115.8470700 - 115.79747348303117
+    // GPS offset (set to 0 for production)
+    const LAT_OFFSET = 0;
+    const LNG_OFFSET = 0;
 
     console.log('RAW GPS:', pos.coords.latitude, pos.coords.longitude);
 
@@ -1177,30 +1182,51 @@ function updateCollectionList() {
     document.getElementById('progress-percent').textContent = `${Math.round((count / total) * 100)}%`;
     document.getElementById('progress-fill').style.width = `${(count / total) * 100}%`;
 
-    if (count === 0) return; // Keep default empty state
+    // Sort and display species if any
+    if (count > 0) {
+        seenEntries.sort((a, b) => new Date(b[1].firstSeenAt) - new Date(a[1].firstSeenAt));
+        seenEntries.forEach(([name, data]) => {
+            const item = document.createElement('div');
+            item.className = `tree-item ${state.selectedCollectionSpecies === name ? 'selected' : ''}`;
+            item.onclick = () => selectCollectionSpecies(name);
 
-    // Sort by recent
-    seenEntries.sort((a, b) => new Date(b[1].firstSeenAt) - new Date(a[1].firstSeenAt));
+            const dateStr = new Date(data.firstSeenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+            const botanicalHtml = data.botanical ? `<span class="botanical">${data.botanical}</span>` : '';
 
-    seenEntries.forEach(([name, data]) => {
-        const item = document.createElement('div');
-        item.className = `tree-item ${state.selectedCollectionSpecies === name ? 'selected' : ''}`;
-        item.onclick = () => selectCollectionSpecies(name);
-
-        const dateStr = new Date(data.firstSeenAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-        const botanicalHtml = data.botanical ? `<span class="botanical">${data.botanical}</span>` : '';
-
-        item.innerHTML = `
-            <div class="tree-info">
-                <h3>${name}</h3>
-                <div class="tree-meta">
-                    ${botanicalHtml}
-                    <span>Found ${dateStr}</span>
+            item.innerHTML = `
+                <div class="tree-info">
+                    <h3>${name}</h3>
+                    <div class="tree-meta">
+                        ${botanicalHtml}
+                        <span>Found ${dateStr}</span>
+                    </div>
                 </div>
-            </div>
-        `;
-        list.appendChild(item);
-    });
+            `;
+            list.appendChild(item);
+        });
+    }
+
+    // Add backup footer at bottom - ALWAYS show
+    const footer = document.createElement('div');
+    footer.className = 'backup-footer';
+    footer.innerHTML = `
+        <div class="backup-buttons">
+            <button id="save-progress-btn" class="backup-btn" ${count === 0 ? 'disabled' : ''}>Save</button>
+            <button id="load-progress-btn" class="backup-btn">Load</button>
+        </div>
+        <div class="backup-description">
+            Stored in localStorage. Backup your progress just in case.
+        </div>
+    `;
+    list.appendChild(footer);
+
+    // Attach click handlers
+    setTimeout(() => {
+        const saveBtn = document.getElementById('save-progress-btn');
+        const loadBtn = document.getElementById('load-progress-btn');
+        if (saveBtn && count > 0) saveBtn.onclick = saveProgress;
+        if (loadBtn) loadBtn.onclick = () => document.getElementById('load-modal').style.display = 'flex';
+    }, 0);
 }
 
 function selectCollectionSpecies(name) {
@@ -1271,4 +1297,140 @@ function selectTree(id) {
     updateUI();
     const el = document.getElementById(`tree-${id}`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ============================================
+// Save/Load Progress
+// ============================================
+
+function saveProgress() {
+    // Show save modal with explanation
+    document.getElementById('save-modal').style.display = 'flex';
+}
+
+function doSaveDownload() {
+    // Create tab-delimited text: datetime\tbotanical_name
+    const lines = [];
+    for (const [name, data] of Object.entries(state.seenSpecies)) {
+        const botanical = data.botanical || name;
+        lines.push(`${data.firstSeenAt}\t${botanical}`);
+    }
+
+    const content = lines.join('\n');
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+
+    // Create filename with current date
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `trees-perth-backup-${dateStr}.txt`;
+
+    // Trigger download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    // Close modal
+    document.getElementById('save-modal').style.display = 'none';
+}
+
+// Modal handlers - use onclick and setTimeout to ensure DOM is ready
+setTimeout(() => {
+    const downloadBtn = document.getElementById('download-btn');
+    const saveCancelBtn = document.getElementById('save-cancel-btn');
+    const fileInput = document.getElementById('file-input');
+    const updateBtn = document.getElementById('update-btn');
+    const overwriteBtn = document.getElementById('overwrite-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+
+    if (downloadBtn) downloadBtn.onclick = doSaveDownload;
+    if (saveCancelBtn) saveCancelBtn.onclick = () => document.getElementById('save-modal').style.display = 'none';
+
+    if (fileInput) {
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                window.loadedBackupData = event.target.result;
+                document.getElementById('file-actions').style.display = 'block';
+            };
+            reader.readAsText(file);
+        };
+    }
+
+    if (updateBtn) {
+        updateBtn.onclick = () => {
+            if (!window.loadedBackupData) return;
+            if (!confirm('Add new species from backup? Existing progress kept.')) return;
+
+            const lines = window.loadedBackupData.split('\n').filter(l => l.trim());
+            let added = 0;
+            for (const line of lines) {
+                const [datetime, botanical] = line.split('\t');
+                if (!datetime || !botanical) continue;
+                if (!state.seenSpecies[botanical]) {
+                    state.seenSpecies[botanical] = { firstSeenAt: datetime, treeId: null, botanical };
+                    added++;
+                } else if (new Date(datetime) < new Date(state.seenSpecies[botanical].firstSeenAt)) {
+                    state.seenSpecies[botanical].firstSeenAt = datetime;
+                }
+            }
+            saveSeenSpecies();
+            updateCollectionList();
+            closeLoadModal();
+            alert(`Added ${added} species!`);
+        };
+    }
+
+    if (overwriteBtn) {
+        overwriteBtn.onclick = () => {
+            if (!window.loadedBackupData) return;
+            const count = Object.keys(state.seenSpecies).length;
+            if (!confirm(`DELETE ${count} species and replace?`)) return;
+
+            state.seenSpecies = {};
+            const lines = window.loadedBackupData.split('\n').filter(l => l.trim());
+            for (const line of lines) {
+                const [datetime, botanical] = line.split('\t');
+                if (datetime && botanical) {
+                    state.seenSpecies[botanical] = { firstSeenAt: datetime, treeId: null, botanical };
+                }
+            }
+            saveSeenSpecies();
+            updateCollectionList();
+            renderDeck();
+            closeLoadModal();
+            alert(`Loaded ${lines.length} species!`);
+        };
+    }
+
+    if (clearBtn) {
+        clearBtn.onclick = () => {
+            const count = Object.keys(state.seenSpecies).length;
+            if (count === 0) { alert('No progress to clear.'); return; }
+            if (!confirm(`DELETE ALL ${count} species?`)) return;
+            if (!confirm('Absolutely sure?')) return;
+
+            state.seenSpecies = {};
+            saveSeenSpecies();
+            updateCollectionList();
+            renderDeck();
+            closeLoadModal();
+            alert('Cleared.');
+        };
+    }
+
+    if (cancelBtn) cancelBtn.onclick = closeLoadModal;
+}, 100);
+
+function closeLoadModal() {
+    document.getElementById('load-modal').style.display = 'none';
+    const input = document.getElementById('file-input');
+    if (input) input.value = '';
+    const actions = document.getElementById('file-actions');
+    if (actions) actions.style.display = 'none';
+    window.loadedBackupData = null;
 }
