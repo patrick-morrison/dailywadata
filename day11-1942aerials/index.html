@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1942 Aerials — Fremantle-Pinjarra</title>
+    <meta name="description"
+        content="Interactive map of 225 WWII aerial photographs from 1942 over Fremantle-Pinjarra region">
+
+    <!-- External Dependencies -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.5.0/dist/index.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
+</head>
+
+<body>
+    <!-- Loading State -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Loading 1942 aerial imagery...</div>
+    </div>
+
+    <!-- Navigation -->
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Header -->
+    <div class="overlay header">
+        <div class="title-card">
+            <h1>1942 Aerials</h1>
+            <div class="subtitle">Fremantle-Pinjarra Military Mapping</div>
+            <div class="title-meta"><span class="attribution">Patrick Morrison 2026</span><a href="methods.md"
+                    class="methods-link">Show methods notes →</a></div>
+        </div>
+    </div>
+
+    <!-- Layer Controls -->
+    <div class="overlay controls">
+        <div class="controls-card">
+            <div class="control-section">
+                <label class="control-label">
+                    <input type="checkbox" id="dem-toggle">
+                    <span>DEM</span>
+                </label>
+            </div>
+            <div class="control-section">
+                <label class="control-label">
+                    <input type="checkbox" id="ortho-toggle" checked>
+                    <span>1942 Orthomosaic</span>
+                </label>
+                <div class="slider-container">
+                    <label class="slider-label">Opacity</label>
+                    <input type="range" id="ortho-opacity" min="0" max="100" value="100" class="opacity-slider">
+                    <span class="slider-value" id="ortho-opacity-value">100%</span>
+                </div>
+            </div>
+            <div class="control-section">
+                <label class="control-label">
+                    <input type="checkbox" id="cameras-toggle">
+                    <span>Camera Positions (225)</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Toggle (Mobile) -->
+    <button class="info-btn" id="info-btn" title="Show info">
+        <span class="info-icon">i</span>
+    </button>
+
+    <!-- Page Configuration -->
+    <script>
+        window.PAGE_CONFIG = {
+            orthoUrl: 'orthomosaic_5m.tif',
+            camerasUrl: 'cameras.csv',
+            bounds: {
+                west: 115.73,
+                south: -32.12,
+                east: 115.93,
+                north: -31.90
+            }
+        };
+    </script>
+
+    <!-- Application Script -->
+    <script src="main.js"></script>
+</body>
+
+</html>

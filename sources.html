@@ -533,6 +533,36 @@
                 </div>
             </div>
 
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">11</span>
+                    <h3 class="day-name"><a href="day11-1942aerials/index.html">1942 Aerials — Fremantle-Pinjarra</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">225 aerial photographs from WWII military mapping operations captured over Fremantle-Pinjarra on 14-15 January 1942. These images show the landscape as it was over 80 years ago, aligned and processed into an interactive orthomosaic with terrain visualization.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://www.ga.gov.au/scientific-topics/national-location-information/historical-aerial-photography">Historical Aerial Photography Collection from Geoscience Australia</a>. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">225 photographs aligned in Agisoft Metashape using a Williamson Eagle 4 camera model across four film rolls. Generated 1m resolution grayscale orthomosaic (28MB) and 5m DEM (3.3MB). DEM terrain visualization uses GDAL multiply blend method combining color-coded elevation with hillshading. Both exported as Cloud Optimized GeoTIFFs in Web Mercator projection with internal tiling and multi-resolution overviews.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">HTML/CSS/JS webmap using MapLibre GL. The @geomatico/maplibre-cog-protocol library reads Cloud Optimized GeoTIFFs directly. Camera positions shown as clickable markers with metadata, thumbnails, and download links. Basemap: Esri World Imagery.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Patrick Morrison</div>
+                    </div>
+                </div>
+            </div>
+
             <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each
                 day is published.</p>
 

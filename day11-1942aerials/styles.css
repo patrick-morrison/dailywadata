@@ -1,0 +1,494 @@
+/**
+ * 1942 Aerials - Fremantle-Pinjarra
+ * Patrick Morrison 2026
+ */
+
+/* ============================================
+   Reset & Base
+   ============================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'JetBrains Mono', monospace;
+    background: #f5f5f0;
+    color: #1a1a1a;
+    overflow: hidden;
+}
+
+/* ============================================
+   Map Container
+   ============================================ */
+
+#map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* ============================================
+   Overlay System
+   ============================================ */
+
+.overlay {
+    position: absolute;
+    z-index: 100;
+    pointer-events: none;
+}
+
+/* ============================================
+   Back Link
+   ============================================ */
+
+.back-link {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 101;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.back-link:hover {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* ============================================
+   Header & Title Card
+   ============================================ */
+
+.header {
+    top: 50px;
+    left: 20px;
+    right: 20px;
+    z-index: 600;
+}
+
+.title-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    padding: 20px 24px;
+    display: inline-block;
+    pointer-events: auto;
+}
+
+.title-card h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    margin-bottom: 4px;
+    color: #1e40af;
+}
+
+.title-card .subtitle {
+    font-size: 0.75rem;
+    color: rgba(0, 0, 0, 0.5);
+    font-weight: 300;
+}
+
+.title-meta {
+    margin-top: 8px;
+}
+
+.attribution {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.4);
+    margin-right: 12px;
+}
+
+.methods-link {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.4);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.methods-link:hover {
+    color: #1e40af;
+}
+
+/* ============================================
+   Layer Controls
+   ============================================ */
+
+.controls {
+    top: 50px;
+    right: 20px;
+    z-index: 600;
+}
+
+.controls-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    padding: 16px 20px;
+    pointer-events: auto;
+    min-width: 220px;
+}
+
+.control-section {
+    margin-bottom: 16px;
+}
+
+.control-section:last-child {
+    margin-bottom: 0;
+}
+
+.control-label {
+    display: flex;
+    align-items: center;
+    font-size: 0.75rem;
+    color: #1a1a1a;
+    cursor: pointer;
+    user-select: none;
+}
+
+.control-label input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
+    accent-color: #1e40af;
+}
+
+.slider-container {
+    margin-top: 8px;
+    margin-left: 22px;
+}
+
+.slider-label {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.opacity-slider {
+    width: 100%;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #1e40af;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.opacity-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.opacity-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #1e40af;
+    cursor: pointer;
+    border: none;
+    transition: transform 0.2s ease;
+}
+
+.opacity-slider::-moz-range-thumb:hover {
+    transform: scale(1.2);
+}
+
+.slider-value {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.5);
+    margin-left: 8px;
+}
+
+/* ============================================
+   Info Toggle (Mobile)
+   ============================================ */
+
+.info-btn {
+    display: none;
+    position: absolute;
+    top: 66px;
+    right: 20px;
+    width: 36px;
+    height: 36px;
+    z-index: 101;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    color: #1e40af;
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 1.2rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   Loading Pill (Bottom Center)
+   ============================================ */
+
+.loading-overlay {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 20px;
+    padding: 8px 20px;
+    z-index: 1000;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.loading-overlay.hidden {
+    opacity: 0;
+}
+
+.loading-spinner {
+    display: none;
+    /* Minimal pill - no spinner */
+}
+
+.loading-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.7);
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================
+   Tile Loading Indicator
+   ============================================ */
+
+.tile-loading {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 700;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.7rem;
+    color: rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+
+/* ============================================
+   Leaflet Popup Styles
+   ============================================ */
+
+.leaflet-popup-content-wrapper {
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+    padding: 0 !important;
+}
+
+.leaflet-popup-content {
+    margin: 12px 16px !important;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 1.6;
+}
+
+.leaflet-popup-close-button {
+    color: rgba(0, 0, 0, 0.4) !important;
+    font-size: 18px !important;
+}
+
+.leaflet-popup-close-button:hover {
+    color: #1e40af !important;
+}
+
+.leaflet-popup-tip {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Popup Content Styling */
+.popup-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1rem;
+    font-weight: 400;
+    margin-bottom: 8px;
+    color: #1e40af;
+}
+
+.popup-meta {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.6);
+    margin-bottom: 4px;
+}
+
+.popup-meta strong {
+    color: #1a1a1a;
+}
+
+.popup-thumbnail {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.popup-links {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.popup-link {
+    flex: 1;
+    padding: 6px 10px;
+    background: rgba(30, 64, 175, 0.1);
+    border: 1px solid rgba(30, 64, 175, 0.2);
+    border-radius: 6px;
+    color: #1e40af;
+    text-decoration: none;
+    font-size: 0.65rem;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.popup-link:hover {
+    background: rgba(30, 64, 175, 0.2);
+}
+
+/* ============================================
+   Camera Markers
+   ============================================ */
+
+.camera-marker {
+    width: 10px;
+    height: 10px;
+    background: rgba(30, 64, 175, 0.7);
+    border: 2px solid white;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.camera-marker:hover {
+    transform: scale(1.3);
+    background: #1e40af;
+}
+
+/* ============================================
+   Mobile Responsive
+   ============================================ */
+
+@media (max-width: 768px) {
+    .info-btn {
+        display: none;
+    }
+
+    .title-card h1 {
+        font-size: 1.2rem;
+    }
+
+    .title-card {
+        padding: 14px 18px;
+    }
+
+    .controls {
+        top: auto;
+        bottom: 20px;
+        left: 20px;
+        right: auto;
+    }
+
+    .controls-card {
+        min-width: auto;
+        max-width: calc(100vw - 40px);
+    }
+}
+
+/* ============================================
+   Context Menu (Right Click)
+   ============================================ */
+
+.context-menu {
+    position: fixed;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    min-width: 200px;
+    overflow: hidden;
+    pointer-events: auto;
+}
+
+.context-menu-item {
+    padding: 10px 16px;
+    font-size: 0.75rem;
+    color: #1a1a1a;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.context-menu-item:hover {
+    background: rgba(30, 64, 175, 0.1);
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 0;
+}
+
+/* ============================================
+   Leaflet Attribution
+   ============================================ */
+
+.leaflet-control-attribution {
+    background: rgba(255, 255, 255, 0.7) !important;
+    font-size: 0.6rem !important;
+}
