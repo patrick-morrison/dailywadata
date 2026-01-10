@@ -14,7 +14,9 @@ Tenders.wa.gov.au is where the government publicizes all awarded contract. Visua
 
 ## Processing
 
-The excel report of the last 3 months of contracts was retrived on the 10-01-2026. THe uneeded columns were removed and the data exported as CSV for compact serving.
+The excel report of the last 3 months of contracts was retrieved on the 10-01-2026. THe unneeded columns were removed and the data exported as CSV for compact serving. This data was then sanitized to have newlines in contract names and other special characters removed.
+
+In 2025 some public sector reform has taken place, with the transition period spanning the collected data. To ensure data consistency, the data was manually amended to place contracts listed under the departments old name with the new name. Data where this has occurred has a note next to it listing the old department.
 
 ## Tech Stack
 
