@@ -733,8 +733,10 @@ function renderContractList(container, contracts, displayCount) {
 
     container.innerHTML = `
         <div class="contract-list">
-            ${contracts.slice(0, displayCount).map(c => `
-                <div class="contract-item">
+            ${contracts.slice(0, displayCount).map(c => {
+                const agencyColor = CONFIG.AGENCY_COLORS[c['Agency']] || '#5b615c';
+                return `
+                <div class="contract-item" style="border-left: 4px solid ${agencyColor};">
                     <div class="contract-title">${escapeHtml(c['Title'])}</div>
                     <div class="contract-meta">
                         <span class="contract-agency">${escapeHtml(c['Agency'])}</span>
@@ -742,7 +744,8 @@ function renderContractList(container, contracts, displayCount) {
                     </div>
                     <div class="contract-ref">${escapeHtml(c['Reference #'])}</div>
                 </div>
-            `).join('')}
+            `;
+            }).join('')}
             ${remaining > 0 ? `
                 <button class="more-contracts-btn" onclick="showMoreContracts()">
                     Show ${Math.min(remaining, 50)} more contracts (${remaining.toLocaleString()} remaining)
