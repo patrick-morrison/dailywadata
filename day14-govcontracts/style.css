@@ -491,9 +491,6 @@ body {
     font-size: 0.65rem;
     color: var(--muted);
     flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .contract-value {

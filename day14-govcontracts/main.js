@@ -735,11 +735,12 @@ function renderContractList(container, contracts, displayCount) {
         <div class="contract-list">
             ${contracts.slice(0, displayCount).map(c => {
                 const agencyColor = CONFIG.AGENCY_COLORS[c['Agency']] || '#5b615c';
+                const formerly = c['Formerly'] ? `<span class="contract-formerly">(formerly ${escapeHtml(c['Formerly'])})</span>` : '';
                 return `
                 <div class="contract-item" style="border-left: 4px solid ${agencyColor};">
                     <div class="contract-title">${escapeHtml(c['Title'])}</div>
                     <div class="contract-meta">
-                        <span class="contract-agency">${escapeHtml(c['Agency'])}</span>
+                        <span class="contract-agency">${escapeHtml(c['Agency'])} ${formerly}</span>
                         <span class="contract-value">${c['Contract Value']}</span>
                     </div>
                     <div class="contract-ref">${escapeHtml(c['Reference #'])}</div>
