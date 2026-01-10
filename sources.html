@@ -329,7 +329,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="day-entry">
                 <div class="day-header">
                     <span class="day-num">06</span>
@@ -390,11 +390,17 @@
                 <div class="day-details">
                     <div class="detail-section">
                         <div class="detail-label">Rationale</div>
-                        <div class="detail-text">Large tracts of Western Australian land are designated as potential sites for Unexploded Ordnance (UXO) due to historical military activity, including in what is now the Perth and Geraldton metro areas. This visualization aims to make these legacy risk zones more visible, showing the historical defense footprints persist within the current landscape.</div>
+                        <div class="detail-text">Large tracts of Western Australian land are designated as potential
+                            sites for Unexploded Ordnance (UXO) due to historical military activity, including in what
+                            is now the Perth and Geraldton metro areas. This visualization aims to make these legacy
+                            risk zones more visible, showing the historical defense footprints persist within the
+                            current landscape.</div>
                     </div>
                     <div class="detail-section">
                         <div class="detail-label">Source</div>
-                        <div class="detail-text"><a href="https://catalogue.data.wa.gov.au/dataset/unexploded-ordnance">UXO Potential Dataset</a>
+                        <div class="detail-text"><a
+                                href="https://catalogue.data.wa.gov.au/dataset/unexploded-ordnance">UXO Potential
+                                Dataset</a>
                             from the Department of Fire and Emergency Services via Data WA. CC BY 4.0.</div>
                     </div>
                     <div class="detail-section">
@@ -437,7 +443,8 @@
                     </div>
                     <div class="detail-section">
                         <div class="detail-label">Tech Stack</div>
-                        <div class="detail-text">A mobile-only GPS radar interface built with MapLibre GL JS, Deck.gl, and
+                        <div class="detail-text">A mobile-only GPS radar interface built with MapLibre GL JS, Deck.gl,
+                            and
                             Turf.js. Features real-time location tracking with compass orientation, smooth position
                             interpolation, distance-based tree visualization with 30m radius, and species collection
                             system with localStorage persistence and text file backup/restore.</div>
@@ -445,6 +452,83 @@
                     <div class="detail-section">
                         <div class="detail-label">Author</div>
                         <div class="detail-text">Patrick Morrison</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">09</span>
+                    <h3 class="day-name"><a href="day9-birdsong/index.html">Birdsong Archive</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">The background ambiance of birdsong is a classic feature of Australian
+                            wildlife, the dataset collected over years by John Hutchinson. This tool allows one to be
+                            able to easily bring a sample of that into our every day lives background noise for us to
+                            live, work, and relax to.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://catalogue.data.wa.gov.au/dataset/bird-songs-online">Directory of birdsongs
+                                from State Library of Western Australia</a>. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">The published CSV data was simply trimmed for unused fields. The url is
+                            appended in the browser in order to allow for easy playing of the underlying MP3s.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Tech Stack</div>
+                        <div class="detail-text">Simple HTML + Javascript to pull and interpret the CSV data.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Aren Leishman</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">10</span>
+                    <h3 class="day-name"><a href="day10-mines/index.html">Abandoned Mines</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Western Australia has a very mining oriented history and economy, and a
+                            critical part of a mines lifecycle is its remediation and cleanup once the extraction of the
+                            commodity is complete. Knowing the condition and status of various abandoned mine features
+                            is valuable not just from the perspective of safety and land management, but also from a
+                            historical and archaeological lens. The remains of past mining operations give insight into
+                            the history of regions and work practices throughout WA.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://catalogue.data.wa.gov.au/dataset/abandoned-mines">Abandoned Mines Dataset
+                                from Data WA</a>. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">The only preprocessing needed was converting the downloaded dataset to
+                            a CSV for handling on the web.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">HTML/CSS/JS webmap. Utilising the modern and open MapLibre GL for
+                            basemap rendering, the mines are then added as a scatterplot layer on top. To better analyse
+                            the dataset the feature type, condition, base condition, stability, and mined commodity are
+                            able to be visualised by colour. It is also possible to filter on these fields plus a few
+                            more. Clicking on a feature brings up its detailed record as well as its link on minedex.
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Aren Leishman</div>
                     </div>
                 </div>
             </div>
