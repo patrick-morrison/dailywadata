@@ -10,12 +10,12 @@
 const CONFIG = {
     CSV_URL: 'TendersWARecentlyAwardedContracts2026-01-10.csv',
 
-    // Budget bin thresholds (in dollars)
+    // Budget bin thresholds (in dollars) - ordered Large to Micro
     BINS: [
-        { name: 'Micro', min: 0, max: 100000, color: '#d9c6a3' },
-        { name: 'Small', min: 100000, max: 500000, color: '#5b8a72' },
+        { name: 'Large', min: 1000000, max: Infinity, color: '#c85a3e' },
         { name: 'Medium', min: 500000, max: 1000000, color: '#4a7c94' },
-        { name: 'Large', min: 1000000, max: Infinity, color: '#c85a3e' }
+        { name: 'Small', min: 100000, max: 500000, color: '#5b8a72' },
+        { name: 'Micro', min: 0, max: 100000, color: '#d9c6a3' }
     ],
 
     // Sankey layout settings
@@ -255,19 +255,21 @@ function processData(rawData) {
         });
     });
 
-    // Bin nodes
-    CONFIG.BINS.forEach((bin, binIndex) => {
-        const idx = nodes.length;
-        nodeIndex.set(bin.name, idx);
-        nodes.push({
-            id: bin.name,
-            name: bin.name,
-            fullName: `${bin.name} Contracts`,
-            type: 'bin',
-            color: bin.color,
-            sortIndex: binIndex // Keep bins in config order (Micro, Small, Medium, Large)
+    // Bin nodes - only add if there are expanded agencies
+    if (state.expandedAgencies.size > 0) {
+        CONFIG.BINS.forEach((bin, binIndex) => {
+            const idx = nodes.length;
+            nodeIndex.set(bin.name, idx);
+            nodes.push({
+                id: bin.name,
+                name: bin.name,
+                fullName: `${bin.name} Contracts`,
+                type: 'bin',
+                color: bin.color,
+                sortIndex: binIndex // Keep bins in config order (Large, Medium, Small, Micro)
+            });
         });
-    });
+    }
 
     // Build links
     const links = [];
