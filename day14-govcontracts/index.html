@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WA Government Contracts</title>
+    <meta name="description" content="Sankey diagram showing government contract values by agency and budget size">
+
+    <!-- D3.js and d3-sankey -->
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Analytics -->
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf" src="https://umami.padmorrison.com/umami.js"></script>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading contracts data...</div>
+    </div>
+
+    <!-- Navigation -->
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <!-- Header Overlay -->
+    <div class="overlay header">
+        <div class="title-card">
+            <h1>WA Government Contracts</h1>
+            <div class="subtitle">Contract value flows by agency (last 3 months)</div>
+            <div class="title-meta">
+                <span class="attribution">Aren Leishman 2026</span>
+                <a href="../sources.html" class="methods-link">Show methods notes →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sankey Container -->
+    <div id="sankey-container">
+        <svg id="sankey"></svg>
+    </div>
+
+    <!-- Zoom Controls -->
+    <div class="zoom-controls">
+        <button id="zoom-in" class="zoom-btn" title="Zoom in">+</button>
+        <button id="zoom-out" class="zoom-btn" title="Zoom out">−</button>
+        <button id="zoom-reset" class="zoom-btn zoom-reset" title="Reset view">⟲</button>
+    </div>
+
+    <!-- Popover for contract details -->
+    <div id="popover" class="popover hidden">
+        <div class="popover-header">
+            <h3 id="popover-title">Contract Details</h3>
+            <button id="popover-close" class="popover-close">×</button>
+        </div>
+        <div class="popover-stats" id="popover-stats"></div>
+        <div class="popover-content" id="popover-content"></div>
+    </div>
+
+    <!-- Legend -->
+    <div class="overlay legend">
+        <div class="legend-card">
+            <div class="legend-title">Contract Size</div>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <span class="legend-color micro"></span>
+                    <span>Micro (&lt;$100K)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color small"></span>
+                    <span>Small ($100K-$500K)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color medium"></span>
+                    <span>Medium ($500K-$1M)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color large"></span>
+                    <span>Large ($1M+)</span>
+                </div>
+            </div>
+            <div class="legend-divider"></div>
+            <div class="legend-instructions">
+                <div class="instruction">Click agency to expand/collapse</div>
+                <div class="instruction">Scroll to zoom, drag to pan</div>
+            </div>
+            <div class="legend-stats">
+                <div class="stat">
+                    <span class="stat-value" id="total-value">--</span>
+                    <span class="stat-label">Total Value</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="total-contracts">--</span>
+                    <span class="stat-label">Contracts</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>

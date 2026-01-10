@@ -17,3 +17,8 @@ Tenders.wa.gov.au is where the government publicizes all awarded contract. Visua
 The excel report of the last 3 months of contracts was retrived on the 10-01-2026. THe uneeded columns were removed and the data exported as CSV for compact serving.
 
 ## Tech Stack
+
+- D3.js v7 with d3-sankey for Sankey diagram visualization
+- d3-zoom for pan and zoom navigation
+- Pure HTML/CSS/JavaScript (no build tools)
+- CSV data parsed client-side with custom parser for quoted fields
