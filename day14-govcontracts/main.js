@@ -33,6 +33,71 @@ const CONFIG = {
         root: '#2d6a4f',
         agency: '#5b615c',
         link: '#4a7c94'
+    },
+
+    // Agency colors - all 61 agencies from the dataset
+    AGENCY_COLORS: {
+        'Arts and Culture Trust': '#80cbc4',
+        'Botanic Gardens and Parks Authority': '#a5d6a7',
+        'Central Regional TAFE': '#d8f3dc',
+        'Child and Adolescent Health Service': '#b388ff',
+        'Department of Biodiversity, Conservation and Attractions': '#2e7d32',
+        'Department of Communities': '#ad1457',
+        'Department of Creative Industries, Tourism and Sport': '#e65100',
+        'Department of Education': '#2d6a4f',
+        'Department of Energy and Economic Diversification': '#ffc107',
+        'Department of Fire and Emergency Services': '#d32f2f',
+        'Department of Health (Royal Street)': '#7b2cbf',
+        'Department of Housing and Works': '#1a4480',
+        'Department of Justice': '#5d4037',
+        'Department of Local Government, Industry Regulation and Safety': '#4527a0',
+        'Department of Mines, Petroleum and Exploration': '#ff8f00',
+        'Department of Planning, Lands and Heritage': '#6a1b9a',
+        'Department of Primary Industries and Regional Development': '#8bc34a',
+        'Department of Training and Workforce Development (DTWD)': '#40916c',
+        'Department of Transport and Major Infrastructure': '#0077b6',
+        'Department of Treasury and Finance': '#283593',
+        'Department of Water and Environmental Regulation': '#0288d1',
+        'Department of the Premier and Cabinet': '#1a237e',
+        'Department of the Registrar, WA Industrial Relations Commission': '#bf360c',
+        'East Metropolitan Health Service': '#9d4edd',
+        'Economic Regulation Authority': '#8d6e63',
+        'Gold Corporation': '#ffd600',
+        'Health Support Services': '#9575cd',
+        'Insurance Commission of Western Australia': '#303f9f',
+        'Landgate': '#3949ab',
+        'Legal Aid Commission of WA': '#6d4c41',
+        'Lotterywest': '#e91e63',
+        'Main Roads Western Australia': '#e85d04',
+        'Mental Health Commission': '#673ab7',
+        'Metropolitan Cemeteries Board': '#78909c',
+        'MyLeave': '#90a4ae',
+        'National Trust of Western Australia': '#5d4037',
+        'North Metropolitan Health Service': '#c77dff',
+        'North Metropolitan TAFE': '#74c69d',
+        'North Regional TAFE': '#95d5b2',
+        'Office of the Auditor General for Western Australia': '#37474f',
+        'Office of the Director of Public Prosecutions for WA': '#263238',
+        'Parliament Commissioner for Administrative Investigations': '#4e342e',
+        'PathWest Laboratory Medicine WA': '#7e57c2',
+        'Programmed Facility Management': '#607d8b',
+        'Public Sector Commission': '#546e7a',
+        'Public Transport Authority': '#00b4d8',
+        'Racing and Wagering Western Australia': '#a1887f',
+        'Rottnest Island Authority': '#26a69a',
+        'Small Business Development Corporation': '#ff7043',
+        'South Metropolitan Health Service': '#e0aaff',
+        'South Metropolitan TAFE': '#52b788',
+        'South Regional TAFE': '#b7e4c7',
+        'State Library of Western Australia': '#795548',
+        'State Solicitor\'s Office': '#455a64',
+        'VenuesWest': '#4db6ac',
+        'WA Country Health Service': '#d4a5ff',
+        'Western Australia Police Force': '#1565c0',
+        'Western Australian Electoral Commission': '#424242',
+        'Western Australian Museum': '#00695c',
+        'Western Australian Tourism Commission': '#00897b',
+        'Workcover Western Australia': '#b0bec5'
     }
 };
 
@@ -241,6 +306,8 @@ function processData(rawData) {
     sortedAgencies.forEach(([name, data], agencyIndex) => {
         const idx = nodes.length;
         nodeIndex.set(name, idx);
+        // Use specific agency color or generate one based on index
+        const agencyColor = CONFIG.AGENCY_COLORS[name];
         nodes.push({
             id: name,
             name: shortenAgencyName(name),
@@ -250,7 +317,7 @@ function processData(rawData) {
             bins: data.bins,
             contracts: data.contracts,
             expanded: state.expandedAgencies.has(name),
-            color: CONFIG.COLORS.agency,
+            color: agencyColor,
             sortIndex: agencyIndex // Preserve original sort order by total value
         });
     });
