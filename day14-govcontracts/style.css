@@ -303,6 +303,30 @@ body {
     margin: 12px 0;
 }
 
+.legend-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.legend-btn {
+    flex: 1;
+    padding: 6px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.legend-btn:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
 .legend-instructions {
     display: flex;
     flex-direction: column;

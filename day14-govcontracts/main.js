@@ -20,7 +20,8 @@ const CONFIG = {
 
     // Sankey layout settings
     NODE_WIDTH: 20,
-    NODE_PADDING: 8,
+    NODE_PADDING: 14, // Increased for better spacing
+    MIN_NODE_HEIGHT: 12, // Minimum height for clickability
 
     // Zoom settings
     ZOOM_MIN: 0.3,
@@ -44,6 +45,7 @@ const state = {
     sankeyData: null,
     contracts: new Map(),
     expandedAgencies: new Set(),
+    hasInitialized: false,
     zoom: null,
     currentTransform: null,
     initialTransform: null,
@@ -223,11 +225,20 @@ function processData(rawData) {
         fullName: 'All Contracts',
         type: 'root',
         value: grandTotal,
-        color: CONFIG.COLORS.root
+        color: CONFIG.COLORS.root,
+        sortIndex: 0
     });
 
+    // Agency nodes - expand all by default on first load
+    if (state.expandedAgencies.size === 0 && !state.hasInitialized) {
+        sortedAgencies.forEach(([name]) => {
+            state.expandedAgencies.add(name);
+        });
+        state.hasInitialized = true;
+    }
+
     // Agency nodes
-    sortedAgencies.forEach(([name, data]) => {
+    sortedAgencies.forEach(([name, data], agencyIndex) => {
         const idx = nodes.length;
         nodeIndex.set(name, idx);
         nodes.push({
@@ -239,12 +250,13 @@ function processData(rawData) {
             bins: data.bins,
             contracts: data.contracts,
             expanded: state.expandedAgencies.has(name),
-            color: CONFIG.COLORS.agency
+            color: CONFIG.COLORS.agency,
+            sortIndex: agencyIndex // Preserve original sort order by total value
         });
     });
 
     // Bin nodes
-    CONFIG.BINS.forEach(bin => {
+    CONFIG.BINS.forEach((bin, binIndex) => {
         const idx = nodes.length;
         nodeIndex.set(bin.name, idx);
         nodes.push({
@@ -252,7 +264,8 @@ function processData(rawData) {
             name: bin.name,
             fullName: `${bin.name} Contracts`,
             type: 'bin',
-            color: bin.color
+            color: bin.color,
+            sortIndex: binIndex // Keep bins in config order (Micro, Small, Medium, Large)
         });
     });
 
@@ -333,11 +346,21 @@ function render() {
     // Margins for labels
     const margin = { top: 40, right: 120, bottom: 40, left: 40 };
 
-    // Create Sankey layout
+    // Create Sankey layout with custom sort to maintain consistent order
     const sankey = d3.sankey()
         .nodeWidth(CONFIG.NODE_WIDTH)
         .nodePadding(CONFIG.NODE_PADDING)
         .nodeAlign(d3.sankeyLeft)
+        .nodeSort((a, b) => {
+            // Keep nodes in their original order using sortIndex
+            // This ensures agencies stay sorted by total value regardless of expand state
+            if (a.type === b.type) {
+                return a.sortIndex - b.sortIndex;
+            }
+            // Different types: root first, then agencies, then bins
+            const typeOrder = { root: 0, agency: 1, bin: 2 };
+            return typeOrder[a.type] - typeOrder[b.type];
+        })
         .extent([
             [margin.left, margin.top],
             [contentWidth - margin.right, contentHeight - margin.bottom]
@@ -400,7 +423,15 @@ function render() {
 
     nodeRects.append('rect')
         .attr('width', d => d.x1 - d.x0)
-        .attr('height', d => Math.max(1, d.y1 - d.y0))
+        .attr('height', d => Math.max(CONFIG.MIN_NODE_HEIGHT, d.y1 - d.y0))
+        .attr('y', d => {
+            // Center the minimum-height rect within the original bounds
+            const actualHeight = d.y1 - d.y0;
+            if (actualHeight < CONFIG.MIN_NODE_HEIGHT) {
+                return -(CONFIG.MIN_NODE_HEIGHT - actualHeight) / 2;
+            }
+            return 0;
+        })
         .attr('fill', d => d.color)
         .attr('rx', 2)
         .attr('cursor', d => d.type === 'agency' ? 'pointer' : 'default')
@@ -473,8 +504,49 @@ function handleNodeClick(event, node) {
     }
 
     // Show popover for root and bin nodes
-    const contracts = state.contracts.get(node.id || node.fullName) || [];
+    let contracts = state.contracts.get(node.id || node.fullName) || [];
+
+    // Filter to only show contracts from expanded agencies
+    if (node.type === 'root' || node.type === 'bin') {
+        contracts = contracts.filter(c => state.expandedAgencies.has(c['Agency']));
+    }
+
     showPopover(node, contracts);
+}
+
+// ============================================
+// Selection Controls
+// ============================================
+
+function showAllAgencies() {
+    // Get all agency names from the data
+    const agencies = new Set(state.rawData.map(row => row['Agency']));
+    agencies.forEach(name => state.expandedAgencies.add(name));
+    state.sankeyData = processData(state.rawData);
+    render();
+}
+
+function hideAllAgencies() {
+    state.expandedAgencies.clear();
+    state.sankeyData = processData(state.rawData);
+    render();
+}
+
+function invertSelection() {
+    // Get all agency names
+    const allAgencies = new Set(state.rawData.map(row => row['Agency']));
+
+    // Toggle each agency
+    allAgencies.forEach(name => {
+        if (state.expandedAgencies.has(name)) {
+            state.expandedAgencies.delete(name);
+        } else {
+            state.expandedAgencies.add(name);
+        }
+    });
+
+    state.sankeyData = processData(state.rawData);
+    render();
 }
 
 // ============================================
@@ -676,6 +748,9 @@ async function init() {
 
         // Setup event listeners
         document.getElementById('popover-close').addEventListener('click', hidePopover);
+        document.getElementById('show-all-btn').addEventListener('click', showAllAgencies);
+        document.getElementById('hide-all-btn').addEventListener('click', hideAllAgencies);
+        document.getElementById('invert-btn').addEventListener('click', invertSelection);
 
         // Handle window resize
         let resizeTimeout;
