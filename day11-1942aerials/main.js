@@ -15,7 +15,8 @@
     const state = {
         map: null,
         cameras: [],
-        cameraMarkers: []
+        cameraMarkers: [],
+        locationMarker: null
     };
 
     // ============================================
@@ -47,9 +48,7 @@
         fitBoundsOptions: {
             padding: { top: 0, bottom: 0, left: window.innerWidth * -0.1, right: window.innerWidth * -0.1 }
         },
-        attributionControl: {
-            compact: true
-        }
+        attributionControl: false
     });
 
     state.map = map;
@@ -61,20 +60,23 @@
     // ============================================
     map.on('load', async () => {
         try {
+            // Check for URL hash location
+            const hashLocation = parseHashLocation();
+
             // Apply zoom again on load to ensure proper fitting
             const { west, south, east, north } = window.PAGE_CONFIG.bounds;
-            map.fitBounds(
-                [[west, south], [east, north]],
-                {
-                    padding: { top: 0, bottom: 0, left: window.innerWidth * -0.1, right: window.innerWidth * -0.1 },
-                    duration: 0
-                }
-            );
 
-            setLoadingText('Loading layers (10%)...');
+            if (!hashLocation) {
+                map.fitBounds(
+                    [[west, south], [east, north]],
+                    {
+                        padding: { top: 0, bottom: 0, left: window.innerWidth * -0.1, right: window.innerWidth * -0.1 },
+                        duration: 0
+                    }
+                );
+            }
 
             // Load orthomosaic FIRST so it's at the bottom
-            setLoadingText('Loading orthomosaic (20%)...');
             map.addSource('orthomosaic-source', {
                 type: 'raster',
                 url: 'cog://orthomosaic_5m.tif',
@@ -93,7 +95,6 @@
             });
 
             // Add pre-rendered DEM (colors + hillshading baked in)
-            setLoadingText('Loading DEM (40%)...');
             map.addSource('dem-source', {
                 type: 'raster',
                 url: 'cog://terrain_5m.tif',
@@ -113,23 +114,57 @@
                 }
             });
 
-            setLoadingText('Loading camera positions (85%)...');
             await loadCameras();
 
-            setLoadingText('Complete (100%)...');
+            // Add camera layer as GeoJSON
+            addCameraLayer();
+
             setupControls();
-            hideLoading();
+
+            // Handle URL hash location after everything is loaded
+            if (hashLocation) {
+                showLocationMarker(hashLocation.lat, hashLocation.lng);
+            }
 
         } catch (error) {
             console.error('Error loading layers:', error);
-            setLoadingText('Error loading data');
         }
     });
 
-    // Context Menu (Right Click)
-    map.on('contextmenu', async (e) => {
+    // Context Menu (Right Click) and Long Press
+    let longPressTimer;
+    let longPressStartPos;
+
+    map.on('touchstart', (e) => {
+        if (e.originalEvent.touches.length === 1) {
+            longPressStartPos = { x: e.point.x, y: e.point.y };
+            longPressTimer = setTimeout(() => {
+                showContextMenu(e);
+            }, 500);
+        }
+    });
+
+    map.on('touchmove', () => {
+        clearTimeout(longPressTimer);
+    });
+
+    map.on('touchend', () => {
+        clearTimeout(longPressTimer);
+    });
+
+    map.on('contextmenu', (e) => {
+        showContextMenu(e);
+    });
+
+    function showContextMenu(e) {
         const existing = document.getElementById('context-menu');
         if (existing) existing.remove();
+
+        // Remove location marker when opening context menu elsewhere
+        if (state.locationMarker) {
+            state.locationMarker.remove();
+            state.locationMarker = null;
+        }
 
         const { lng, lat } = e.lngLat;
         const coords = formatCoordinates(lng, lat);
@@ -182,7 +217,89 @@
         map.on('click', removeMenu);
         map.on('move', removeMenu);
         map.on('zoom', removeMenu);
-    });
+    }
+
+    // ============================================
+    // Camera Layer (GeoJSON)
+    // ============================================
+    function addCameraLayer() {
+        const geojson = {
+            type: 'FeatureCollection',
+            features: state.cameras
+                .filter(cam => cam.estimated_lat && cam.estimated_lon)
+                .map(cam => ({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [parseFloat(cam.estimated_lon), parseFloat(cam.estimated_lat)]
+                    },
+                    properties: cam
+                }))
+        };
+
+        map.addSource('cameras-source', {
+            type: 'geojson',
+            data: geojson
+        });
+
+        map.addLayer({
+            id: 'cameras-layer',
+            type: 'circle',
+            source: 'cameras-source',
+            layout: {
+                visibility: 'none'
+            },
+            paint: {
+                'circle-radius': 8,
+                'circle-color': '#1e40af',
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#ffffff',
+                'circle-opacity': 0.8
+            }
+        });
+
+        // Click handler for popups
+        map.on('click', 'cameras-layer', (e) => {
+            const coordinates = e.features[0].geometry.coordinates.slice();
+            const props = e.features[0].properties;
+
+            // Ensure that if the map is zoomed out such that multiple
+            // copies of the feature are visible, the popup appears
+            // over the copy being pointed to.
+            while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+                coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+            }
+
+            new maplibregl.Popup()
+                .setLngLat(coordinates)
+                .setHTML(createPopupContent(props))
+                .addTo(map);
+        });
+
+        // Change cursor on hover
+        map.on('mouseenter', 'cameras-layer', () => {
+            map.getCanvas().style.cursor = 'pointer';
+        });
+
+        map.on('mouseleave', 'cameras-layer', () => {
+            map.getCanvas().style.cursor = '';
+        });
+    }
+
+    function createPopupContent(camera) {
+        return `
+            ${camera.thumbnail_url ? `<img src="${camera.thumbnail_url}" class="popup-thumbnail" alt="Photo thumbnail">` : ''}
+            <div class="popup-title">${camera.basename}</div>
+            <div class="popup-meta"><strong>Frame:</strong> ${camera.frame} | <strong>Date:</strong> ${camera.date}</div>
+            <div class="popup-meta"><strong>Film:</strong> ${camera.film_number}</div>
+            <div class="popup-meta"><strong>Alt:</strong> ${camera.estimated_alt_m ? Math.round(camera.estimated_alt_m) + 'm' : 'N/A'}</div>
+            <div class="popup-meta"><strong>Source:</strong> Geoscience Australia</div>
+            <div class="popup-links">
+                <a href="${camera.preview_url}" target="_blank" class="popup-link">Preview</a>
+                <a href="${camera.source_url}" target="_blank" class="popup-link">Download</a>
+            </div>
+        `;
+    }
 
     // ============================================
     // Load Cameras CSV
@@ -230,94 +347,164 @@
         return result;
     }
 
-    function createCameraMarkers() {
-        state.cameraMarkers.forEach(marker => marker.remove());
-        state.cameraMarkers = [];
-
-        state.cameras
-            .filter(cam => cam.estimated_lat && cam.estimated_lon)
-            .forEach(cam => {
-                const el = document.createElement('div');
-                el.className = 'camera-marker';
-
-                const marker = new maplibregl.Marker({ element: el })
-                    .setLngLat([parseFloat(cam.estimated_lon), parseFloat(cam.estimated_lat)])
-                    .setPopup(new maplibregl.Popup({ offset: 15 })
-                        .setHTML(createPopupContent(cam)));
-
-                state.cameraMarkers.push(marker);
-            });
-    }
-
-    function createPopupContent(camera) {
-        return `
-            ${camera.thumbnail_url ? `<img src="${camera.thumbnail_url}" class="popup-thumbnail" alt="Photo thumbnail">` : ''}
-            <div class="popup-title">${camera.basename}</div>
-            <div class="popup-meta"><strong>Frame:</strong> ${camera.frame} | <strong>Date:</strong> ${camera.date}</div>
-            <div class="popup-meta"><strong>Film:</strong> ${camera.film_number}</div>
-            <div class="popup-meta"><strong>Alt:</strong> ${camera.estimated_alt_m ? Math.round(camera.estimated_alt_m) + 'm' : 'N/A'}</div>
-            <div class="popup-links">
-                <a href="${camera.preview_url}" target="_blank" class="popup-link">Preview</a>
-                <a href="${camera.source_url}" target="_blank" class="popup-link">Download</a>
-            </div>
-        `;
-    }
-
     // ============================================
     // Controls
     // ============================================
     function setupControls() {
-        document.getElementById('dem-toggle').addEventListener('change', (e) => {
-            map.setLayoutProperty('dem-layer', 'visibility',
-                e.target.checked ? 'visible' : 'none');
-        });
+        const aerialToggle = document.getElementById('aerial-toggle');
+        const demToggle = document.getElementById('dem-toggle');
+        const layerSliderMobile = document.getElementById('layer-opacity');
+        const layerSliderDesktop = document.getElementById('layer-opacity-desktop');
+        const sliderOverlay = document.querySelector('.slider-overlay');
+        const sliderContainer = document.querySelector('.slider-container');
 
-        document.getElementById('ortho-toggle').addEventListener('change', (e) => {
-            map.setLayoutProperty('orthomosaic-layer', 'visibility',
-                e.target.checked ? 'visible' : 'none');
-        });
+        // Function to update slider visibility
+        const updateSliderVisibility = () => {
+            // Always show sliders regardless of layer state
+            // (removed conditional display logic)
+        };
 
-        const opacitySlider = document.getElementById('ortho-opacity');
-        const opacityValue = document.getElementById('ortho-opacity-value');
-
-        opacitySlider.addEventListener('input', (e) => {
-            const opacity = e.target.value / 100;
-            opacityValue.textContent = e.target.value + '%';
-            map.setPaintProperty('orthomosaic-layer', 'raster-opacity', opacity);
-        });
-
-        document.getElementById('cameras-toggle').addEventListener('change', (e) => {
-            if (e.target.checked) {
-                if (state.cameraMarkers.length === 0) createCameraMarkers();
-                state.cameraMarkers.forEach(marker => marker.addTo(map));
-            } else {
-                state.cameraMarkers.forEach(marker => marker.remove());
+        // Function to update the active layer opacity
+        const updateOpacity = (value) => {
+            const opacity = value / 100;
+            if (aerialToggle.checked) {
+                map.setPaintProperty('orthomosaic-layer', 'raster-opacity', opacity);
+            } else if (demToggle.checked) {
+                map.setPaintProperty('dem-layer', 'raster-opacity', opacity);
             }
+        };
+
+        // Aerial toggle - make mutually exclusive with DEM
+        aerialToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                // Turn off DEM
+                demToggle.checked = false;
+                map.setLayoutProperty('dem-layer', 'visibility', 'none');
+                map.setLayoutProperty('orthomosaic-layer', 'visibility', 'visible');
+
+                // If slider is at 0, reset to 100
+                if (layerSliderMobile.value === '0') {
+                    layerSliderMobile.value = 100;
+                    layerSliderDesktop.value = 100;
+                }
+
+                // Update opacity
+                updateOpacity(layerSliderMobile.value);
+            } else {
+                map.setLayoutProperty('orthomosaic-layer', 'visibility', 'none');
+            }
+            updateSliderVisibility();
+        });
+
+        // DEM toggle - make mutually exclusive with aerial
+        demToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                // Turn off aerial
+                aerialToggle.checked = false;
+                map.setLayoutProperty('orthomosaic-layer', 'visibility', 'none');
+                map.setLayoutProperty('dem-layer', 'visibility', 'visible');
+
+                // If slider is at 0, reset to 100
+                if (layerSliderMobile.value === '0') {
+                    layerSliderMobile.value = 100;
+                    layerSliderDesktop.value = 100;
+                }
+
+                // Update opacity
+                updateOpacity(layerSliderMobile.value);
+            } else {
+                map.setLayoutProperty('dem-layer', 'visibility', 'none');
+            }
+            updateSliderVisibility();
+        });
+
+        // Unified layer blend sliders (mobile and desktop)
+        layerSliderMobile.addEventListener('input', (e) => {
+            updateOpacity(e.target.value);
+            layerSliderDesktop.value = e.target.value;
+        });
+
+        layerSliderDesktop.addEventListener('input', (e) => {
+            updateOpacity(e.target.value);
+            layerSliderMobile.value = e.target.value;
+        });
+
+        // Camera layer toggle
+        document.getElementById('cameras-toggle').addEventListener('change', (e) => {
+            map.setLayoutProperty('cameras-layer', 'visibility',
+                e.target.checked ? 'visible' : 'none');
+        });
+
+        // Slider is always visible now (no need to initialize visibility)
+
+        // Add geolocation button
+        const geoControl = new maplibregl.GeolocateControl({
+            positionOptions: {
+                enableHighAccuracy: true
+            },
+            trackUserLocation: true,
+            showUserHeading: true
+        });
+        map.addControl(geoControl, 'bottom-right');
+
+        // Add attribution in top-right
+        map.addControl(new maplibregl.AttributionControl({
+            customAttribution: 'Aerial imagery © Geoscience Australia',
+            compact: true
+        }), 'top-right');
+    }
+
+    // ============================================
+    // URL Hash Location Handling
+    // ============================================
+    function parseHashLocation() {
+        const hash = window.location.hash.slice(1);
+        if (!hash) return null;
+
+        const parts = hash.split(',');
+        if (parts.length === 2) {
+            const lat = parseFloat(parts[0]);
+            const lng = parseFloat(parts[1]);
+            if (!isNaN(lat) && !isNaN(lng)) {
+                return { lat, lng };
+            }
+        }
+        return null;
+    }
+
+    function showLocationMarker(lat, lng) {
+        // Remove existing marker if present
+        if (state.locationMarker) {
+            state.locationMarker.remove();
+            state.locationMarker = null;
+        }
+
+        // Add a custom marker for the shared location
+        const el = document.createElement('div');
+        el.className = 'location-marker';
+        el.innerHTML = '📍';
+
+        state.locationMarker = new maplibregl.Marker({ element: el })
+            .setLngLat([lng, lat])
+            .setSubpixelPositioning(true)  // Enable subpixel positioning for smooth panning
+            .addTo(map);
+
+        // Zoom to the location
+        map.flyTo({
+            center: [lng, lat],
+            zoom: 15,
+            duration: 2000
         });
     }
 
     // ============================================
     // Utilities
     // ============================================
-    function setLoadingText(text) {
-        const el = document.getElementById('loading-text');
-        if (el) el.textContent = text;
-    }
-
     function formatCoordinates(lng, lat) {
         const gmaps = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
         const latM = (Math.abs(lat) % 1) * 60;
         const lngM = (Math.abs(lng) % 1) * 60;
         const dm = `${Math.floor(Math.abs(lat))}° ${latM.toFixed(3)}' ${lat >= 0 ? 'N' : 'S'}, ${Math.floor(Math.abs(lng))}° ${lngM.toFixed(3)}' ${lng >= 0 ? 'E' : 'W'}`;
         return { gmaps, display: dm };
-    }
-
-    function hideLoading() {
-        setTimeout(() => {
-            document.getElementById('loading').classList.add('hidden');
-            setTimeout(() => {
-                document.getElementById('loading').style.display = 'none';
-            }, 500);
-        }, 800);
     }
 })();

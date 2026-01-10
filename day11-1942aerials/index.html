@@ -27,11 +27,7 @@
 </head>
 
 <body>
-    <!-- Loading State -->
-    <div id="loading" class="loading-overlay">
-        <div class="loading-spinner"></div>
-        <div class="loading-text" id="loading-text">Loading 1942 aerial imagery...</div>
-    </div>
+
 
     <!-- Navigation -->
     <a href="../index.html" class="back-link">← Back to calendar</a>
@@ -43,9 +39,17 @@
     <div class="overlay header">
         <div class="title-card">
             <h1>1942 Aerials</h1>
-            <div class="subtitle">Fremantle-Pinjarra Military Mapping</div>
-            <div class="title-meta"><span class="attribution">Patrick Morrison 2026</span><a href="methods.md"
+            <div class="subtitle">Modern photogrammetry of WWII military mapping</div>
+            <div class="title-meta"><span class="attribution">Patrick Morrison 2026</span><a href="../sources.html"
                     class="methods-link">Show methods notes →</a></div>
+        </div>
+    </div>
+
+    <!-- Opacity Slider (Mobile: floats above map) -->
+    <div class="overlay slider-overlay">
+        <div class="slider-card">
+            <label class="slider-label">Aerial</label>
+            <input type="range" id="layer-opacity" min="0" max="100" value="100" class="opacity-slider">
         </div>
     </div>
 
@@ -54,25 +58,26 @@
         <div class="controls-card">
             <div class="control-section">
                 <label class="control-label">
-                    <input type="checkbox" id="dem-toggle">
-                    <span>DEM</span>
-                </label>
-            </div>
-            <div class="control-section">
-                <label class="control-label">
-                    <input type="checkbox" id="ortho-toggle" checked>
-                    <span>1942 Orthomosaic</span>
+                    <input type="checkbox" id="aerial-toggle" checked>
+                    <span class="control-text"><span class="control-text-desktop">1942 Aerial</span><span
+                            class="control-text-mobile">Aerial</span></span>
                 </label>
                 <div class="slider-container">
-                    <label class="slider-label">Opacity</label>
-                    <input type="range" id="ortho-opacity" min="0" max="100" value="100" class="opacity-slider">
-                    <span class="slider-value" id="ortho-opacity-value">100%</span>
+                    <input type="range" id="layer-opacity-desktop" min="0" max="100" value="100" class="opacity-slider">
                 </div>
             </div>
             <div class="control-section">
                 <label class="control-label">
+                    <input type="checkbox" id="dem-toggle">
+                    <span class="control-text"><span class="control-text-desktop">1942 DEM</span><span
+                            class="control-text-mobile">DEM</span></span>
+                </label>
+            </div>
+            <div class="control-section">
+                <label class="control-label">
                     <input type="checkbox" id="cameras-toggle">
-                    <span>Camera Positions (225)</span>
+                    <span class="control-text"><span class="control-text-desktop">Photo locations</span><span
+                            class="control-text-mobile">Camera</span></span>
                 </label>
             </div>
         </div>

@@ -119,6 +119,34 @@ body {
 }
 
 /* ============================================
+   Slider Overlay (Mobile)
+   ============================================ */
+
+.slider-overlay {
+    display: none;
+    /* Hidden on desktop */
+    bottom: 80px;
+    left: 20px;
+    right: auto;
+    z-index: 600;
+    pointer-events: none;
+}
+
+.slider-card {
+    pointer-events: auto;
+    width: auto;
+    max-width: calc(100vw - 40px);
+}
+
+.slider-card .slider-label {
+    display: none;
+}
+
+.slider-card .opacity-slider {
+    padding: 0;
+}
+
+/* ============================================
    Layer Controls
    ============================================ */
 
@@ -140,7 +168,7 @@ body {
 }
 
 .control-section {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 
 .control-section:last-child {
@@ -162,9 +190,18 @@ body {
     accent-color: #1e40af;
 }
 
+.control-text-mobile {
+    display: none;
+}
+
+.control-text-desktop {
+    display: inline;
+}
+
 .slider-container {
     margin-top: 8px;
     margin-left: 22px;
+    display: block;
 }
 
 .slider-label {
@@ -173,17 +210,19 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     display: block;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
 .opacity-slider {
     width: 100%;
-    height: 4px;
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 2px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 3px;
     outline: none;
     -webkit-appearance: none;
     appearance: none;
+    position: relative;
+    z-index: 1;
 }
 
 .opacity-slider::-webkit-slider-thumb {
@@ -246,50 +285,7 @@ body {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* ============================================
-   Loading Pill (Bottom Center)
-   ============================================ */
 
-.loading-overlay {
-    position: absolute;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 20px;
-    padding: 8px 20px;
-    z-index: 1000;
-    transition: opacity 0.5s ease;
-    pointer-events: none;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-}
-
-.loading-overlay.hidden {
-    opacity: 0;
-}
-
-.loading-spinner {
-    display: none;
-    /* Minimal pill - no spinner */
-}
-
-.loading-text {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    font-weight: 400;
-    color: rgba(0, 0, 0, 0.7);
-    white-space: nowrap;
-    letter-spacing: 0.02em;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
 
 /* ============================================
    Tile Loading Indicator
@@ -399,20 +395,14 @@ body {
    Camera Markers
    ============================================ */
 
-.camera-marker {
-    width: 10px;
-    height: 10px;
-    background: rgba(30, 64, 175, 0.7);
-    border: 2px solid white;
-    border-radius: 50%;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+/* Location marker for shared links */
+.location-marker {
+    font-size: 24px;
     cursor: pointer;
-    transition: transform 0.2s ease;
 }
 
-.camera-marker:hover {
-    transform: scale(1.3);
-    background: #1e40af;
+.location-marker:hover {
+    transform: scale(1.2);
 }
 
 /* ============================================
@@ -430,6 +420,32 @@ body {
 
     .title-card {
         padding: 14px 18px;
+        max-width: 65vw;
+    }
+
+    .title-meta {
+        margin-top: 4px;
+    }
+
+    .attribution,
+    .methods-link {
+        display: block;
+        margin-right: 0;
+    }
+
+    .attribution {
+        margin-bottom: 2px;
+    }
+
+    /* Show slider overlay on mobile */
+    .slider-overlay {
+        display: block;
+        bottom: 130px;
+    }
+
+    /* Hide desktop slider on mobile */
+    .slider-container {
+        display: none;
     }
 
     .controls {
@@ -442,6 +458,23 @@ body {
     .controls-card {
         min-width: auto;
         max-width: calc(100vw - 40px);
+    }
+
+    .control-section {
+        margin-bottom: 8px;
+    }
+
+    .control-section:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Hide the count on mobile for space */
+    .control-text-mobile {
+        display: inline;
+    }
+
+    .control-text-desktop {
+        display: none;
     }
 }
 
