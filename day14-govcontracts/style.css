@@ -599,7 +599,6 @@ body {
 
 .expand-indicator:hover {
     fill: var(--accent);
-    transform: scale(1.2);
 }
 
 .link {
