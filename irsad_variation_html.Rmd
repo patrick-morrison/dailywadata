@@ -51,7 +51,7 @@ irsad_merged %>%
     labs(x="Range of SA1 IRSAD Scores", y="Number of Suburbs")
 ```
 
-From the above, we see that there are some suburbs with no variation in IRSAD scores (a range of zero) and some with a wide range of scores. Let's look at the range of the 20 suburbs with the widest range in IRSAD scores among their SA1s.
+From the above, we see that there are some suburbs with no variation in IRSAD scores (a range of zero) and some with a wide range of scores. Let's look at the 20 suburbs with the widest range in IRSAD scores among their SA1s.
 
 ```{r top20_range}
 irsad_merged %>%
@@ -110,6 +110,10 @@ irsad_merged %>%
     ggplot(aes(x=Decile, y=N_SA1))+
     geom_bar(stat="identity",fill="#2d6a4f")+
   labs(x="IRSAD Decile",y="Number of SA1s in Suburb")+
-  facet_wrap(facets=vars(SAL_Name))
+    facet_wrap(facets=vars(SAL_Name), scales="free")+
+  scale_y_continuous(breaks = seq(0,30,5), minor_breaks = 0:30)+
+  guides(y=guide_axis(minor.ticks = T))+
+  expand_limits(y=5)
 ```
 
+The most advantaged/least disadvantaged (by IRSAD) suburbs in WA show little variation in the IRSAD Deciles of their SA1s, with the exception of Subiaco and Iluka.
