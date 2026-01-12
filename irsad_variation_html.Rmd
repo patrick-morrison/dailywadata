@@ -22,9 +22,18 @@ load("irsad_merged.rda")
 
 From the Australian Bureau of Statistics, the Index of Relative Socioeconomic Advantage and Disadvantage (IRSAD) is an index score made up of Census data that can be used to rank the relative socioeconomic advantage and disadvantage of statistical areas in Australia. For more information see https://www.abs.gov.au/statistics/people/people-and-communities/socio-economic-indexes-areas-seifa-australia/2021
 
-This score applies to the relative advantage and disadvantage in a given area. A low score indicates more disadvantage and less advantage, while a high score indicates less disadvantage and more advantage.
+This score applies to the relative advantage and disadvantage in a given area. A low score indicates more disadvantage and less advantage, while a high score indicates less disadvantage and more advantage. The distribution of IRSAD Scores for Western Australian suburbs is shown below.
 
-It might be interesting to consider the variation within suburbs in Western Australia. IRSAD Scores are assigned to the smallest Statistical Area, known as SA1. Each suburb is made up of one or more SA1s. The graph below shows a histogram of the ranges (difference between maximum and minimum) IRSAD Scores for SA1s within given suburbs in WA.
+```{r score_hist}
+irsad_merged %>%
+   ggplot(aes(x=Score)) +
+   geom_histogram(fill="#2d6a4f", colour="#5b8a72")+
+  scale_x_continuous(breaks = seq(500,1200,100))+
+   labs(x="IRSAD Score", y="Number of Suburbs")
+```
+
+
+It might be interesting to consider the variation within suburbs in Western Australia. IRSAD Scores are assigned to the smallest Statistical Area, known as SA1. Each suburb is made up of one or more SA1s. Each SA1 has between 200 to 800 residents. The graph below shows a histogram of the ranges (difference between maximum and minimum) IRSAD Scores for SA1s within given suburbs in WA.
 
 ```{r range_hist}
 irsad_merged %>%
@@ -33,7 +42,7 @@ irsad_merged %>%
    labs(x="Range of SA1 IRSAD Scores", y="Number of Suburbs")
 ```
 
-There are some small/low population suburbs in WA which contain only one SA1. This is inflating the number of suburbs with a range in IRSAD scores of zero. Let's re-plot, excluding suburbs which contain only one SA1.
+There are some small/low population suburbs in WA which contain only one SA1. This is inflating the number of suburbs with a range in IRSAD scores of zero (the large peak in the histogram at 0). Let's re-plot, excluding suburbs which contain only one SA1.
 ```{r range_hist_noones}
 irsad_merged %>%
     filter(N_SA1_NoScore + N_SA1_WithScore>1) %>%
@@ -42,7 +51,7 @@ irsad_merged %>%
     labs(x="Range of SA1 IRSAD Scores", y="Number of Suburbs")
 ```
 
-There are some suburbs with no variation in IRSAD scores (a range of zero) and some with a wide range of scores. Let's look at the range of the 20 suburbs with the widest range in IRSAD scores among their SA1s.
+From the above, we see that there are some suburbs with no variation in IRSAD scores (a range of zero) and some with a wide range of scores. Let's look at the range of the 20 suburbs with the widest range in IRSAD scores among their SA1s.
 
 ```{r top20_range}
 irsad_merged %>%
@@ -53,7 +62,9 @@ irsad_merged %>%
    coord_flip()
 ```
 
-For these 20 suburbs, what is the variation of the IRSAD Deciles of their SA1s?
+Notice that few of these suburbs (other than East Perth and Menora) are close to the Perth CBD. We see popular regional to remote destinations such as Busselton and Broome represented in this list.
+
+For these 20 suburbs, what is the variation of the IRSAD Deciles of their SA1s? The following plot shows the number of SA1s within each of the 20 suburbs in each IRSAD Decile for all of Australia, where Decile 1 represents the lowest 10% of IRSAD Scores, up to Decile 10 which includes the highest 10% of IRSAD Scores in Australia.
 
 ```{r top20_sa1s}
 irsad_merged %>%
@@ -72,8 +83,13 @@ irsad_merged %>%
     ggplot(aes(x=Decile, y=N_SA1))+
     geom_bar(stat="identity",fill="#2d6a4f", colour="#5b8a72")+
     labs(x="IRSAD Decile",y="Number of SA1s in Suburb")+
-    facet_wrap(facets=vars(SAL_Name))
+    facet_wrap(facets=vars(SAL_Name), scales="free")+
+  scale_y_continuous(breaks = seq(0,30,5), minor_breaks = 0:30)+
+  guides(y=guide_axis(minor.ticks = T))+
+  expand_limits(y=5)
 ```
+
+Each of these 20 suburbs shows a distinct pattern in the distribution of the IRSAD Deciles of their SA1s. Some, such as Beaconsfield and Cable Beach, show a concentration of SA1s at high IRSAD and a peak at the lowest IRSAD Decile, with not many SA1s falling in the middle range. Others, such as Baldivis and East Perth, are represented across almost the whole range of IRSAD Deciles, although still have a clear peak.
 
 Let's compare the variation of the IRSAD Deciles for the SA1s in the 20 most advantaged/least disadvantaged suburbs in WA (highest IRSAD scores).
 
