@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IRSAD Variation in WA</title>
+    <meta name="description"
+        content="Analysis of Index of Relative Socioeconomic Advantage and Disadvantage variation across Western Australian suburbs">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="title-card">
+            <h1>IRSAD Variation in WA</h1>
+            <div class="subtitle">Index of Relative Socioeconomic Advantage and Disadvantage</div>
+            <div class="title-meta">
+                <span class="attribution">Analysis by Daisy Evans</span>
+                <a href="../sources.html" class="methods-link">Show methods notes →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- R Markdown Generated Content -->
+    <div class="rmd-content">
+        <p>From the Australian Bureau of Statistics, the Index of Relative
+Socioeconomic Advantage and Disadvantage (IRSAD) is an index score made
+up of Census data that can be used to rank the relative socioeconomic
+advantage and disadvantage of statistical areas in Australia. For more
+information see <a href="https://www.abs.gov.au/statistics/people/people-and-communities/socio-economic-indexes-areas-seifa-australia/2021" class="uri">https://www.abs.gov.au/statistics/people/people-and-communities/socio-economic-indexes-areas-seifa-australia/2021</a></p>
+<p>This score applies to the relative advantage and disadvantage in a
+given area. A low score indicates more disadvantage and less advantage,
+while a high score indicates less disadvantage and more advantage. The
+distribution of IRSAD Scores for Western Australian suburbs is shown
+below.</p>
+<p><img role="img" src="figures/score_hist-1.png" width="672" /></p>
+<p>It might be interesting to consider the variation within suburbs in
+Western Australia. IRSAD Scores are assigned to the smallest Statistical
+Area, known as SA1. Each suburb is made up of one or more SA1s. Each SA1
+has between 200 to 800 residents. The graph below shows a histogram of
+the ranges (difference between maximum and minimum) IRSAD Scores for
+SA1s within given suburbs in WA.</p>
+<p><img role="img" src="figures/range_hist-1.png" width="672" /></p>
+<p>There are some small/low population suburbs in WA which contain only
+one SA1. This is inflating the number of suburbs with a range in IRSAD
+scores of zero (the large peak in the histogram at 0). Let's re-plot,
+excluding suburbs which contain only one SA1.</p>
+<p><img role="img" src="figures/range_hist_noones-1.png" width="672" /></p>
+<p>From the above, we see that there are some suburbs with no variation
+in IRSAD scores (a range of zero) and some with a wide range of scores.
+Let's look at the 20 suburbs with the widest range in IRSAD scores among
+their SA1s.</p>
+<p><img role="img" src="figures/top20_range-1.png" width="672" /></p>
+<p>Notice that few of these suburbs (other than East Perth and Menora)
+are close to the Perth CBD. We see popular regional to remote
+destinations such as Busselton and Broome represented in this list.</p>
+<p>For these 20 suburbs, what is the variation of the IRSAD Deciles of
+their SA1s? The following plot shows the number of SA1s within each of
+the 20 suburbs in each IRSAD Decile for all of Australia, where Decile 1
+represents the lowest 10% of IRSAD Scores, up to Decile 10 which includes
+the highest 10% of IRSAD Scores in Australia.</p>
+<p><img role="img" src="figures/top20_sa1s-1.png" width="672" /></p>
+<p>Each of these 20 suburbs shows a distinct pattern in the distribution
+of the IRSAD Deciles of their SA1s. Some, such as Beaconsfield and Cable
+Beach, show a concentration of SA1s at high IRSAD and a peak at the
+lowest IRSAD Decile, with not many SA1s falling in the middle range.
+Others, such as Baldivis and East Perth, are represented across almost
+the whole range of IRSAD Deciles, although they still have a clear peak.</p>
+<p>Let's compare the variation of the IRSAD Deciles for the SA1s in the
+20 most advantaged/least disadvantaged suburbs in WA (highest IRSAD
+scores).</p>
+<p><img role="img" src="figures/highest_irsad_deciles-1.png" width="672" /></p>
+<p>The most advantaged/least disadvantaged (by IRSAD) suburbs in WA show
+little variation in the IRSAD Deciles of their SA1s, with the exception
+of Subiaco and Iluka.</p>
+    </div>
+
+</body>
+
+</html>
