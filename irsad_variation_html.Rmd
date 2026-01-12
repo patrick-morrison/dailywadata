@@ -1,0 +1,99 @@
+---
+title: "Index of Relative Socioeconomic Advantage and Disadvantage Variation in WA"
+author: "Daisy Evans"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,message = FALSE)
+
+library(tidyverse)
+library(patchwork)
+library(readxl)
+library(extrafont)
+theme_set(theme_classic() + theme(text = element_text(family="Georgia",size=12)))
+
+```
+
+```{r data, include=FALSE}
+load("irsad_merged.rda")
+```
+
+From the Australian Bureau of Statistics, the Index of Relative Socioeconomic Advantage and Disadvantage (IRSAD) is an index score made up of Census data that can be used to rank the relative socioeconomic advantage and disadvantage of statistical areas in Australia. For more information see https://www.abs.gov.au/statistics/people/people-and-communities/socio-economic-indexes-areas-seifa-australia/2021
+
+This score applies to the relative advantage and disadvantage in a given area. A low score indicates more disadvantage and less advantage, while a high score indicates less disadvantage and more advantage.
+
+It might be interesting to consider the variation within suburbs in Western Australia. IRSAD Scores are assigned to the smallest Statistical Area, known as SA1. Each suburb is made up of one or more SA1s. The graph below shows a histogram of the ranges (difference between maximum and minimum) IRSAD Scores for SA1s within given suburbs in WA.
+
+```{r range_hist}
+irsad_merged %>%
+   ggplot(aes(x=Range_SA1_Score)) +
+   geom_histogram(fill="#2d6a4f", colour="#5b8a72")+
+   labs(x="Range of SA1 IRSAD Scores", y="Number of Suburbs")
+```
+
+There are some small/low population suburbs in WA which contain only one SA1. This is inflating the number of suburbs with a range in IRSAD scores of zero. Let's re-plot, excluding suburbs which contain only one SA1.
+```{r range_hist_noones}
+irsad_merged %>%
+    filter(N_SA1_NoScore + N_SA1_WithScore>1) %>%
+    ggplot(aes(x=Range_SA1_Score)) +
+    geom_histogram(fill="#2d6a4f", colour="#5b8a72")+
+    labs(x="Range of SA1 IRSAD Scores", y="Number of Suburbs")
+```
+
+There are some suburbs with no variation in IRSAD scores (a range of zero) and some with a wide range of scores. Let's look at the range of the 20 suburbs with the widest range in IRSAD scores among their SA1s.
+
+```{r top20_range}
+irsad_merged %>%
+   top_n(20,wt = Range_SA1_Score)%>%
+   ggplot(aes(x=reorder(SAL_Name,Range_SA1_Score), y=Range_SA1_Score)) +
+   geom_bar(stat = "identity",fill="#2d6a4f", colour="#5b8a72")+
+   labs(x="Suburb", y="Range of SA1 IRSAD Scores")+
+   coord_flip()
+```
+
+For these 20 suburbs, what is the variation of the IRSAD Deciles of their SA1s?
+
+```{r top20_sa1s}
+irsad_merged %>%
+    mutate(
+      SAL_Name=reorder(SAL_Name,-Range_SA1_Score)
+    ) %>%
+    top_n(20,wt = Range_SA1_Score)%>%
+    pivot_longer(
+      cols = starts_with("N_SA1_D"),
+      names_to = c(".value","Decile"),
+      names_pattern = "(.*)_D(.*)"
+    ) %>%
+    mutate(
+      Decile=factor(Decile,levels = 1:10)
+    ) %>%
+    ggplot(aes(x=Decile, y=N_SA1))+
+    geom_bar(stat="identity",fill="#2d6a4f", colour="#5b8a72")+
+    labs(x="IRSAD Decile",y="Number of SA1s in Suburb")+
+    facet_wrap(facets=vars(SAL_Name))
+```
+
+Let's compare the variation of the IRSAD Deciles for the SA1s in the 20 most advantaged/least disadvantaged suburbs in WA (highest IRSAD scores).
+
+```{r highest_irsad_deciles}
+irsad_merged %>%
+    mutate(
+      SAL_Name=reorder(SAL_Name,-Score)
+    ) %>%
+    top_n(20,wt = Score)%>%
+    pivot_longer(
+      cols = starts_with("N_SA1_D"),
+      names_to = c(".value","Decile"),
+      names_pattern = "(.*)_D(.*)"
+    ) %>%
+    mutate(
+      Decile=factor(Decile,levels = 1:10)
+    ) %>%
+    ggplot(aes(x=Decile, y=N_SA1))+
+    geom_bar(stat="identity",fill="#2d6a4f")+
+  labs(x="IRSAD Decile",y="Number of SA1s in Suburb")+
+  facet_wrap(facets=vars(SAL_Name))
+```
+
