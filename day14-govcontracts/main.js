@@ -62,7 +62,7 @@ const CONFIG = {
         'East Metropolitan Health Service': '#00825e',
         'Economic Regulation Authority': '#FFC72C',
         'Gold Corporation': '#c3a660',
-        'Health Support Services': '#005dff;',
+        'Health Support Services': '#005dff',
         'Insurance Commission of Western Australia': '#A29061',
         'Landgate': '#00383f',
         'Legal Aid Commission of WA': '#093655',
@@ -85,7 +85,7 @@ const CONFIG = {
         'Racing and Wagering Western Australia': '#002B5A',
         'Rottnest Island Authority': '#144372',
         'Small Business Development Corporation': '#185A7D',
-        'South Metropolitan Health Service': '##5A2476;',
+        'South Metropolitan Health Service': '#5A2476',
         'South Metropolitan TAFE': '#814C9E',
         'South Regional TAFE': '#799900',
         'State Library of Western Australia': '#000000',
@@ -473,10 +473,10 @@ function render() {
         .attr('stroke', (d, i) => `url(#gradient-${i})`)
         .attr('stroke-width', d => Math.max(1, d.width))
         .attr('fill', 'none')
-        .on('mouseenter', function() {
+        .on('mouseenter', function () {
             d3.select(this).attr('stroke-opacity', 0.6);
         })
-        .on('mouseleave', function() {
+        .on('mouseleave', function () {
             d3.select(this).attr('stroke-opacity', 0.3);
         });
 
@@ -530,7 +530,8 @@ function render() {
             .attr('x', labelX)
             .attr('y', labelY)
             .attr('dy', '0.35em')
-            .text(state.expandedAgencies.has(d.fullName) ? '▼' : '▶');
+            .text(state.expandedAgencies.has(d.fullName) ? '▼' : '▶')
+            .on('click', (event) => handleNodeClick(event, d));
 
         // Agency name
         labelGroup.append('text')
@@ -538,7 +539,9 @@ function render() {
             .attr('x', labelX + 12)
             .attr('y', labelY)
             .attr('dy', '0.35em')
-            .text(d.name);
+            .text(d.name)
+            .attr('cursor', 'pointer')
+            .on('click', (event) => handleNodeClick(event, d));
     });
 
     // Bin labels (right side)
@@ -548,7 +551,9 @@ function render() {
             .attr('x', d.x1 + 8)
             .attr('y', (d.y0 + d.y1) / 2)
             .attr('dy', '0.35em')
-            .text(d.name);
+            .text(d.name)
+            .attr('cursor', 'pointer')
+            .on('click', (event) => handleNodeClick(event, d));
     });
 
     // Setup zoom
@@ -734,9 +739,9 @@ function renderContractList(container, contracts, displayCount) {
     container.innerHTML = `
         <div class="contract-list">
             ${contracts.slice(0, displayCount).map(c => {
-                const agencyColor = CONFIG.AGENCY_COLORS[c['Agency']] || '#5b615c';
-                const formerly = c['Formerly'] ? `<span class="contract-formerly">(formerly ${escapeHtml(c['Formerly'])})</span>` : '';
-                return `
+        const agencyColor = CONFIG.AGENCY_COLORS[c['Agency']] || '#5b615c';
+        const formerly = c['Formerly'] ? `<span class="contract-formerly">(formerly ${escapeHtml(c['Formerly'])})</span>` : '';
+        return `
                 <div class="contract-item" style="border-left: 4px solid ${agencyColor};">
                     <div class="contract-title">${escapeHtml(c['Title'])}</div>
                     <div class="contract-meta">
@@ -746,7 +751,7 @@ function renderContractList(container, contracts, displayCount) {
                     <div class="contract-ref">${escapeHtml(c['Reference #'])}</div>
                 </div>
             `;
-            }).join('')}
+    }).join('')}
             ${remaining > 0 ? `
                 <button class="more-contracts-btn" onclick="showMoreContracts()">
                     Show ${Math.min(remaining, 50)} more contracts (${remaining.toLocaleString()} remaining)

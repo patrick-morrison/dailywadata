@@ -187,7 +187,9 @@ body {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .loading-text {
@@ -292,10 +294,21 @@ body {
     flex-shrink: 0;
 }
 
-.legend-color.micro { background: var(--bin-micro); }
-.legend-color.small { background: var(--bin-small); }
-.legend-color.medium { background: var(--bin-medium); }
-.legend-color.large { background: var(--bin-large); }
+.legend-color.micro {
+    background: var(--bin-micro);
+}
+
+.legend-color.small {
+    background: var(--bin-small);
+}
+
+.legend-color.medium {
+    background: var(--bin-medium);
+}
+
+.legend-color.large {
+    background: var(--bin-large);
+}
 
 .legend-divider {
     height: 1px;
@@ -554,6 +567,16 @@ body {
     font-size: 10px;
     fill: var(--ink);
     pointer-events: none;
+    transition: fill 0.2s, font-weight 0.2s;
+}
+
+.node-label[cursor="pointer"] {
+    pointer-events: auto;
+}
+
+.node-label[cursor="pointer"]:hover {
+    fill: var(--accent);
+    font-weight: 400;
 }
 
 .node-label.root {
@@ -570,7 +593,13 @@ body {
 .expand-indicator {
     font-size: 8px;
     fill: var(--muted);
-    pointer-events: none;
+    cursor: pointer;
+    transition: fill 0.2s, transform 0.2s;
+}
+
+.expand-indicator:hover {
+    fill: var(--accent);
+    transform: scale(1.2);
 }
 
 .link {
