@@ -114,7 +114,8 @@ const state = {
     currentTransform: null,
     initialTransform: null,
     popoverContracts: [],
-    popoverDisplayCount: 50
+    popoverDisplayCount: 50,
+    lastRootCenter: null  // Track root position to prevent jumps on layout changes
 };
 
 // ============================================
@@ -398,10 +399,22 @@ function render() {
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    // Calculate content dimensions based on number of agencies
+    // Margins for labels
+    const margin = { top: 40, right: 120, bottom: 40, left: 40 };
+
+    // Calculate content dimensions based on column structure
     const numAgencies = state.sankeyData.nodes.filter(n => n.type === 'agency').length;
     const contentHeight = Math.max(height, numAgencies * 25 + 100);
-    const contentWidth = Math.max(width, 1200);
+
+    // Use consistent column spacing - width scales with number of columns
+    // Sankey positions using: kx = (extentWidth - nodeWidth) / (numColumns - 1)
+    // For agencies to stay at same x: spacing must be equal
+    // So: extentWidth = spacing * (numColumns - 1) + nodeWidth
+    const hasExpandedAgencies = state.expandedAgencies.size > 0;
+    const numColumns = hasExpandedAgencies ? 3 : 2;
+    const desiredSpacing = 520; // Consistent spacing between column positions
+    const extentWidth = desiredSpacing * (numColumns - 1) + CONFIG.NODE_WIDTH;
+    const contentWidth = Math.max(width, margin.left + extentWidth + margin.right);
 
     svg.attr('width', contentWidth).attr('height', contentHeight);
 
@@ -410,9 +423,6 @@ function render() {
 
     // Create zoom group
     const g = svg.append('g').attr('class', 'zoom-group');
-
-    // Margins for labels
-    const margin = { top: 40, right: 120, bottom: 40, left: 40 };
 
     // Create Sankey layout with custom sort to maintain consistent order
     const sankey = d3.sankey()
@@ -439,6 +449,23 @@ function render() {
         nodes: state.sankeyData.nodes.map(d => Object.assign({}, d)),
         links: state.sankeyData.links.map(d => Object.assign({}, d))
     });
+
+    // Calculate root center for transform stabilization
+    const rootNode = nodes.find(n => n.type === 'root');
+    const rootCenterX = (rootNode.x0 + rootNode.x1) / 2;
+    const rootCenterY = (rootNode.y0 + rootNode.y1) / 2;
+
+    // Adjust transform to keep root visually stable when layout structure changes
+    if (state.lastRootCenter !== null && state.currentTransform) {
+        const dx = (state.lastRootCenter.x - rootCenterX) * state.currentTransform.k;
+        const dy = (state.lastRootCenter.y - rootCenterY) * state.currentTransform.k;
+        state.currentTransform = d3.zoomIdentity
+            .translate(state.currentTransform.x + dx, state.currentTransform.y + dy)
+            .scale(state.currentTransform.k);
+    }
+
+    // Store current root center for next render
+    state.lastRootCenter = { x: rootCenterX, y: rootCenterY };
 
     // Create gradient definitions
     const defs = svg.append('defs');
