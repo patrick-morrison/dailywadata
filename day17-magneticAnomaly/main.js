@@ -227,6 +227,7 @@ map.on('load', () => {
     initializeShipwrecksToggle();
     initializeMinesToggle();
     initializeMobileLegendCollapse();
+    initializeMobileTitleToggle();
     initializeSearch();
 
     // Handle URL hash for coordinate links
@@ -818,7 +819,7 @@ function initializeMobileLegendCollapse() {
     const legendTitle = document.querySelector('.legend-title');
     const legendContent = document.querySelector('.legend-content');
 
-    const isMobile = () => window.innerWidth <= 768;
+    const isMobile = () => globalThis.innerWidth <= 768;
 
     // Start collapsed on mobile
     if (isMobile()) {
@@ -833,10 +834,36 @@ function initializeMobileLegendCollapse() {
         }
     });
 
-    window.addEventListener('resize', () => {
+    globalThis.addEventListener('resize', () => {
         if (!isMobile()) {
             legendTitle.classList.remove('collapsed');
             legendContent.classList.remove('collapsed');
+        }
+    });
+}
+
+function initializeMobileTitleToggle() {
+    const titleCard = document.querySelector('.title-card');
+    const isMobile = () => globalThis.innerWidth <= 768;
+
+    titleCard.addEventListener('click', (e) => {
+        // Only toggle on mobile, and not when clicking links
+        if (isMobile() && !e.target.closest('a')) {
+            titleCard.classList.toggle('expanded');
+        }
+    });
+
+    // Collapse when clicking outside
+    document.addEventListener('click', (e) => {
+        if (isMobile() && !titleCard.contains(e.target)) {
+            titleCard.classList.remove('expanded');
+        }
+    });
+
+    // Ensure expanded state is removed when resizing to desktop
+    globalThis.addEventListener('resize', () => {
+        if (!isMobile()) {
+            titleCard.classList.remove('expanded');
         }
     });
 }

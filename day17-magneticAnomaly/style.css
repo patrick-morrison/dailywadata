@@ -187,6 +187,7 @@ body {
     right: 66px;
     z-index: 601;
     width: 240px;
+    pointer-events: none;
 }
 
 .search-input-wrapper {
@@ -199,6 +200,7 @@ body {
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 8px;
     transition: all 0.2s ease;
+    pointer-events: auto;
 }
 
 .search-input-wrapper:focus-within {
@@ -256,6 +258,7 @@ body {
     top: calc(100% + 4px);
     left: 0;
     right: 0;
+    z-index: 700;
     max-height: 320px;
     overflow-y: auto;
     background: rgba(255, 255, 255, 0.95);
@@ -265,6 +268,7 @@ body {
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
     display: none;
+    pointer-events: auto;
 }
 
 .search-results.visible {
@@ -354,7 +358,7 @@ body {
     bottom: 30px;
     left: 20px;
     z-index: 600;
-    max-width: 280px;
+    max-width: 320px;
 }
 
 .legend-card {
@@ -760,30 +764,121 @@ body {
 }
 
 /* ============================================
-   Mobile Responsive
+   Mobile Responsive (< 768px)
    ============================================ */
 
 @media (max-width: 768px) {
-    .title-card h1 {
-        font-size: 1.2rem;
+    /* Back link - smaller on mobile */
+    .back-link {
+        top: 14px;
+        left: 14px;
+        font-size: 0.7rem;
     }
 
+    /* Header - compact, leave room for location btn */
+    .header {
+        top: 12px;
+        left: 12px;
+        right: 60px;
+    }
+
+    /* Title card - collapsible */
     .title-card {
-        padding: 14px 18px;
+        padding: 10px 14px;
+        cursor: pointer;
     }
 
+    .title-card h1 {
+        font-size: 1rem;
+        margin-bottom: 0;
+    }
+
+    /* Add expand indicator */
+    .title-card h1::after {
+        content: ' ⓘ';
+        font-size: 0.7rem;
+        opacity: 0.4;
+    }
+
+    .title-card.expanded h1::after {
+        content: '';
+    }
+
+    /* Hide details by default on mobile */
+    .title-card .subtitle,
+    .title-card .info-blurb,
+    .title-card .title-meta {
+        display: none;
+    }
+
+    /* Show on expanded state */
+    .title-card.expanded {
+        cursor: default;
+    }
+
+    .title-card.expanded .subtitle,
+    .title-card.expanded .info-blurb,
+    .title-card.expanded .title-meta {
+        display: block;
+    }
+
+    .title-card.expanded h1 {
+        margin-bottom: 4px;
+    }
+
+    /* Location button */
+    .location-btn {
+        top: 12px;
+        right: 12px;
+    }
+
+    /* Search bar - pinned to top below title */
+    .search-container {
+        top: 60px;
+        bottom: auto;
+        left: 12px;
+        right: 12px;
+        width: auto;
+    }
+
+    .search-results {
+        top: calc(100% + 4px);
+        bottom: auto;
+        max-height: 180px;
+    }
+
+    /* Legend - bottom sheet style */
     .legend {
-        max-width: calc(100% - 40px);
-        bottom: 20px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        max-width: 100%;
     }
 
     .legend-card {
-        padding: 12px 16px;
+        border-radius: 16px 16px 0 0;
+        padding: 8px 16px 16px;
+        max-height: 55vh;
+        overflow-y: auto;
     }
 
+    /* Drag handle indicator */
+    .legend-card::before {
+        content: '';
+        display: block;
+        width: 36px;
+        height: 4px;
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 2px;
+        margin: 4px auto 8px;
+    }
+
+    /* Legend collapse behavior */
     .legend-title {
         cursor: pointer;
         user-select: none;
+        margin-top: 8px;
+        padding-top: 8px;
     }
 
     .legend-title::after {
@@ -797,12 +892,197 @@ body {
     }
 
     .legend-content {
-        max-height: 500px;
+        max-height: 400px;
         overflow: hidden;
         transition: max-height 0.3s ease;
     }
 
     .legend-content.collapsed {
         max-height: 0;
+    }
+
+    /* Basemap toggle - more compact */
+    .basemap-toggle {
+        margin-bottom: 0;
+    }
+
+    .basemap-btn {
+        padding: 6px 10px;
+        font-size: 0.65rem;
+    }
+
+    /* Layer controls - more compact */
+    .layer-control {
+        padding: 8px 10px;
+    }
+
+    .layer-name {
+        font-size: 0.75rem;
+    }
+
+    .layer-description {
+        font-size: 0.6rem;
+        margin-left: 22px;
+    }
+
+    .layer-opacity {
+        margin-left: 22px;
+    }
+
+    /* Color legend - tighter spacing */
+    .color-legend {
+        gap: 4px 10px;
+        margin-left: 22px;
+    }
+
+    .color-item {
+        font-size: 0.6rem;
+    }
+}
+
+/* ============================================
+   Very Small Screens (< 480px)
+   ============================================ */
+
+@media (max-width: 480px) {
+    .back-link {
+        font-size: 0.65rem;
+    }
+
+    .title-card h1 {
+        font-size: 0.9rem;
+    }
+
+    .location-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .location-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* Search - smaller on very small screens */
+    .search-input {
+        font-size: 0.7rem;
+        padding: 7px 28px;
+    }
+
+    .search-result-name {
+        font-size: 0.75rem;
+    }
+
+    .search-result-type {
+        font-size: 0.6rem;
+    }
+
+    /* Legend - even more compact */
+    .legend-card {
+        padding: 6px 12px 12px;
+    }
+
+    .basemap-btn {
+        padding: 5px 8px;
+    }
+
+    .layer-control {
+        padding: 6px 8px;
+    }
+
+    .layer-toggle input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+    }
+
+    .layer-name {
+        font-size: 0.7rem;
+    }
+
+    .color-dot {
+        width: 8px;
+        height: 8px;
+    }
+
+    .color-item {
+        font-size: 0.55rem;
+        gap: 3px;
+    }
+
+    .opacity-slider {
+        height: 3px;
+    }
+
+    .opacity-slider::-webkit-slider-thumb {
+        width: 12px;
+        height: 12px;
+    }
+
+    .opacity-slider::-moz-range-thumb {
+        width: 12px;
+        height: 12px;
+    }
+}
+
+/* ============================================
+   Short Screens - Horizontal Legend (< 1050px height)
+   ============================================ */
+
+@media (max-height: 1050px) {
+    .legend {
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+        max-width: none;
+    }
+
+    .legend-card {
+        max-height: none;
+    }
+
+    .legend-content {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+    }
+
+    .legend-title {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Short screens on mobile - more compact horizontal */
+@media (max-width: 768px) and (max-height: 700px) {
+    .legend {
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+
+    .legend-card {
+        border-radius: 12px 12px 0 0;
+        padding: 8px 12px 12px;
+        max-height: 45vh;
+        overflow-y: auto;
+    }
+
+    .legend-content {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .legend-title {
+        grid-column: 1 / -1;
+    }
+
+    /* Hide layer descriptions on very short mobile */
+    .layer-description {
+        display: none;
+    }
+
+    /* Compact opacity sliders */
+    .layer-opacity {
+        margin-top: 4px;
     }
 }
