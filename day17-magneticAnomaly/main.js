@@ -229,11 +229,41 @@ map.on('load', () => {
     initializeMobileLegendCollapse();
     initializeSearch();
 
+    // Handle URL hash for coordinate links
+    handleUrlHash();
+
     // Hide loading
     setTimeout(() => {
         document.getElementById('loading').classList.add('hidden');
     }, 500);
 });
+
+// ============================================
+// URL Hash Handling
+// ============================================
+
+function handleUrlHash() {
+    const hash = globalThis.location.hash;
+    if (!hash || hash.length < 2) return;
+
+    // Parse #lat,lng format
+    const coords = hash.slice(1).split(',');
+    if (coords.length !== 2) return;
+
+    const lat = Number.parseFloat(coords[0]);
+    const lng = Number.parseFloat(coords[1]);
+
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+    // Validate reasonable bounds for WA
+    if (lat < -45 || lat > 0 || lng < 100 || lng > 135) return;
+
+    // Navigate to coordinates
+    map.flyTo({ center: [lng, lat], zoom: 10 });
+}
+
+// Listen for hash changes
+globalThis.addEventListener('hashchange', handleUrlHash);
 
 // ============================================
 // WMS Layer Management
