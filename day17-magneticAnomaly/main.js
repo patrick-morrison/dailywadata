@@ -312,6 +312,19 @@ async function loadShipwrecks() {
                     region: 'Perth Metro',
                     protected: 'Protected Heritage WA Act'
                 }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [114.98, -33.25] },
+                properties: {
+                    name: 'Langstone',
+                    type_of_si: 'Ship',
+                    constructi: 'Iron',
+                    when_lost: '1902/02/08',
+                    where_lost: 'Near Naturaliste Reef',
+                    region: 'South West (Bunbury Area)',
+                    protected: 'Protected UCH Act 2018'
+                }
             }
         ];
         geojson.features.push(...manualWrecks);
