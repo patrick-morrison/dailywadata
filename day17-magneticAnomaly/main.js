@@ -8,14 +8,17 @@
 // ============================================
 
 const CONFIG = {
-    // WMS Server
-    WMS_BASE_URL: 'https://public-services.slip.wa.gov.au/public/services/SLIP_Public_Services/DMIRS_Imagery_Service/MapServer/WMSServer',
+    // WMS Servers
+    WMS_IMAGERY_URL: 'https://public-services.slip.wa.gov.au/public/services/SLIP_Public_Services/DMIRS_Imagery_Service/MapServer/WMSServer',
+    WMS_MINING_URL: 'https://public-services.slip.wa.gov.au/public/services/SLIP_Public_Services/Industry_and_Mining/MapServer/WMSServer',
 
-    // TMI Layers
+    // TMI Layers (from Imagery server)
     LAYERS: [
-        { id: '5', name: 'TMI', title: 'Total Magnetic Intensity (80m)' },
-        { id: '3', name: 'TMI RTP', title: 'Reduction to Pole (80m)' },
-        { id: '4', name: 'TMI 1VD', title: 'First Vertical Derivative (80m)' }
+        { id: '5', name: 'TMI', title: 'Total Magnetic Intensity (80m)', server: 'imagery' },
+        { id: '3', name: 'TMI RTP', title: 'Reduction to Pole (80m)', server: 'imagery' },
+        { id: '4', name: 'TMI 1VD', title: 'First Vertical Derivative (80m)', server: 'imagery' },
+        { id: '40', name: 'Minedex', title: 'Mine locations (DMIRS-001)', server: 'mining' },
+        { id: '34', name: 'Tenements', title: 'Mining Tenements (DMIRS-003)', server: 'mining' }
     ],
 
     // Shipwrecks GeoJSON
@@ -51,12 +54,16 @@ const state = {
     layerVisibility: {
         '5': true,
         '3': false,
-        '4': false
+        '4': false,
+        '40': false,
+        '34': false
     },
     layerOpacity: {
-        '5': 1.0,
-        '3': 1.0,
-        '4': 1.0
+        '5': 1,
+        '3': 1,
+        '4': 1,
+        '40': 1,
+        '34': 1
     },
 
     // Shipwrecks
@@ -87,7 +94,9 @@ const state = {
 // WMS URL Builder
 // ============================================
 
-function buildWmsTileUrl(layerId) {
+function buildWmsTileUrl(layerId, server) {
+    const baseUrl = server === 'mining' ? CONFIG.WMS_MINING_URL : CONFIG.WMS_IMAGERY_URL;
+
     const params = new URLSearchParams({
         SERVICE: 'WMS',
         VERSION: '1.3.0',
@@ -101,7 +110,7 @@ function buildWmsTileUrl(layerId) {
         TRANSPARENT: 'true'
     });
 
-    return `${CONFIG.WMS_BASE_URL}?${params.toString()}&BBOX={bbox-epsg-3857}`;
+    return `${baseUrl}?${params.toString()}&BBOX={bbox-epsg-3857}`;
 }
 
 // ============================================
@@ -204,7 +213,7 @@ function addWmsLayers() {
         // Add source
         map.addSource(`wms-${layer.id}`, {
             type: 'raster',
-            tiles: [buildWmsTileUrl(layer.id)],
+            tiles: [buildWmsTileUrl(layer.id, layer.server)],
             tileSize: 256
         });
 
