@@ -21,6 +21,19 @@ const CONFIG = {
     // Shipwrecks GeoJSON
     SHIPWRECKS_URL: '../day2-shipwrecks/Shipwrecks_WAM_002_WA_GDA2020_Public.geojson',
 
+    // Shipwreck construction material colors
+    CONSTRUCTION_COLORS: {
+        'Wooden': '#8B4513',      // Saddle brown
+        'Iron': '#708090',        // Slate gray
+        'Steel': '#4682B4',       // Steel blue
+        'Composite': '#9370DB',   // Medium purple
+        'Comp.': '#9370DB',       // Medium purple (same as Composite)
+        'Aluminum': '#C0C0C0',    // Silver
+        'Carvel': '#D2691E',      // Chocolate (wooden technique)
+        'Clinker': '#A0522D',     // Sienna (wooden technique)
+        'Unknown': '#888888'      // Gray for empty/unknown
+    },
+
     // Initial map view - centered on WA
     INITIAL_VIEW: {
         lng: 121.0,
@@ -48,6 +61,14 @@ const state = {
 
     // Shipwrecks
     shipwrecksVisible: true,
+    visibleConstructions: {
+        'Wooden': true,
+        'Iron': true,
+        'Steel': true,
+        'Composite': true,
+        'Aluminum': true,
+        'Unknown': true
+    },
 
     // Basemap
     activeBasemap: 'street',
@@ -233,7 +254,7 @@ async function loadShipwrecks() {
             data: geojson
         });
 
-        // Add circle layer for points
+        // Add circle layer for points with construction-based colors
         map.addLayer({
             id: 'shipwrecks-layer',
             type: 'circle',
@@ -245,7 +266,19 @@ async function loadShipwrecks() {
                     8, 5,
                     12, 8
                 ],
-                'circle-color': '#c2410c',
+                'circle-color': [
+                    'match',
+                    ['get', 'constructi'],
+                    'Wooden', CONFIG.CONSTRUCTION_COLORS['Wooden'],
+                    'Iron', CONFIG.CONSTRUCTION_COLORS['Iron'],
+                    'Steel', CONFIG.CONSTRUCTION_COLORS['Steel'],
+                    'Composite', CONFIG.CONSTRUCTION_COLORS['Composite'],
+                    'Comp.', CONFIG.CONSTRUCTION_COLORS['Comp.'],
+                    'Aluminum', CONFIG.CONSTRUCTION_COLORS['Aluminum'],
+                    'Carvel', CONFIG.CONSTRUCTION_COLORS['Carvel'],
+                    'Clinker', CONFIG.CONSTRUCTION_COLORS['Clinker'],
+                    CONFIG.CONSTRUCTION_COLORS['Unknown'] // default
+                ],
                 'circle-stroke-color': '#ffffff',
                 'circle-stroke-width': 2,
                 'circle-opacity': 0.9
@@ -266,10 +299,12 @@ async function loadShipwrecks() {
             }
 
             // Build popup content
+            const construction = props.constructi || 'Unknown';
             const popupContent = `
                 <div class="shipwreck-popup">
                     <div class="popup-title">${props.name || 'Unknown Vessel'}</div>
                     ${props.type_of_si ? `<div class="popup-row"><span class="popup-label">Type:</span> ${props.type_of_si}</div>` : ''}
+                    <div class="popup-row"><span class="popup-label">Construction:</span> ${construction}</div>
                     ${props.when_lost ? `<div class="popup-row"><span class="popup-label">Lost:</span> ${props.when_lost}</div>` : ''}
                     ${props.where_lost ? `<div class="popup-row"><span class="popup-label">Location:</span> ${props.where_lost}</div>` : ''}
                     ${props.region ? `<div class="popup-row"><span class="popup-label">Region:</span> ${props.region}</div>` : ''}
@@ -307,6 +342,54 @@ function toggleShipwrecksVisibility(visible) {
     }
 }
 
+function updateShipwrecksFilter() {
+    // Build filter for visible construction types
+    const visibleTypes = Object.entries(state.visibleConstructions)
+        .filter(([, visible]) => visible)
+        .map(([type]) => type);
+
+    if (visibleTypes.length === 0) {
+        // Hide all
+        map.setFilter('shipwrecks-layer', ['==', ['get', 'constructi'], '__none__']);
+    } else if (visibleTypes.length === Object.keys(state.visibleConstructions).length) {
+        // Show all - no filter needed
+        map.setFilter('shipwrecks-layer', null);
+    } else {
+        // Build match expression for visible types
+        // Handle "Unknown" specially - it matches empty strings
+        const hasUnknown = visibleTypes.includes('Unknown');
+        const regularTypes = visibleTypes.filter(t => t !== 'Unknown');
+
+        // Include Comp., Carvel, Clinker based on their parent categories
+        if (visibleTypes.includes('Composite')) {
+            regularTypes.push('Comp.');
+        }
+        if (visibleTypes.includes('Wooden')) {
+            regularTypes.push('Carvel', 'Clinker');
+        }
+
+        if (hasUnknown && regularTypes.length > 0) {
+            // Match specific types OR empty string
+            map.setFilter('shipwrecks-layer', [
+                'any',
+                ['in', ['get', 'constructi'], ['literal', regularTypes]],
+                ['==', ['get', 'constructi'], ''],
+                ['!', ['has', 'constructi']]
+            ]);
+        } else if (hasUnknown) {
+            // Only unknown - match empty
+            map.setFilter('shipwrecks-layer', [
+                'any',
+                ['==', ['get', 'constructi'], ''],
+                ['!', ['has', 'constructi']]
+            ]);
+        } else {
+            // Only specific types
+            map.setFilter('shipwrecks-layer', ['in', ['get', 'constructi'], ['literal', regularTypes]]);
+        }
+    }
+}
+
 function initializeShipwrecksToggle() {
     const control = document.querySelector('.layer-control[data-layer="shipwrecks"]');
     if (!control) return;
@@ -316,6 +399,17 @@ function initializeShipwrecksToggle() {
     checkbox.addEventListener('change', () => {
         toggleShipwrecksVisibility(checkbox.checked);
     });
+
+    // Construction type toggles
+    const colorItems = control.querySelectorAll('.color-item[data-construction]');
+    for (const item of colorItems) {
+        item.addEventListener('click', () => {
+            const construction = item.dataset.construction;
+            state.visibleConstructions[construction] = !state.visibleConstructions[construction];
+            item.classList.toggle('active');
+            updateShipwrecksFilter();
+        });
+    }
 }
 
 // ============================================
@@ -344,7 +438,8 @@ function setBasemap(basemap) {
 // ============================================
 
 function initializeLayerControls() {
-    const layerControls = document.querySelectorAll('.layer-control');
+    // Only initialize WMS layer controls (not vector layers like shipwrecks)
+    const layerControls = document.querySelectorAll('.layer-control:not(.vector-layer)');
 
     for (const control of layerControls) {
         const layerId = control.dataset.layer;
