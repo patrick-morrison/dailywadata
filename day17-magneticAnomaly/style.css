@@ -380,12 +380,31 @@ body {
     padding-top: 12px;
     border-top: 1px solid rgba(0, 0, 0, 0.1);
     margin-bottom: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.legend-title::after {
+    content: ' ▼';
+    font-size: 0.6rem;
+    opacity: 0.5;
+}
+
+.legend-title.collapsed::after {
+    content: ' ▶';
 }
 
 .legend-content {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    max-height: 800px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.legend-content.collapsed {
+    max-height: 0;
 }
 
 /* ============================================
@@ -862,43 +881,14 @@ body {
         overflow-y: auto;
     }
 
-    /* Drag handle indicator */
-    .legend-card::before {
-        content: '';
-        display: block;
-        width: 36px;
-        height: 4px;
-        background: rgba(0, 0, 0, 0.15);
-        border-radius: 2px;
-        margin: 4px auto 8px;
-    }
-
-    /* Legend collapse behavior */
+    /* Legend - tighter spacing on mobile */
     .legend-title {
-        cursor: pointer;
-        user-select: none;
         margin-top: 8px;
         padding-top: 8px;
     }
 
-    .legend-title::after {
-        content: ' ▼';
-        font-size: 0.6rem;
-        opacity: 0.5;
-    }
-
-    .legend-title.collapsed::after {
-        content: ' ▶';
-    }
-
     .legend-content {
         max-height: 400px;
-        overflow: hidden;
-        transition: max-height 0.3s ease;
-    }
-
-    .legend-content.collapsed {
-        max-height: 0;
     }
 
     /* Basemap toggle - more compact */

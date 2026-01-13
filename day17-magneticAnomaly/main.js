@@ -827,18 +827,10 @@ function initializeMobileLegendCollapse() {
         legendContent.classList.add('collapsed');
     }
 
+    // Toggle collapse on click (works on all screen sizes)
     legendTitle.addEventListener('click', () => {
-        if (isMobile()) {
-            legendTitle.classList.toggle('collapsed');
-            legendContent.classList.toggle('collapsed');
-        }
-    });
-
-    globalThis.addEventListener('resize', () => {
-        if (!isMobile()) {
-            legendTitle.classList.remove('collapsed');
-            legendContent.classList.remove('collapsed');
-        }
+        legendTitle.classList.toggle('collapsed');
+        legendContent.classList.toggle('collapsed');
     });
 }
 
