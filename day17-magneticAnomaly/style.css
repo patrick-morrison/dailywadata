@@ -511,7 +511,8 @@ body {
     background: transparent;
 }
 
-.shipwreck-popup .popup-title {
+.shipwreck-popup .popup-title,
+.mine-popup .popup-title {
     font-family: 'Instrument Serif', serif;
     font-size: 1.1rem;
     color: #c2410c;
@@ -520,13 +521,19 @@ body {
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-.shipwreck-popup .popup-row {
+.mine-popup .popup-title {
+    color: #795548;
+}
+
+.shipwreck-popup .popup-row,
+.mine-popup .popup-row {
     font-size: 0.75rem;
     color: #1a1a1a;
     margin-bottom: 4px;
 }
 
-.shipwreck-popup .popup-label {
+.shipwreck-popup .popup-label,
+.mine-popup .popup-label {
     color: rgba(0, 0, 0, 0.5);
     text-transform: uppercase;
     font-size: 0.65rem;

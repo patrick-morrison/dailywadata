@@ -8,21 +8,36 @@
 // ============================================
 
 const CONFIG = {
-    // WMS Servers
-    WMS_IMAGERY_URL: 'https://public-services.slip.wa.gov.au/public/services/SLIP_Public_Services/DMIRS_Imagery_Service/MapServer/WMSServer',
-    WMS_MINING_URL: 'https://public-services.slip.wa.gov.au/public/services/SLIP_Public_Services/Industry_and_Mining/MapServer/WMSServer',
+    // WMS Server
+    WMS_BASE_URL: 'https://public-services.slip.wa.gov.au/public/services/SLIP_Public_Services/DMIRS_Imagery_Service/MapServer/WMSServer',
 
-    // TMI Layers (from Imagery server)
+    // TMI Layers
     LAYERS: [
-        { id: '5', name: 'TMI', title: 'Total Magnetic Intensity (80m)', server: 'imagery' },
-        { id: '3', name: 'TMI RTP', title: 'Reduction to Pole (80m)', server: 'imagery' },
-        { id: '4', name: 'TMI 1VD', title: 'First Vertical Derivative (80m)', server: 'imagery' },
-        { id: '40', name: 'Minedex', title: 'Mine locations (DMIRS-001)', server: 'mining' },
-        { id: '34', name: 'Tenements', title: 'Mining Tenements (DMIRS-003)', server: 'mining' }
+        { id: '5', name: 'TMI', title: 'Total Magnetic Intensity (80m)' },
+        { id: '3', name: 'TMI RTP', title: 'Reduction to Pole (80m)' },
+        { id: '4', name: 'TMI 1VD', title: 'First Vertical Derivative (80m)' }
     ],
 
     // Shipwrecks GeoJSON
     SHIPWRECKS_URL: '../day2-shipwrecks/Shipwrecks_WAM_002_WA_GDA2020_Public.geojson',
+
+    // Operating Mines CSV
+    MINES_URL: 'Operating_Mines.csv',
+
+    // Mine commodity group colors
+    COMMODITY_COLORS: {
+        'Construction material': '#795548',  // Brown
+        'Precious metal': '#FFD700',         // Gold
+        'Iron': '#B71C1C',                   // Dark red
+        'Industrial mineral': '#607D8B',     // Blue grey
+        'Speciality metal': '#9C27B0',       // Purple
+        'Steel alloy metal': '#455A64',      // Dark blue grey
+        'Precious mineral': '#E91E63',       // Pink
+        'Alumina': '#FF5722',                // Deep orange
+        'Energy': '#FFC107',                 // Amber
+        'Base metal': '#00BCD4',             // Cyan
+        'Unknown': '#888888'                 // Grey
+    },
 
     // Shipwreck construction material colors
     CONSTRUCTION_COLORS: {
@@ -54,16 +69,12 @@ const state = {
     layerVisibility: {
         '5': true,
         '3': false,
-        '4': false,
-        '40': false,
-        '34': false
+        '4': false
     },
     layerOpacity: {
         '5': 1,
         '3': 1,
-        '4': 1,
-        '40': 1,
-        '34': 1
+        '4': 1
     },
 
     // Shipwrecks
@@ -74,6 +85,22 @@ const state = {
         'Steel': true,
         'Composite': true,
         'Aluminum': true,
+        'Unknown': true
+    },
+
+    // Operating Mines
+    minesVisible: true,
+    visibleCommodities: {
+        'Construction material': true,
+        'Precious metal': true,
+        'Iron': true,
+        'Industrial mineral': true,
+        'Speciality metal': true,
+        'Steel alloy metal': true,
+        'Precious mineral': true,
+        'Alumina': true,
+        'Energy': true,
+        'Base metal': true,
         'Unknown': true
     },
 
@@ -94,8 +121,7 @@ const state = {
 // WMS URL Builder
 // ============================================
 
-function buildWmsTileUrl(layerId, server) {
-    const baseUrl = server === 'mining' ? CONFIG.WMS_MINING_URL : CONFIG.WMS_IMAGERY_URL;
+function buildWmsTileUrl(layerId) {
 
     const params = new URLSearchParams({
         SERVICE: 'WMS',
@@ -110,7 +136,7 @@ function buildWmsTileUrl(layerId, server) {
         TRANSPARENT: 'true'
     });
 
-    return `${baseUrl}?${params.toString()}&BBOX={bbox-epsg-3857}`;
+    return `${CONFIG.WMS_BASE_URL}?${params.toString()}&BBOX={bbox-epsg-3857}`;
 }
 
 // ============================================
@@ -186,13 +212,15 @@ map.on('load', () => {
     // Add WMS sources and layers
     addWmsLayers();
 
-    // Load and add shipwrecks layer
+    // Load and add vector layers
     loadShipwrecks();
+    loadMines();
 
     // Initialize controls
     initializeLayerControls();
     initializeBasemapToggle();
     initializeShipwrecksToggle();
+    initializeMinesToggle();
     initializeMobileLegendCollapse();
 
     // Hide loading
@@ -213,7 +241,7 @@ function addWmsLayers() {
         // Add source
         map.addSource(`wms-${layer.id}`, {
             type: 'raster',
-            tiles: [buildWmsTileUrl(layer.id, layer.server)],
+            tiles: [buildWmsTileUrl(layer.id)],
             tileSize: 256
         });
 
@@ -417,6 +445,221 @@ function initializeShipwrecksToggle() {
             state.visibleConstructions[construction] = !state.visibleConstructions[construction];
             item.classList.toggle('active');
             updateShipwrecksFilter();
+        });
+    }
+}
+
+// ============================================
+// Operating Mines Layer
+// ============================================
+
+async function loadMines() {
+    try {
+        const response = await fetch(CONFIG.MINES_URL);
+        const csvText = await response.text();
+
+        // Parse CSV
+        const lines = csvText.split('\n');
+        const headers = lines[0].split(',');
+
+        const lonIdx = headers.indexOf('LONGITUDE');
+        const latIdx = headers.indexOf('LATITUDE');
+        const nameIdx = headers.indexOf('SHORT_TITLE');
+        const commodityIdx = headers.indexOf('COMMODITY_GROUP_NAME');
+        const siteTypeIdx = headers.indexOf('SITE_TYPE');
+        const stageIdx = headers.indexOf('STAGE');
+        const commoditiesIdx = headers.indexOf('COMMODITIES');
+
+        // Convert to GeoJSON
+        const features = [];
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            // Handle CSV with quoted fields
+            const values = parseCSVLine(line);
+            const lon = parseFloat(values[lonIdx]);
+            const lat = parseFloat(values[latIdx]);
+
+            if (isNaN(lon) || isNaN(lat)) continue;
+
+            features.push({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [lon, lat] },
+                properties: {
+                    name: values[nameIdx] || 'Unknown',
+                    commodity_group: values[commodityIdx] || 'Unknown',
+                    site_type: values[siteTypeIdx] || '',
+                    stage: values[stageIdx] || '',
+                    commodities: values[commoditiesIdx] || ''
+                }
+            });
+        }
+
+        const geojson = { type: 'FeatureCollection', features };
+
+        // Add source
+        map.addSource('mines', {
+            type: 'geojson',
+            data: geojson
+        });
+
+        // Build color expression
+        const colorExpr = ['match', ['get', 'commodity_group']];
+        for (const [commodity, color] of Object.entries(CONFIG.COMMODITY_COLORS)) {
+            if (commodity !== 'Unknown') {
+                colorExpr.push(commodity, color);
+            }
+        }
+        colorExpr.push(CONFIG.COMMODITY_COLORS['Unknown']); // default
+
+        // Add circle layer
+        map.addLayer({
+            id: 'mines-layer',
+            type: 'circle',
+            source: 'mines',
+            paint: {
+                'circle-radius': [
+                    'interpolate', ['linear'], ['zoom'],
+                    4, 4,
+                    8, 6,
+                    12, 10
+                ],
+                'circle-color': colorExpr,
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 2,
+                'circle-opacity': 0.9
+            }
+        });
+
+        // Add click handler for popups
+        map.on('click', 'mines-layer', (e) => {
+            if (e.features.length === 0) return;
+
+            const feature = e.features[0];
+            const props = feature.properties;
+            const coords = feature.geometry.coordinates.slice();
+
+            if (state.activePopup) {
+                state.activePopup.remove();
+            }
+
+            const popupContent = `
+                <div class="mine-popup">
+                    <div class="popup-title">${props.name}</div>
+                    <div class="popup-row"><span class="popup-label">Commodity:</span> ${props.commodity_group}</div>
+                    ${props.commodities ? `<div class="popup-row"><span class="popup-label">Resources:</span> ${props.commodities}</div>` : ''}
+                    ${props.site_type ? `<div class="popup-row"><span class="popup-label">Type:</span> ${props.site_type}</div>` : ''}
+                    ${props.stage ? `<div class="popup-row"><span class="popup-label">Stage:</span> ${props.stage}</div>` : ''}
+                </div>
+            `;
+
+            state.activePopup = new maplibregl.Popup({ closeButton: true, maxWidth: '300px' })
+                .setLngLat(coords)
+                .setHTML(popupContent)
+                .addTo(map);
+        });
+
+        // Change cursor on hover
+        map.on('mouseenter', 'mines-layer', () => {
+            map.getCanvas().style.cursor = 'pointer';
+        });
+
+        map.on('mouseleave', 'mines-layer', () => {
+            map.getCanvas().style.cursor = '';
+        });
+
+    } catch (error) {
+        console.error('Failed to load mines:', error);
+    }
+}
+
+// Simple CSV line parser that handles quoted fields
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            result.push(current);
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    result.push(current);
+    return result;
+}
+
+function toggleMinesVisibility(visible) {
+    state.minesVisible = visible;
+    map.setLayoutProperty('mines-layer', 'visibility', visible ? 'visible' : 'none');
+
+    const control = document.querySelector('.layer-control[data-layer="mines"]');
+    if (control) {
+        control.classList.toggle('disabled', !visible);
+    }
+}
+
+function updateMinesFilter() {
+    const visibleTypes = Object.entries(state.visibleCommodities)
+        .filter(([, visible]) => visible)
+        .map(([type]) => type);
+
+    if (visibleTypes.length === 0) {
+        map.setFilter('mines-layer', ['==', ['get', 'commodity_group'], '__none__']);
+    } else if (visibleTypes.length === Object.keys(state.visibleCommodities).length) {
+        map.setFilter('mines-layer', null);
+    } else {
+        const hasUnknown = visibleTypes.includes('Unknown');
+        const regularTypes = visibleTypes.filter(t => t !== 'Unknown');
+
+        // Include 'Fe' as Iron
+        if (visibleTypes.includes('Iron')) {
+            regularTypes.push('Fe');
+        }
+
+        if (hasUnknown && regularTypes.length > 0) {
+            map.setFilter('mines-layer', [
+                'any',
+                ['in', ['get', 'commodity_group'], ['literal', regularTypes]],
+                ['==', ['get', 'commodity_group'], ''],
+                ['!', ['has', 'commodity_group']]
+            ]);
+        } else if (hasUnknown) {
+            map.setFilter('mines-layer', [
+                'any',
+                ['==', ['get', 'commodity_group'], ''],
+                ['!', ['has', 'commodity_group']]
+            ]);
+        } else {
+            map.setFilter('mines-layer', ['in', ['get', 'commodity_group'], ['literal', regularTypes]]);
+        }
+    }
+}
+
+function initializeMinesToggle() {
+    const control = document.querySelector('.layer-control[data-layer="mines"]');
+    if (!control) return;
+
+    const checkbox = control.querySelector('input[type="checkbox"]');
+
+    checkbox.addEventListener('change', () => {
+        toggleMinesVisibility(checkbox.checked);
+    });
+
+    // Commodity type toggles
+    const colorItems = control.querySelectorAll('.color-item[data-commodity]');
+    for (const item of colorItems) {
+        item.addEventListener('click', () => {
+            const commodity = item.dataset.commodity;
+            state.visibleCommodities[commodity] = !state.visibleCommodities[commodity];
+            item.classList.toggle('active');
+            updateMinesFilter();
         });
     }
 }
