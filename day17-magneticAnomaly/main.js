@@ -72,9 +72,9 @@ const state = {
         '4': false
     },
     layerOpacity: {
-        '5': 1,
-        '3': 1,
-        '4': 1
+        '5': 0.3,
+        '3': 0.3,
+        '4': 0.3
     },
 
     // Shipwrecks
@@ -105,7 +105,7 @@ const state = {
     },
 
     // Basemap
-    activeBasemap: 'street',
+    activeBasemap: 'satellite',
 
     // Geolocation
     userLocationMarker: null,
@@ -180,7 +180,7 @@ const map = new maplibregl.Map({
                 minzoom: 0,
                 maxzoom: 22,
                 layout: {
-                    visibility: 'visible'
+                    visibility: 'none'
                 }
             },
             {
@@ -190,7 +190,7 @@ const map = new maplibregl.Map({
                 minzoom: 0,
                 maxzoom: 22,
                 layout: {
-                    visibility: 'none'
+                    visibility: 'visible'
                 }
             }
         ]
