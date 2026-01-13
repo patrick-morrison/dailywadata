@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Western Australia Magnetic Anomaly</title>
+    <meta name="description" content="Interactive map of Western Australia Total Magnetic Intensity data">
+
+    <!-- External Dependencies -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Loading State -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Loading magnetic data...</div>
+    </div>
+
+    <!-- Navigation -->
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Header -->
+    <div class="overlay header">
+        <div class="title-card">
+            <h1>Western Australia Magnetic Anomaly</h1>
+            <div class="subtitle">Total Magnetic Intensity Data</div>
+            <div class="title-meta"><span class="attribution">Aren Leishman 2026</span><a href="../sources.html"
+                    class="methods-link">Show methods notes →</a></div>
+        </div>
+    </div>
+
+    <!-- Location Button -->
+    <button class="location-btn" id="location-btn" title="Show my location">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+        </svg>
+    </button>
+
+    <!-- Legend / Controls -->
+    <div class="overlay legend">
+        <div class="legend-card">
+            <!-- Basemap Toggle -->
+            <div class="basemap-toggle">
+                <div class="basemap-label">Basemap</div>
+                <div class="basemap-buttons">
+                    <button class="basemap-btn active" data-basemap="street">Street</button>
+                    <button class="basemap-btn" data-basemap="satellite">Satellite</button>
+                </div>
+            </div>
+
+            <div class="legend-title">Data Layers</div>
+            <div class="legend-content">
+                <!-- Shipwrecks Vector Layer -->
+                <div class="layer-control vector-layer" data-layer="shipwrecks">
+                    <div class="layer-header">
+                        <label class="layer-toggle">
+                            <input type="checkbox" checked>
+                            <span class="layer-marker"></span>
+                            <span class="layer-name">Shipwrecks</span>
+                        </label>
+                    </div>
+                    <div class="layer-description">WA Maritime Museum shipwreck locations</div>
+                </div>
+
+                <!-- Layer 5: TMI -->
+                <div class="layer-control" data-layer="5">
+                    <div class="layer-header">
+                        <label class="layer-toggle">
+                            <input type="checkbox" checked>
+                            <span class="layer-name">TMI</span>
+                        </label>
+                    </div>
+                    <div class="layer-description">Total Magnetic Intensity (80m)</div>
+                    <div class="layer-opacity">
+                        <input type="range" min="0" max="100" value="100" class="opacity-slider">
+                        <span class="opacity-value">100%</span>
+                    </div>
+                </div>
+
+                <!-- Layer 3: TMI RTP -->
+                <div class="layer-control" data-layer="3">
+                    <div class="layer-header">
+                        <label class="layer-toggle">
+                            <input type="checkbox">
+                            <span class="layer-name">TMI RTP</span>
+                        </label>
+                    </div>
+                    <div class="layer-description">Reduction to Pole (80m)</div>
+                    <div class="layer-opacity">
+                        <input type="range" min="0" max="100" value="100" class="opacity-slider">
+                        <span class="opacity-value">100%</span>
+                    </div>
+                </div>
+
+                <!-- Layer 4: TMI 1VD -->
+                <div class="layer-control" data-layer="4">
+                    <div class="layer-header">
+                        <label class="layer-toggle">
+                            <input type="checkbox">
+                            <span class="layer-name">TMI 1VD</span>
+                        </label>
+                    </div>
+                    <div class="layer-description">First Vertical Derivative (80m)</div>
+                    <div class="layer-opacity">
+                        <input type="range" min="0" max="100" value="100" class="opacity-slider">
+                        <span class="opacity-value">100%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="main.js"></script>
+</body>
+
+</html>
