@@ -114,7 +114,12 @@ const state = {
     deviceHeading: null,
 
     // Popups
-    activePopup: null
+    activePopup: null,
+
+    // Search data (populated on load)
+    shipwrecksData: null,
+    minesData: null,
+    searchResults: []
 };
 
 // ============================================
@@ -222,6 +227,7 @@ map.on('load', () => {
     initializeShipwrecksToggle();
     initializeMinesToggle();
     initializeMobileLegendCollapse();
+    initializeSearch();
 
     // Hide loading
     setTimeout(() => {
@@ -328,6 +334,9 @@ async function loadShipwrecks() {
             }
         ];
         geojson.features.push(...manualWrecks);
+
+        // Store for search
+        state.shipwrecksData = geojson;
 
         // Add source
         map.addSource('shipwrecks', {
@@ -541,6 +550,9 @@ async function loadMines() {
         }
 
         const geojson = { type: 'FeatureCollection', features };
+
+        // Store for search
+        state.minesData = geojson;
 
         // Add source
         map.addSource('mines', {
@@ -940,6 +952,244 @@ function updateUserLocation(pos) {
         }
     }
     map.flyTo({ center: [longitude, latitude], zoom: 10 });
+}
+
+// ============================================
+// Search Functionality
+// ============================================
+
+function initializeSearch() {
+    const searchInput = document.getElementById('search-input');
+    const searchResults = document.getElementById('search-results');
+    const searchClear = document.getElementById('search-clear');
+
+    // Handle input
+    searchInput.addEventListener('input', () => {
+        const query = searchInput.value.trim();
+        searchClear.style.display = query ? 'flex' : 'none';
+
+        if (query.length < 2) {
+            searchResults.classList.remove('visible');
+            return;
+        }
+
+        const results = performSearch(query);
+        displaySearchResults(results);
+    });
+
+    // Clear button
+    searchClear.addEventListener('click', () => {
+        searchInput.value = '';
+        searchClear.style.display = 'none';
+        searchResults.classList.remove('visible');
+    });
+
+    // Close results when clicking outside
+    document.addEventListener('click', (e) => {
+        const container = document.getElementById('search-container');
+        if (!container.contains(e.target)) {
+            searchResults.classList.remove('visible');
+        }
+    });
+
+    // Reopen results on focus if there's a query
+    searchInput.addEventListener('focus', () => {
+        const query = searchInput.value.trim();
+        if (query.length >= 2) {
+            const results = performSearch(query);
+            displaySearchResults(results);
+        }
+    });
+}
+
+function performSearch(query) {
+    const results = [];
+    const lowerQuery = query.toLowerCase();
+
+    // Search shipwrecks
+    if (state.shipwrecksData) {
+        for (const feature of state.shipwrecksData.features) {
+            const name = feature.properties.name || '';
+            const score = fuzzyMatch(name, lowerQuery);
+            if (score > 0) {
+                const construction = normalizeConstruction(feature.properties.constructi);
+                results.push({
+                    type: 'wreck',
+                    name: name,
+                    subtype: feature.properties.type_of_si || 'Shipwreck',
+                    color: CONFIG.CONSTRUCTION_COLORS[construction] || CONFIG.CONSTRUCTION_COLORS['Unknown'],
+                    coordinates: feature.geometry.coordinates,
+                    properties: feature.properties,
+                    score: score
+                });
+            }
+        }
+    }
+
+    // Search mines
+    if (state.minesData) {
+        for (const feature of state.minesData.features) {
+            const name = feature.properties.name || '';
+            const score = fuzzyMatch(name, lowerQuery);
+            if (score > 0) {
+                const commodity = feature.properties.commodity_group || 'Unknown';
+                results.push({
+                    type: 'mine',
+                    name: name,
+                    subtype: commodity,
+                    color: CONFIG.COMMODITY_COLORS[commodity] || CONFIG.COMMODITY_COLORS['Unknown'],
+                    coordinates: feature.geometry.coordinates,
+                    properties: feature.properties,
+                    score: score
+                });
+            }
+        }
+    }
+
+    // Sort by score (higher first), then by name
+    results.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
+    // Limit results
+    return results.slice(0, 50);
+}
+
+function fuzzyMatch(text, query) {
+    const lowerText = text.toLowerCase();
+
+    // Exact substring match (highest priority)
+    if (lowerText.includes(query)) {
+        // Bonus for starting with query
+        return lowerText.startsWith(query) ? 100 : 90;
+    }
+
+    // Normalized match (remove spaces, punctuation)
+    const normalizedText = lowerText.replace(/[\s\-_.,']/g, '');
+    const normalizedQuery = query.replace(/[\s\-_.,']/g, '');
+
+    if (normalizedText.includes(normalizedQuery)) {
+        return normalizedText.startsWith(normalizedQuery) ? 80 : 70;
+    }
+
+    // Word-start matching (each query char starts a word)
+    const words = lowerText.split(/[\s\-_.,']+/);
+    const wordStarts = words.map(w => w[0]).join('');
+    if (wordStarts.includes(normalizedQuery)) {
+        return 60;
+    }
+
+    // Sequential character matching (all query chars appear in order)
+    let textIdx = 0;
+    let matched = 0;
+    for (const char of normalizedQuery) {
+        const foundIdx = normalizedText.indexOf(char, textIdx);
+        if (foundIdx >= 0) {
+            matched++;
+            textIdx = foundIdx + 1;
+        }
+    }
+
+    // Require at least 70% of characters to match in sequence
+    if (matched === normalizedQuery.length && normalizedQuery.length >= 2) {
+        return 50;
+    }
+
+    return 0;
+}
+
+function normalizeConstruction(constructi) {
+    if (!constructi || constructi === '') return 'Unknown';
+    if (constructi === 'Comp.') return 'Composite';
+    if (constructi === 'Carvel' || constructi === 'Clinker') return 'Wooden';
+    return constructi;
+}
+
+function displaySearchResults(results) {
+    const searchResults = document.getElementById('search-results');
+
+    if (results.length === 0) {
+        searchResults.innerHTML = '<div class="search-no-results">No results found</div>';
+        searchResults.classList.add('visible');
+        return;
+    }
+
+    // Store results for click handler
+    state.searchResults = results;
+
+    searchResults.innerHTML = results.map((result, index) => `
+        <div class="search-result-item"
+             data-index="${index}"
+             style="border-left-color: ${result.color};">
+            <div class="search-result-name">${escapeHtml(result.name)}</div>
+            <div class="search-result-type">${escapeHtml(result.subtype)} • ${result.type === 'wreck' ? 'Shipwreck' : 'Mine'}</div>
+        </div>
+    `).join('');
+
+    // Add click handlers
+    for (const item of searchResults.querySelectorAll('.search-result-item')) {
+        item.addEventListener('click', () => {
+            const index = Number.parseInt(item.dataset.index, 10);
+            const result = state.searchResults[index];
+            navigateToSearchResult(result);
+            searchResults.classList.remove('visible');
+        });
+    }
+
+    searchResults.classList.add('visible');
+}
+
+function navigateToSearchResult(result) {
+    const [lng, lat] = result.coordinates;
+
+    // Close existing popup
+    if (state.activePopup) {
+        state.activePopup.remove();
+    }
+
+    // Build popup content based on type
+    let popupContent;
+    if (result.type === 'wreck') {
+        const props = result.properties;
+        const construction = props.constructi || 'Unknown';
+        popupContent = `
+            <div class="shipwreck-popup">
+                <div class="popup-title">${props.name || 'Unknown Vessel'}</div>
+                ${props.type_of_si ? `<div class="popup-row"><span class="popup-label">Type:</span> ${props.type_of_si}</div>` : ''}
+                <div class="popup-row"><span class="popup-label">Construction:</span> ${construction}</div>
+                ${props.when_lost ? `<div class="popup-row"><span class="popup-label">Lost:</span> ${props.when_lost}</div>` : ''}
+                ${props.where_lost ? `<div class="popup-row"><span class="popup-label">Location:</span> ${props.where_lost}</div>` : ''}
+                ${props.region ? `<div class="popup-row"><span class="popup-label">Region:</span> ${props.region}</div>` : ''}
+                ${props.protected ? `<div class="popup-row"><span class="popup-label">Status:</span> ${props.protected}</div>` : ''}
+            </div>
+        `;
+    } else {
+        const props = result.properties;
+        popupContent = `
+            <div class="mine-popup">
+                <div class="popup-title">${props.name}</div>
+                <div class="popup-row"><span class="popup-label">Commodity:</span> ${props.commodity_group}</div>
+                ${props.commodities ? `<div class="popup-row"><span class="popup-label">Resources:</span> ${props.commodities}</div>` : ''}
+                ${props.site_type ? `<div class="popup-row"><span class="popup-label">Type:</span> ${props.site_type}</div>` : ''}
+                ${props.stage ? `<div class="popup-row"><span class="popup-label">Stage:</span> ${props.stage}</div>` : ''}
+            </div>
+        `;
+    }
+
+    // Create popup
+    state.activePopup = new maplibregl.Popup({ closeButton: true, maxWidth: '300px' })
+        .setLngLat([lng, lat])
+        .setHTML(popupContent);
+
+    // Fly to location and show popup when animation completes
+    map.flyTo({ center: [lng, lat], zoom: 10 });
+    map.once('moveend', () => {
+        state.activePopup.addTo(map);
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // ============================================
