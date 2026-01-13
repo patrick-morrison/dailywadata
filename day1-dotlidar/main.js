@@ -9,7 +9,7 @@
 
 const CONFIG = {
     // Data settings
-    COG_URL: window.PAGE_CONFIG?.cogUrl || 'dot_lidar.tif',
+    COG_URL: (window.PAGE_CONFIG && window.PAGE_CONFIG.cogUrl) || 'dot_lidar.tif',
     NODATA_VALUE: -9999,
 
     // Visualization settings
@@ -152,7 +152,7 @@ map.on('load', () => {
     loadBathymetry();
 
     // Add POIs
-    const pois = window.PAGE_CONFIG?.pois || [];
+    const pois = (window.PAGE_CONFIG && window.PAGE_CONFIG.pois) || [];
     pois.forEach(poi => {
         const el = document.createElement('div');
         el.className = 'poi-marker';

@@ -298,7 +298,7 @@
             <div class="day-entry">
                 <div class="day-header">
                     <span class="day-num">05</span>
-                    <h3 class="day-name"><a href="day5-firehistory/index.html">Fire History</a></h3>
+                    <h3 class="day-name"><a href="`-firehistory/index.html">Fire History</a></h3>
                 </div>
                 <div class="day-details">
                     <div class="detail-section">
@@ -322,6 +322,284 @@
                             techniques from <a
                                 href="https://www.andrewheiss.com/blog/2023/07/28/gradient-map-fills-r-sf">Andrew
                                 Heiss's tutorial</a>.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Daisy Evans</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">06</span>
+                    <h3 class="day-name"><a href="day6-sealeveltool/index.html">Australian Submerged Landscapes</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">As an archaeologist, I study ancient sites under the sea. During the
+                            last ice age, sea levels were up to 130m lower, revealing landscapes where Aboriginal people
+                            lived for tens of thousands of years. Visualising these landscapes is the first step to
+                            understanding them, and I have previously made a <a
+                                href="https://github.com/patrick-morrison/qgis_sea_level_tool">sea level tool for
+                                QGIS</a> to do this. However, the interactive Flash-based map Sahultime by Matthew
+                            Coller is what showed me what ancient Australia looked like, and so this is an attempt to
+                            capture that magic, by allowing people to explore the ancient landscapes to the best our
+                            continent-wide data will allow. This visualization combines modern bathymetry data with sea
+                            level reconstructions to show how Australia's coastline has changed over 130,000 years. A
+                            guide feature shows people around key Western Australian archaeological sites in the context
+                            of the ancient land extent, using the sea level and measurement tools.
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text">2024 Australian Bathymetry and Topography Grid (AusBathyTopo) from <a
+                                href="https://www.ga.gov.au/scientific-topics/marine/bathymetry-and-topography">Geoscience
+                                Australia</a> (250m resolution, 2.6 GB Float32). Sea level curve from Grant et al. 2012
+                            (<a href="https://doi.org/10.1038/nature10902">Red Sea Sea-level Reconstruction</a>),
+                            published in Nature.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">The original bathymetry was clipped to +10m to -150m depth range and
+                            quantized to 8-bit (63cm precision) using gdal_calc.py, reducing size by 99.5% to 14 MB.
+                            Reprojected to Web Mercator (EPSG:3857) for web compatibility and clipped to Australian
+                            extent. Preview file (360 KB) created at 10% resolution for instant loading.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">HTML/CSS/JS application using MapLibre GL for base mapping and
+                            GeoTIFF.js for raster data loading. Custom WebGL shaders render real-time depth coloring
+                            with hillshading and environmental blending. Chart.js visualizes the sea level curve with
+                            interactive scrubbing. Includes guided tour system highlighting archaeological sites and
+                            ancient land extent.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Patrick Morrison</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">07</span>
+                    <h3 class="day-name"><a href="day7-uxo/index.html">UXO Potential</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Large tracts of Western Australian land are designated as potential
+                            sites for Unexploded Ordnance (UXO) due to historical military activity, including in what
+                            is now the Perth and Geraldton metro areas. This visualization aims to make these legacy
+                            risk zones more visible, showing the historical defense footprints persist within the
+                            current landscape.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://catalogue.data.wa.gov.au/dataset/unexploded-ordnance">UXO Potential
+                                Dataset</a>
+                            from the Department of Fire and Emergency Services via Data WA. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">None. The data was used as-is from the source GeoJSON.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">Built ontop of OpenLayers. Dataset utilised as a geoJSON.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Jack Langoulant</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">08</span>
+                    <h3 class="day-name"><a href="day8-treesperth/index.html">Trees Perth</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">This is one of my favourite open datasets. It is so delightful! Looking
+                            at all of the trees on QGIS is a great way to understand what geospatial data is useful for,
+                            but this app is a way of exploring it on the ground. It shows you only the trees that are
+                            nearby, and lets you take note of which of the 314 species you have seen. This is also an
+                            experiment for me using localStorage on a phone web browser, with lightweight save/load to a
+                            text file.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://catalogue.data.wa.gov.au/dataset/perth-trees-in-the-city">City of Perth -
+                                Trees in the City</a>. This dataset shows point locations of public trees inventoried by
+                            the City of Perth field teams, and doesn't include all trees - just those on public land. CC
+                            BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Tech Stack</div>
+                        <div class="detail-text">A mobile-only GPS radar interface built with MapLibre GL JS, Deck.gl,
+                            and
+                            Turf.js. Features real-time location tracking with compass orientation, smooth position
+                            interpolation, distance-based tree visualization with 30m radius, and species collection
+                            system with localStorage persistence and text file backup/restore.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Patrick Morrison</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">09</span>
+                    <h3 class="day-name"><a href="day9-birdsong/index.html">Birdsong Archive</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">The background ambiance of birdsong is a classic feature of Australian
+                            wildlife, the dataset collected over years by John Hutchinson. This tool allows one to be
+                            able to easily bring a sample of that into our every day lives background noise for us to
+                            live, work, and relax to.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://catalogue.data.wa.gov.au/dataset/bird-songs-online">Directory of birdsongs
+                                from State Library of Western Australia</a>. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">The published CSV data was simply trimmed for unused fields. The url is
+                            appended in the browser in order to allow for easy playing of the underlying MP3s.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Tech Stack</div>
+                        <div class="detail-text">Simple HTML + Javascript to pull and interpret the CSV data.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Aren Leishman</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">10</span>
+                    <h3 class="day-name"><a href="day10-mines/index.html">Abandoned Mines</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Western Australia has a very mining oriented history and economy, and a
+                            critical part of a mines lifecycle is its remediation and cleanup once the extraction of the
+                            commodity is complete. Knowing the condition and status of various abandoned mine features
+                            is valuable not just from the perspective of safety and land management, but also from a
+                            historical and archaeological lens. The remains of past mining operations give insight into
+                            the history of regions and work practices throughout WA.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://catalogue.data.wa.gov.au/dataset/abandoned-mines">Abandoned Mines Dataset
+                                from Data WA</a>. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">The only preprocessing needed was converting the downloaded dataset to
+                            a CSV for handling on the web.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">HTML/CSS/JS webmap. Utilising the modern and open MapLibre GL for
+                            basemap rendering, the mines are then added as a scatterplot layer on top. To better analyse
+                            the dataset the feature type, condition, base condition, stability, and mined commodity are
+                            able to be visualised by colour. It is also possible to filter on these fields plus a few
+                            more. Clicking on a feature brings up its detailed record as well as its link on minedex.
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Aren Leishman</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">11</span>
+                    <h3 class="day-name"><a href="day11-1942aerials/index.html">1942 Aerials</a>
+                    </h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">225 aerial photographs from WWII military mapping operations captured
+                            over Fremantle-Pinjarra on 14-15 January 1942. These images show the landscape as it was
+                            over 80 years ago, aligned and processed into an interactive orthomosaic with terrain
+                            visualization.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://www.ga.gov.au/scientific-topics/national-location-information/historical-aerial-photography">Historical
+                                Aerial Photography Collection from Geoscience Australia</a>. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">225 photographs captured with a Williamson Eagle 4 camera across four
+                            film rolls. I aligned them in Agisoft Metashape to generate a 1m resolution grayscale
+                            orthomosaic (28MB) and 5m DEM (3.3MB). DEM terrain visualization uses GDAL multiply blend
+                            method combining color-coded elevation with hillshading. Both exported as Cloud Optimized
+                            GeoTIFFs in Web Mercator projection with internal tiling and multi-resolution overviews.
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">HTML/CSS/JS webmap using MapLibre GL. The
+                            @geomatico/maplibre-cog-protocol library reads Cloud Optimized GeoTIFFs directly. Camera
+                            positions shown as clickable markers with metadata, thumbnails, and download links. Basemap:
+                            Esri World Imagery. This approach can be applied to many areas of WA - I have clean DEMs
+                            processed from historical aerial photography dating back to 1939.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Patrick Morrison</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="day-entry">
+                <div class="day-header">
+                    <span class="day-num">12</span>
+                    <h3 class="day-name"><a href="day12-irsad/index.html">IRSAD Variation in WA</a>
+                    </h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Analysis of how socioeconomic advantage and disadvantage varies within
+                            Western Australian suburbs using the Index of Relative Socioeconomic Advantage and Disadvantage
+                            (IRSAD). Visualises distribution patterns across Statistical Area Level 1 (SA1) regions within
+                            each suburb.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Data Sources</div>
+                        <div class="detail-text"><a
+                                href="https://www.abs.gov.au/statistics/people/people-and-communities/socio-economic-indexes-areas-seifa-australia/2021">Socio-Economic
+                                Indexes for Areas (SEIFA), Australia, 2021</a> — Australian Bureau of Statistics</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Tools</div>
+                        <div class="detail-text">R (tidyverse, patchwork, readxl, extrafont). <a href="day12-irsad/irsad_variation_html.Rmd">Rendered from R Markdown</a>.</div>
                     </div>
                     <div class="detail-section">
                         <div class="detail-label">Author</div>

@@ -1,0 +1,716 @@
+/**
+ * Trees Perth - Wedge Focus (Square Light Map + Dark Void UI)
+ */
+
+/* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html {
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+}
+
+/* Collection Tooltip */
+.collection-tooltip {
+    position: absolute;
+    background: rgba(20, 25, 20, 0.7);
+    border: 1px solid rgba(139, 155, 139, 0.3);
+    border-radius: 6px;
+    padding: 8px 12px;
+    pointer-events: none;
+    z-index: 1000;
+    transform: translateX(-50%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    max-width: 200px;
+}
+
+.collection-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid rgba(20, 25, 20, 0.7);
+}
+
+.tooltip-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #e8e4dc;
+    margin-bottom: 2px;
+}
+
+.tooltip-botanical {
+    font-size: 0.75rem;
+    font-style: italic;
+    color: #8b9b8b;
+    margin-bottom: 4px;
+}
+
+.tooltip-date {
+    font-size: 0.75rem;
+    color: #c4a35a;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    overflow: hidden;
+    background: #1e231e;
+    /* Match shelf background for iPhone overflow */
+    color: #e8e4dc;
+}
+
+/* Desktop Blocker */
+#desktop-blocker {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #1a1c1a;
+    z-index: 9999;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+}
+
+#desktop-blocker h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #f4f1ea;
+}
+
+#desktop-blocker p {
+    font-size: 1.2rem;
+    color: #8b8b80;
+    line-height: 1.6;
+}
+
+@media (min-width: 768px) {
+    #desktop-blocker {
+        display: flex;
+    }
+
+    #app {
+        display: none;
+    }
+}
+
+/* App Container */
+#app {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+}
+
+/* =========================================
+   RADAR SCREEN - Square Focus
+   ========================================= */
+
+#map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 65vh;
+    z-index: 0;
+    background: #f4f1ea;
+    overflow: hidden;
+    /* 
+       User Request: "no boundary for the mini map, that stays square"
+       So we remove the circular mask entirely.
+       Just a square map view.
+    */
+}
+
+
+/* Grey out radar when location is disabled */
+#map.disabled::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(30, 35, 30, 0.7);
+    z-index: 100;
+    pointer-events: none;
+}
+
+/* Enable Location Button */
+.enable-location-btn {
+    background: #4a5d4a;
+    color: #f4f1ea;
+    border: none;
+    padding: 10px 24px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Roboto', sans-serif;
+    box-shadow: 0 3px 10px rgba(74, 93, 74, 0.3);
+    margin-top: 8px;
+}
+
+.intro-text {
+    font-size: 0.85rem;
+    color: #8b9b8b;
+    line-height: 1.4;
+    margin-bottom: 12px;
+    max-width: 90%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.empty-state.intro-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100%;
+    padding-top: 5px !important;
+}
+
+.enable-location-btn:hover {
+    background: #5a6d5a;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(74, 93, 74, 0.4);
+}
+
+.enable-location-btn:active {
+    background: #3a4d3a;
+    transform: translateY(0);
+}
+
+/* Map Canvas - Crisp White with Radial Fade */
+.maplibregl-canvas {
+    background-color: #ffffff !important;
+    opacity: 1;
+    filter: contrast(1.05) brightness(1.05);
+}
+
+/* =========================================
+   UI LAYER
+   ========================================= */
+
+.ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 20;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* Top Bar */
+.top-bar {
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: auto;
+    /* Subtle gradient to ensure text readability on map? */
+    background: linear-gradient(180deg, rgba(244, 241, 234, 0.8) 0%, transparent 100%);
+}
+
+.back-btn {
+    font-size: 1.4rem;
+    color: #4a5d4a;
+    /* Dark green on light map */
+    text-decoration: none;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+    font-weight: 700;
+}
+
+.back-btn:hover {
+    opacity: 1;
+}
+
+.radar-status {
+    font-family: 'Roboto', sans-serif;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #7a7a70;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+#radar-count {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #556b55;
+}
+
+.icon-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(74, 93, 74, 0.2);
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(74, 93, 74, 0.1);
+    transition: all 0.2s;
+    color: #4a5d4a;
+}
+
+.icon-btn:hover {
+    border-color: rgba(74, 93, 74, 0.4);
+    box-shadow: 0 6px 16px rgba(74, 93, 74, 0.2);
+}
+
+.icon-btn.active {
+    background: #4a5d4a;
+    color: #f4f1ea;
+    border-color: #4a5d4a;
+}
+
+
+/* =========================================
+   BOTTOM SHELF - Dark Earth
+   ========================================= */
+
+.shelf-container {
+    position: relative;
+    height: 35vh;
+    background: #1e231e;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+    overflow: visible;
+    z-index: 1000;
+}
+
+.shelf-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+/* Tree Item */
+.tree-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    margin-bottom: 1px;
+    background: rgba(30, 35, 30, 0.5);
+    cursor: pointer;
+    transition: background 0.2s, opacity 0.2s ease-out, transform 0.2s ease-out;
+    gap: 16px;
+}
+
+.tree-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.tree-item.selected {
+    background: rgba(196, 163, 90, 0.1);
+    border-left: 3px solid #c4a35a;
+    padding-left: 21px;
+}
+
+.tree-info h3 {
+    font-family: 'Roboto', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #e8e4dc;
+}
+
+.tree-meta {
+    font-size: 0.85rem;
+    color: #8b9b8b;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    align-items: baseline;
+}
+
+.tree-meta span.botanical {
+    font-style: italic;
+    color: #6b7b6b;
+}
+
+/* Tree Badges */
+.tree-badge {
+    display: inline-block;
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+}
+
+.tree-badge.rare {
+    background-color: rgba(218, 165, 32, 0.2);
+    color: rgb(218, 165, 32);
+    border: 1px solid rgba(218, 165, 32, 0.4);
+}
+
+.tree-badge.historic {
+    background-color: rgba(70, 130, 180, 0.2);
+    color: rgb(120, 170, 210);
+    border: 1px solid rgba(70, 130, 180, 0.4);
+}
+
+.tree-badge.community {
+    background-color: rgba(100, 149, 237, 0.2);
+    color: rgb(130, 169, 247);
+    border: 1px solid rgba(100, 149, 237, 0.4);
+}
+
+.tree-badge.significant-group {
+    background-color: rgba(65, 105, 225, 0.2);
+    color: rgb(95, 135, 235);
+    border: 1px solid rgba(65, 105, 225, 0.4);
+}
+
+
+.tree-dist {
+    font-family: 'Roboto', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #c4a35a;
+    min-width: 40px;
+    text-align: right;
+}
+
+.tree-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Collect Button */
+.collect-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border: none;
+    border-radius: 50%;
+    background: #4a5d4a;
+    color: #f4f1ea;
+    font-size: 1.6rem;
+    font-weight: 300;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.collect-btn:hover:not(:disabled) {
+    background: #5a6d5a;
+    transform: scale(1.08);
+}
+
+.collect-btn:active:not(:disabled) {
+    background: #3a4d3a;
+    transform: scale(0.95);
+}
+
+.collect-btn.collected {
+    background: rgba(74, 93, 74, 0.3);
+    color: rgba(244, 241, 234, 0.5);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    cursor: default;
+    font-weight: 200;
+}
+
+
+/* Tab Bar */
+.tab-bar {
+    display: flex;
+    padding: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: #181c18;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 16px;
+    background: none;
+    border: none;
+    font-family: 'Roboto', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #5b6b5b;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.tab-btn:hover {
+    color: #8b9b8b;
+}
+
+.tab-btn.active {
+    color: #c4a35a;
+}
+
+.tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 25%;
+    width: 50%;
+    height: 3px;
+    background: #c4a35a;
+    border-radius: 2px 2px 0 0;
+}
+
+/* Progress Bar */
+.progress-bar-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    transform: translateY(-100%);
+    padding: 16px 24px;
+    background: #1e231e;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 20px 20px 0 0;
+    z-index: 10;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #8b9b8b;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+#progress-percent {
+    color: #c4a35a;
+}
+
+.progress-track {
+    width: 100%;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4a5d4a, #6b8f5e);
+    border-radius: 4px;
+    transition: width 0.5s ease-out;
+}
+
+/* Collection List */
+#collection-list .tree-item {
+    background: transparent;
+}
+
+#collection-list .tree-item.selected {
+    background: rgba(196, 163, 90, 0.08);
+    border-left: 3px solid #c4a35a;
+    padding-left: 21px;
+}
+
+.empty-state {
+    text-align: center;
+    color: #5b6b5b;
+    font-weight: 500;
+    font-size: 0.95rem;
+    margin-top: 40px;
+    line-height: 1.6;
+}
+
+/* MapLibre Controls Hidden */
+.maplibregl-ctrl-bottom-right,
+.maplibregl-ctrl-bottom-left {
+    display: none !important;
+}
+
+/* Scrollbar Dark */
+.shelf-scroll::-webkit-scrollbar {
+    width: 4px;
+}
+
+.shelf-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.shelf-scroll::-webkit-scrollbar-thumb {
+    background: rgba(74, 93, 74, 0.4);
+    border-radius: 2px;
+}
+
+.shelf-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(74, 93, 74, 0.6);
+}
+
+/* Attribution */
+.attribution {
+    position: absolute;
+    bottom: 38vh;
+    /* Above the shelf (35vh), on map area */
+    right: 16px;
+    font-size: 0.65rem;
+    color: rgba(232, 228, 220, 0.7);
+    /* Light color for dark background */
+    text-align: right;
+    z-index: 30;
+    pointer-events: auto;
+    font-weight: 500;
+}
+
+.attribution a {
+    color: rgba(232, 228, 220, 0.9);
+    text-decoration: none;
+    border-bottom: 1px dotted rgba(232, 228, 220, 0.5);
+}
+
+.attribution a:hover {
+    color: #c4a35a;
+    border-bottom-style: solid;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: all;
+}
+
+.modal-content {
+    background: #1e231e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    pointer-events: all;
+}
+
+.modal-content h2 {
+    color: #e8e4dc;
+    margin-bottom: 20px;
+    font-size: 1.4rem;
+}
+
+.modal-btn {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #4a5d4a;
+    color: #f4f1ea;
+}
+
+.modal-btn:hover {
+    background: #5a6d5a;
+    transform: translateY(-2px);
+}
+
+.modal-btn.secondary {
+    background: #3a3a3a;
+}
+
+.modal-btn.secondary:hover {
+    background: #4a4a4a;
+}
+
+.modal-btn.danger {
+    background: #8b3a3a;
+}
+
+.modal-btn.danger:hover {
+    background: #a04a4a;
+}
+
+/* Backup Footer */
+.backup-footer {
+    padding: 20px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(30, 35, 30, 0.5);
+}
+
+.backup-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.backup-btn {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid rgba(74, 93, 74, 0.3);
+    border-radius: 6px;
+    background: rgba(74, 93, 74, 0.2);
+    color: #e8e4dc;
+    font-family: 'Roboto', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.backup-btn:hover {
+    background: rgba(74, 93, 74, 0.3);
+    border-color: rgba(74, 93, 74, 0.5);
+}
+
+.backup-description {
+    font-size: 0.75rem;
+    color: #6b7b6b;
+    text-align: center;
+    line-height: 1.4;
+}.backup-btn:disabled{opacity:.3;cursor:not-allowed}.backup-btn:disabled:hover{background:rgba(74,93,74,.2);border-color:rgba(74,93,74,.3);transform:none}
+.file-input-large{width:100%;padding:16px;margin-bottom:20px;border:2px dashed rgba(74,93,74,.5);border-radius:8px;background:rgba(74,93,74,.1);color:#e8e4dc;font-family:Roboto,sans-serif;font-size:1rem;cursor:pointer;transition:all .2s}.file-input-large:hover{border-color:rgba(74,93,74,.8);background:rgba(74,93,74,.2)}

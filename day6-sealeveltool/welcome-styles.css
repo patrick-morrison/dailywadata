@@ -1,0 +1,208 @@
+/* ============================================
+   Welcome / Loading Screen
+   ============================================ */
+
+.welcome-screen {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+.welcome-screen.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.welcome-content {
+    max-width: 560px;
+    width: 90%;
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 40px;
+    position: relative;
+}
+
+.welcome-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+}
+
+.welcome-loading.hidden {
+    display: none;
+}
+
+.loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(37, 99, 235, 0.2);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 1s cubic-bezier(0.55, 0.055, 0.675, 0.19) infinite;
+    margin-bottom: 16px;
+}
+
+.loading-text {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.welcome-ready {
+    text-align: center;
+}
+
+.welcome-ready.hidden {
+    display: none;
+}
+
+.welcome-ready h2 {
+    font-family: var(--font-serif);
+    font-size: 2rem;
+    font-weight: 400;
+    margin: 0 0 28px;
+    color: var(--color-text);
+}
+
+.welcome-description {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--color-text);
+    margin: 0 0 20px;
+}
+
+.welcome-description .methods-link {
+    color: var(--color-accent);
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+
+.welcome-description .methods-link:hover {
+    opacity: 0.7;
+}
+
+.welcome-note {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: var(--color-text-muted);
+    font-style: italic;
+    margin: 0 0 24px;
+}
+
+.welcome-attribution {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin: 20px 0 0;
+    text-align: center;
+}
+
+.welcome-buttons {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    min-height: 48px;
+    /* Stable height to prevent layout shift */
+}
+
+.welcome-buttons.hidden {
+    display: none;
+}
+
+.buttons-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 48px;
+    /* Matches button height to prevent layout shift */
+}
+
+.buttons-loading.hidden {
+    display: none;
+}
+
+.small-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(37, 99, 235, 0.2);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-message {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+}
+
+.btn-primary,
+.btn-secondary {
+    padding: 14px 36px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.btn-primary {
+    background: #0f3b5f;
+    color: white;
+    animation: welcome-guide-pulse 2.4s ease-out infinite;
+}
+
+.btn-primary:hover {
+    background: #0b2f4a;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 59, 95, 0.4);
+}
+
+@keyframes welcome-guide-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(15, 59, 95, 0.45);
+        transform: translateY(0);
+    }
+    70% {
+        box-shadow: 0 0 0 14px rgba(15, 59, 95, 0);
+        transform: translateY(-1px);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(15, 59, 95, 0);
+        transform: translateY(0);
+    }
+}
+
+.btn-secondary {
+    background: #1d4d2b;
+    color: white;
+    border: none;
+}
+
+.btn-secondary:hover {
+    background: #173e22;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(29, 77, 43, 0.4);
+}

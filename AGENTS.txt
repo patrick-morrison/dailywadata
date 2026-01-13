@@ -53,3 +53,15 @@ dailywadata/
 - Include proper attribution and licensing info in methods.md
 - Test on mobile (most people use mobile)
 - Beautiful > functional (but both is better)
+- **Add Umami analytics** to every day's index.html (see below)
+
+## Analytics Tracking
+
+All day pages should include Umami analytics tracking in the `<head>` section:
+
+```html
+<script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+    src="https://umami.padmorrison.com/umami.js"></script>
+```
+
+This should be placed after styles, before the closing `</head>` tag.

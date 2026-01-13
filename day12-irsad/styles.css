@@ -1,0 +1,270 @@
+/* Reset and Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --ink: #1a1a1a;
+    --paper: #fbfdfb;
+    --accent: #2d6a4f;
+    --muted: #5b615c;
+    --line: #e4e6e4;
+}
+
+body {
+    font-family: 'Instrument Serif', Georgia, serif;
+    background: var(--paper);
+    background-image:
+        linear-gradient(180deg, rgba(74, 124, 148, 0.05) 0%, rgba(74, 124, 148, 0) 26%),
+        linear-gradient(120deg, rgba(45, 106, 79, 0.03) 0%, rgba(45, 106, 79, 0) 44%);
+    color: var(--ink);
+    min-height: 100vh;
+    line-height: 1.6;
+    padding: 1.5rem;
+}
+
+/* Navigation */
+.back-link {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 2rem;
+    transition: color 0.2s;
+}
+
+.back-link:hover {
+    color: var(--accent);
+}
+
+/* Header */
+.header {
+    max-width: 1200px;
+    margin: 0 auto 2.5rem;
+    padding-bottom: 1.75rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.title-card h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+}
+
+.title-card h1 em {
+    font-style: italic;
+    color: var(--accent);
+}
+
+.subtitle {
+    font-size: 1.125rem;
+    color: var(--muted);
+    font-style: italic;
+    margin-bottom: 0.875rem;
+}
+
+.title-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+}
+
+.attribution {
+    font-style: normal;
+}
+
+.methods-link {
+    color: var(--accent);
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+
+.methods-link:hover {
+    opacity: 0.7;
+}
+
+/* R Markdown Content Container */
+.rmd-content {
+    max-width: 800px;
+    margin: 0 auto 3rem;
+    background: white;
+    padding: 3rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--line);
+}
+
+/* Override R Markdown paragraph styles */
+.rmd-content p {
+    margin-bottom: 1.5rem;
+    font-size: 1.125rem;
+    line-height: 1.8;
+    text-align: left;
+}
+
+/* Override R Markdown link styles */
+.rmd-content a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+    word-break: break-word;
+}
+
+.rmd-content a:hover {
+    opacity: 0.7;
+}
+
+/* Figures and Images from R Markdown */
+.rmd-content figure {
+    margin: 2.5rem auto;
+    max-width: 100%;
+}
+
+.rmd-content img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    padding: 0.5rem;
+}
+
+.rmd-content figcaption {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 0.75rem;
+    font-style: italic;
+    opacity: 0.85;
+}
+
+/* Override any inline Bootstrap/R Markdown styles */
+.rmd-content .container-fluid {
+    padding: 0;
+}
+
+/* Code blocks if any */
+.rmd-content code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9em;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+}
+
+.rmd-content pre {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 1rem;
+    overflow-x: auto;
+    border-radius: 4px;
+    margin: 1.5rem 0;
+}
+
+.rmd-content pre code {
+    background: transparent;
+    padding: 0;
+}
+
+/* Tables if any */
+.rmd-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 2rem 0;
+    font-size: 0.95rem;
+}
+
+.rmd-content table th,
+.rmd-content table td {
+    padding: 0.75rem;
+    border: 1px solid var(--line);
+    text-align: left;
+}
+
+.rmd-content table th {
+    background: rgba(0, 0, 0, 0.05);
+    font-weight: 500;
+}
+
+/* Lists */
+.rmd-content ul,
+.rmd-content ol {
+    margin: 1rem 0 1.5rem 1.5rem;
+}
+
+.rmd-content li {
+    margin-bottom: 0.5rem;
+}
+
+/* Headings within content */
+.rmd-content h2,
+.rmd-content h3,
+.rmd-content h4 {
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    font-weight: 400;
+    color: var(--ink);
+}
+
+.rmd-content h2 {
+    font-size: 1.75rem;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.5rem;
+}
+
+.rmd-content h3 {
+    font-size: 1.4rem;
+}
+
+.rmd-content h4 {
+    font-size: 1.2rem;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    body {
+        padding: 1rem;
+    }
+
+    .header {
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+    }
+
+    .title-card h1 {
+        font-size: 2rem;
+    }
+
+    .subtitle {
+        font-size: 1rem;
+    }
+
+    .title-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .rmd-content {
+        font-size: 0.95rem;
+        padding: 1.5rem;
+    }
+
+    .rmd-content img {
+        margin: 1.5rem 0;
+    }
+}
