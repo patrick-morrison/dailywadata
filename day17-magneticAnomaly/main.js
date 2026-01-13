@@ -285,6 +285,37 @@ async function loadShipwrecks() {
         const response = await fetch(CONFIG.SHIPWRECKS_URL);
         const geojson = await response.json();
 
+        // Add manual entries for recently discovered wrecks
+        const manualWrecks = [
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.4604, -32.1146] },
+                properties: {
+                    name: 'Thornliebank',
+                    type_of_si: 'Ship',
+                    constructi: 'Iron',
+                    when_lost: '1928/04/18',
+                    where_lost: 'Southwest of Rottnest Island',
+                    region: 'Perth Metro',
+                    protected: 'Protected Heritage WA Act'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.4995, -32.1504] },
+                properties: {
+                    name: 'HNLMS K XI',
+                    type_of_si: 'Submarine',
+                    constructi: 'Steel',
+                    when_lost: '1946/09/01',
+                    where_lost: 'Southeast of Rottnest Island',
+                    region: 'Perth Metro',
+                    protected: 'Protected Heritage WA Act'
+                }
+            }
+        ];
+        geojson.features.push(...manualWrecks);
+
         // Add source
         map.addSource('shipwrecks', {
             type: 'geojson',
