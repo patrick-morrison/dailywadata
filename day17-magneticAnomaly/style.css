@@ -97,8 +97,33 @@ body {
     font-weight: 300;
 }
 
+.info-blurb {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    font-size: 0.7rem;
+    color: rgba(0, 0, 0, 0.6);
+    line-height: 1.5;
+    max-width: 320px;
+}
+
+.info-blurb p {
+    margin: 0 0 6px 0;
+}
+
+.info-blurb p:last-child {
+    margin-bottom: 0;
+}
+
+.info-blurb strong {
+    color: #d97706;
+    font-weight: 400;
+}
+
 .title-meta {
-    margin-top: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .attribution {
