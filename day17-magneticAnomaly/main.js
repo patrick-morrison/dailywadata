@@ -551,7 +551,7 @@ async function loadMines() {
         const latIdx = headers.indexOf('LATITUDE');
         const nameIdx = headers.indexOf('SHORT_TITLE');
         const commodityIdx = headers.indexOf('COMMODITY_GROUP_NAME');
-        const siteTypeIdx = headers.indexOf('SITE_TYPE');
+        const siteTypeIdx = headers.indexOf('SUB_TYPE');
         const stageIdx = headers.indexOf('STAGE');
         const commoditiesIdx = headers.indexOf('COMMODITIES');
 
