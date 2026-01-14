@@ -427,7 +427,8 @@ body.dark-mode .back-link {
 }
 
 .legend-item[data-network],
-.legend-item[data-hierarchy] {
+.legend-item[data-hierarchy],
+.legend-item[data-linestyle] {
     cursor: pointer;
     padding: 4px 6px;
     margin: -4px -6px;
@@ -435,17 +436,21 @@ body.dark-mode .back-link {
 }
 
 .legend-item[data-network]:hover,
-.legend-item[data-hierarchy]:hover {
+.legend-item[data-hierarchy]:hover,
+.legend-item[data-linestyle]:hover  {
     background: rgba(217, 119, 6, 0.1);
 }
 
 .legend-item[data-network]:not(.active),
-.legend-item[data-hierarchy]:not(.active) {
+.legend-item[data-hierarchy]:not(.active),
+.legend-item[data-linestyle]:not(.active) {
     opacity: 0.3;
 }
 
 .legend-item[data-network]:not(.active) .legend-line,
-.legend-item[data-hierarchy]:not(.active) .legend-line {
+.legend-item[data-hierarchy]:not(.active) .legend-line,
+.legend-item[data-linestyle]:not(.active) .legend-line-solid,
+.legend-item[data-linestyle]:not(.active) .legend-line-dashed {
     opacity: 0.5;
     filter: grayscale(50%);
 }
@@ -483,6 +488,7 @@ body.dark-mode .back-link {
     user-select: none;
     transition: all 0.2s ease;
 }
+
 
 .legend-item:not(.active) .legend-checkbox {
     color: rgba(0, 0, 0, 0.3);
