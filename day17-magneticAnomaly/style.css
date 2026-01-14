@@ -43,18 +43,17 @@ body {
 }
 
 /* ============================================
-   Back Link
+   Back Link (inside title card)
    ============================================ */
 
 .back-link {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    z-index: 101;
-    font-size: 0.75rem;
+    display: block;
+    font-size: 0.65rem;
     color: rgba(0, 0, 0, 0.5);
     text-decoration: none;
     transition: color 0.2s ease;
+        margin-top: 8px;
+    margin-bottom: 8px;
 }
 
 .back-link:hover {
@@ -62,14 +61,18 @@ body {
 }
 
 /* ============================================
-   Header & Title Card
+   Desktop Sidebar (Header + Legend combined)
    ============================================ */
 
 .header {
     top: 50px;
     left: 20px;
-    right: 20px;
+    bottom: 30px;
+    width: 320px;
     z-index: 600;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
 }
 
 .title-card {
@@ -77,9 +80,9 @@ body {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 12px;
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
     padding: 20px 24px;
-    display: inline-block;
     pointer-events: auto;
 }
 
@@ -95,29 +98,6 @@ body {
     font-size: 0.75rem;
     color: rgba(0, 0, 0, 0.5);
     font-weight: 300;
-}
-
-.info-blurb {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    font-size: 0.7rem;
-    color: rgba(0, 0, 0, 0.6);
-    line-height: 1.5;
-    max-width: 320px;
-}
-
-.info-blurb p {
-    margin: 0 0 6px 0;
-}
-
-.info-blurb p:last-child {
-    margin-bottom: 0;
-}
-
-.info-blurb strong {
-    color: #d97706;
-    font-weight: 400;
 }
 
 .title-meta {
@@ -351,14 +331,17 @@ body {
 }
 
 /* ============================================
-   Legend / Controls Panel
+   Legend / Controls Panel (part of sidebar on desktop)
    ============================================ */
 
 .legend {
-    bottom: 30px;
-    left: 20px;
+    position: static;
     z-index: 600;
-    max-width: 320px;
+    max-width: none;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .legend-card {
@@ -366,9 +349,13 @@ body {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 12px;
-    padding: 16px 20px;
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    padding: 0 20px 16px;
     pointer-events: auto;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .legend-title {
@@ -471,6 +458,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    position: relative;
 }
 
 .layer-toggle {
@@ -600,7 +588,10 @@ body {
 }
 
 /* Disabled state for layer controls */
-.layer-control.disabled {
+.layer-control.disabled .layer-toggle,
+.layer-control.disabled .layer-description,
+.layer-control.disabled .layer-opacity,
+.layer-control.disabled .color-legend {
     opacity: 0.5;
 }
 
@@ -610,6 +601,100 @@ body {
 
 .layer-control.disabled .opacity-slider {
     pointer-events: none;
+}
+
+/* Keep info button and popover fully visible when layer is disabled */
+.layer-control.disabled .info-btn,
+.layer-control.disabled .info-popover {
+    opacity: 1;
+}
+
+/* ============================================
+   Info Button & Popover
+   ============================================ */
+
+.info-btn {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    color: rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.info-btn:hover {
+    color: #d97706;
+    background: rgba(217, 119, 6, 0.1);
+}
+
+.info-btn.active {
+    color: #d97706;
+    background: rgba(217, 119, 6, 0.15);
+}
+
+.info-popover {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    z-index: 800;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    animation: popoverFadeIn 0.15s ease;
+}
+
+.info-popover.visible {
+    display: block;
+}
+
+@keyframes popoverFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.info-popover-content {
+    padding: 12px 14px;
+    font-size: 0.7rem;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.7);
+}
+
+.info-popover-content strong {
+    color: #d97706;
+    font-weight: 400;
+}
+
+/* Arrow pointing up */
+.info-popover::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 16px;
+    width: 10px;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.98);
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    transform: rotate(45deg);
 }
 
 /* ============================================
@@ -787,24 +872,29 @@ body {
    ============================================ */
 
 @media (max-width: 768px) {
-    /* Back link - smaller on mobile */
+    /* Back link - always visible on mobile */
     .back-link {
-        top: 14px;
-        left: 14px;
-        font-size: 0.7rem;
+        font-size: 0.6rem;
+        margin-top: 4px;
+        margin-bottom: 4px;
     }
 
-    /* Header - compact, leave room for location btn */
+    /* Header - compact, positioned at top only (no bottom) */
     .header {
         top: 12px;
         left: 12px;
         right: 60px;
+        bottom: auto;
+        width: auto;
+        display: block;
     }
 
-    /* Title card - collapsible */
+    /* Title card - collapsible, fully rounded on mobile */
     .title-card {
         padding: 10px 14px;
         cursor: pointer;
+        border-radius: 12px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     }
 
     .title-card h1 {
@@ -825,7 +915,6 @@ body {
 
     /* Hide details by default on mobile */
     .title-card .subtitle,
-    .title-card .info-blurb,
     .title-card .title-meta {
         display: none;
     }
@@ -836,7 +925,6 @@ body {
     }
 
     .title-card.expanded .subtitle,
-    .title-card.expanded .info-blurb,
     .title-card.expanded .title-meta {
         display: block;
     }
@@ -851,13 +939,14 @@ body {
         right: 12px;
     }
 
-    /* Search bar - pinned to top below title */
+    /* Search bar - positioned below header, uses CSS variable for dynamic top */
     .search-container {
-        top: 60px;
+        top: var(--search-top, 80px);
         bottom: auto;
         left: 12px;
         right: 12px;
         width: auto;
+        transition: top 0.2s ease;
     }
 
     .search-results {
@@ -866,16 +955,20 @@ body {
         max-height: 180px;
     }
 
-    /* Legend - bottom sheet style */
+    /* Legend - separate from header, fixed to viewport bottom */
     .legend {
+        position: fixed;
         left: 0;
         right: 0;
         bottom: 0;
         max-width: 100%;
+        flex: none;
+        z-index: 600;
     }
 
     .legend-card {
         border-radius: 16px 16px 0 0;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
         padding: 8px 16px 16px;
         max-height: 55vh;
         overflow-y: auto;
@@ -927,6 +1020,26 @@ body {
 
     .color-item {
         font-size: 0.6rem;
+    }
+
+    /* Info popover - full width on mobile */
+    .info-popover {
+        position: fixed;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        border-radius: 16px 16px 0 0;
+        z-index: 900;
+    }
+
+    .info-popover::before {
+        display: none;
+    }
+
+    .info-popover-content {
+        padding: 20px 16px 24px;
+        font-size: 0.8rem;
     }
 }
 
@@ -1015,29 +1128,34 @@ body {
 }
 
 /* ============================================
-   Short Screens - Horizontal Legend (< 1050px height)
+   Short Screens on Desktop - Limit sidebar height
+   Only applies when screen is wide enough for desktop layout
    ============================================ */
 
-@media (max-height: 1050px) {
-    .legend {
+@media (min-width: 769px) and (max-height: 800px) {
+    /* On short desktop screens, limit the sidebar height and ensure scrolling */
+    .header {
         bottom: 20px;
-        left: 20px;
-        right: 20px;
-        max-width: none;
     }
 
     .legend-card {
         max-height: none;
     }
 
+    /* Make legend content more compact with 2-column grid */
     .legend-content {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
     }
 
     .legend-title {
         grid-column: 1 / -1;
+    }
+
+    /* Hide descriptions on short screens */
+    .layer-description {
+        display: none;
     }
 }
 
@@ -1057,13 +1175,9 @@ body {
     }
 
     .legend-content {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        display: flex;
+        flex-direction: column;
         gap: 8px;
-    }
-
-    .legend-title {
-        grid-column: 1 / -1;
     }
 
     /* Hide layer descriptions on very short mobile */

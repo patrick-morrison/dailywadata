@@ -228,6 +228,7 @@ map.on('load', () => {
     initializeMinesToggle();
     initializeMobileLegendCollapse();
     initializeMobileTitleToggle();
+    initializeInfoPopovers();
     initializeSearch();
 
     // Handle URL hash for coordinate links
@@ -836,19 +837,38 @@ function initializeMobileLegendCollapse() {
 
 function initializeMobileTitleToggle() {
     const titleCard = document.querySelector('.title-card');
+    const header = document.querySelector('.header');
+    const searchContainer = document.querySelector('.search-container');
     const isMobile = () => globalThis.innerWidth <= 768;
+
+    // Update search bar position based on header height
+    function updateSearchPosition() {
+        if (isMobile() && header && searchContainer) {
+            const headerRect = header.getBoundingClientRect();
+            const newTop = headerRect.bottom + 8; // 8px gap below header
+            searchContainer.style.setProperty('--search-top', `${newTop}px`);
+        } else if (searchContainer) {
+            searchContainer.style.removeProperty('--search-top');
+        }
+    }
 
     titleCard.addEventListener('click', (e) => {
         // Only toggle on mobile, and not when clicking links
         if (isMobile() && !e.target.closest('a')) {
             titleCard.classList.toggle('expanded');
+            // Update search position after DOM update
+            requestAnimationFrame(updateSearchPosition);
         }
     });
 
     // Collapse when clicking outside
     document.addEventListener('click', (e) => {
         if (isMobile() && !titleCard.contains(e.target)) {
+            const wasExpanded = titleCard.classList.contains('expanded');
             titleCard.classList.remove('expanded');
+            if (wasExpanded) {
+                requestAnimationFrame(updateSearchPosition);
+            }
         }
     });
 
@@ -856,6 +876,57 @@ function initializeMobileTitleToggle() {
     globalThis.addEventListener('resize', () => {
         if (!isMobile()) {
             titleCard.classList.remove('expanded');
+        }
+        updateSearchPosition();
+    });
+
+    // Initial position update
+    updateSearchPosition();
+}
+
+// ============================================
+// Info Popovers
+// ============================================
+
+function initializeInfoPopovers() {
+    const infoBtns = document.querySelectorAll('.info-btn');
+    const popovers = document.querySelectorAll('.info-popover');
+
+    // Close all popovers
+    function closeAllPopovers() {
+        popovers.forEach(p => p.classList.remove('visible'));
+        infoBtns.forEach(b => b.classList.remove('active'));
+    }
+
+    // Toggle popover on button click
+    infoBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const infoId = btn.dataset.info;
+            const popover = btn.parentElement.querySelector(`.info-popover[data-info="${infoId}"]`);
+
+            if (popover.classList.contains('visible')) {
+                popover.classList.remove('visible');
+                btn.classList.remove('active');
+            } else {
+                closeAllPopovers();
+                popover.classList.add('visible');
+                btn.classList.add('active');
+            }
+        });
+    });
+
+    // Close popover when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.info-btn') && !e.target.closest('.info-popover')) {
+            closeAllPopovers();
+        }
+    });
+
+    // Close on escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeAllPopovers();
         }
     });
 }
