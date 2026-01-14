@@ -54,8 +54,8 @@ const CONFIG = {
 
     // Initial map view - centered on WA
     INITIAL_VIEW: {
-        lng: 121.0,
-        lat: -26.0,
+        lng: 121,
+        lat: -26,
         zoom: 5
     }
 };
@@ -563,10 +563,10 @@ async function loadMines() {
 
             // Handle CSV with quoted fields
             const values = parseCSVLine(line);
-            const lon = parseFloat(values[lonIdx]);
-            const lat = parseFloat(values[latIdx]);
+            const lon = Number.parseFloat(values[lonIdx]);
+            const lat = Number.parseFloat(values[latIdx]);
 
-            if (isNaN(lon) || isNaN(lat)) continue;
+            if (Number.isNaN(lon) || Number.isNaN(lat)) continue;
 
             features.push({
                 type: 'Feature',
@@ -668,8 +668,7 @@ function parseCSVLine(line) {
     let current = '';
     let inQuotes = false;
 
-    for (let i = 0; i < line.length; i++) {
-        const char = line[i];
+    for (const char of line) {
         if (char === '"') {
             inQuotes = !inQuotes;
         } else if (char === ',' && !inQuotes) {
@@ -1001,7 +1000,7 @@ document.getElementById('location-btn').addEventListener('click', toggleGeolocat
 function toggleGeolocation() {
     if (state.isTracking) {
         navigator.geolocation.clearWatch(state.watchId);
-        window.removeEventListener('deviceorientation', handleDeviceOrientation);
+        globalThis.removeEventListener('deviceorientation', handleDeviceOrientation);
         state.isTracking = false;
         state.deviceHeading = null;
         document.getElementById('location-btn').classList.remove('active');
@@ -1017,12 +1016,12 @@ function toggleGeolocation() {
             DeviceOrientationEvent.requestPermission()
                 .then(response => {
                     if (response === 'granted') {
-                        window.addEventListener('deviceorientation', handleDeviceOrientation);
+                        globalThis.addEventListener('deviceorientation', handleDeviceOrientation);
                     }
                 })
                 .catch(console.error);
         } else {
-            window.addEventListener('deviceorientation', handleDeviceOrientation);
+            globalThis.addEventListener('deviceorientation', handleDeviceOrientation);
         }
 
         state.watchId = navigator.geolocation.watchPosition(updateUserLocation,
@@ -1051,13 +1050,13 @@ function updateHeadingDisplay() {
 
 function updateUserLocation(pos) {
     const { longitude, latitude, heading } = pos.coords;
-    if (!state.userLocationMarker) {
+    if (state.userLocationMarker) {
+        state.userLocationMarker.setLngLat([longitude, latitude]);
+    } else {
         const el = document.createElement('div');
         el.className = 'user-location-marker';
         el.innerHTML = '<div class="location-heading"></div><div class="location-dot"></div>';
         state.userLocationMarker = new maplibregl.Marker({ element: el }).setLngLat([longitude, latitude]).addTo(map);
-    } else {
-        state.userLocationMarker.setLngLat([longitude, latitude]);
     }
 
     const hEl = document.querySelector('.location-heading');
@@ -1183,8 +1182,8 @@ function fuzzyMatch(text, query) {
     }
 
     // Normalized match (remove spaces, punctuation)
-    const normalizedText = lowerText.replace(/[\s\-_.,']/g, '');
-    const normalizedQuery = query.replace(/[\s\-_.,']/g, '');
+    const normalizedText = lowerText.replaceAll(/[\s\-_.,']/g, '');
+    const normalizedQuery = query.replaceAll(/[\s\-_.,']/g, '');
 
     if (normalizedText.includes(normalizedQuery)) {
         return normalizedText.startsWith(normalizedQuery) ? 80 : 70;
