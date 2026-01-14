@@ -113,6 +113,9 @@ const state = {
     isTracking: false,
     deviceHeading: null,
 
+    // Location pin (from coordinate navigation or hash links)
+    locationPin: null,
+
     // Popups
     activePopup: null,
 
@@ -262,6 +265,9 @@ function handleUrlHash() {
 
     // Navigate to coordinates
     map.flyTo({ center: [lng, lat], zoom: 10 });
+
+    // Add location pin
+    addLocationPin([lng, lat]);
 }
 
 // Listen for hash changes
@@ -961,6 +967,12 @@ map.on('contextmenu', async (e) => {
         <div class="context-menu-item" id="copy-link">
             <span>Copy Link</span>
         </div>
+        ${state.locationPin ? `
+            <div class="context-menu-separator"></div>
+            <div class="context-menu-item" id="remove-pin">
+                <span>Remove Location Pin</span>
+            </div>
+        ` : ''}
     `;
 
     document.body.appendChild(menu);
@@ -980,6 +992,14 @@ map.on('contextmenu', async (e) => {
         navigator.clipboard.writeText(url);
         menu.remove();
     });
+
+    // Remove pin option (if pin exists)
+    if (state.locationPin) {
+        document.getElementById('remove-pin').addEventListener('click', () => {
+            removeLocationPin();
+            menu.remove();
+        });
+    }
 
     const removeMenu = () => {
         menu.remove();
@@ -1092,6 +1112,13 @@ function initializeSearch() {
             return;
         }
 
+        // Check if input is coordinates
+        const coords = parseCoordinates(query);
+        if (coords) {
+            displayCoordinateResult(coords);
+            return;
+        }
+
         const results = performSearch(query);
         displaySearchResults(results);
     });
@@ -1115,8 +1142,35 @@ function initializeSearch() {
     searchInput.addEventListener('focus', () => {
         const query = searchInput.value.trim();
         if (query.length >= 2) {
-            const results = performSearch(query);
-            displaySearchResults(results);
+            const coords = parseCoordinates(query);
+            if (coords) {
+                displayCoordinateResult(coords);
+            } else {
+                const results = performSearch(query);
+                displaySearchResults(results);
+            }
+        }
+    });
+
+    // Handle Enter key for coordinates
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const query = searchInput.value.trim();
+            const coords = parseCoordinates(query);
+
+            if (coords) {
+                // Navigate to coordinates
+                map.flyTo({ center: [coords.lng, coords.lat], zoom: 12 });
+                addLocationPin([coords.lng, coords.lat]);
+
+                // Update URL hash
+                globalThis.location.hash = `${coords.lat.toFixed(6)},${coords.lng.toFixed(6)}`;
+
+                searchInput.value = '';
+                searchClear.style.display = 'none';
+                searchResults.classList.remove('visible');
+            }
+            // If not coordinates, let normal search behavior continue
         }
     });
 }
@@ -1222,6 +1276,32 @@ function normalizeConstruction(constructi) {
     return constructi;
 }
 
+function displayCoordinateResult(coords) {
+    const searchResults = document.getElementById('search-results');
+    const searchInput = document.getElementById('search-input');
+
+    const formattedCoords = formatCoordinates(coords.lng, coords.lat);
+
+    searchResults.innerHTML = `
+        <div class="search-result-item coordinate-result"
+             style="border-left-color: #d97706; cursor: pointer;">
+            <div class="search-result-name">Navigate to coordinates</div>
+            <div class="search-result-type">${formattedCoords.display}</div>
+        </div>
+    `;
+
+    // Add click handler
+    const item = searchResults.querySelector('.coordinate-result');
+    item.addEventListener('click', () => {
+        map.flyTo({ center: [coords.lng, coords.lat], zoom: 12 });
+        searchInput.value = '';
+        document.getElementById('search-clear').style.display = 'none';
+        searchResults.classList.remove('visible');
+    });
+
+    searchResults.classList.add('visible');
+}
+
 function displaySearchResults(results) {
     const searchResults = document.getElementById('search-results');
 
@@ -1312,8 +1392,85 @@ function escapeHtml(text) {
 }
 
 // ============================================
+// Location Pin Management
+// ============================================
+
+function addLocationPin(lngLat) {
+    // Remove existing pin if any
+    if (state.locationPin) {
+        state.locationPin.remove();
+    }
+
+    // Create pin marker element
+    const el = document.createElement('div');
+    el.className = 'location-pin-marker';
+    el.innerHTML = '📍';
+    el.style.fontSize = '24px';
+    el.style.cursor = 'default';
+
+    // Add marker to map
+    state.locationPin = new maplibregl.Marker({
+        element: el,
+        anchor: 'bottom'
+    })
+        .setLngLat(lngLat)
+        .addTo(map);
+}
+
+function removeLocationPin() {
+    if (state.locationPin) {
+        state.locationPin.remove();
+        state.locationPin = null;
+    }
+}
+
+// ============================================
 // Utilities
 // ============================================
+
+function parseCoordinates(query) {
+    // Try decimal degrees format: -32.123456, 115.123456
+    const ddRegex = /^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/;
+    const ddMatch = query.match(ddRegex);
+
+    if (ddMatch) {
+        const lat = Number.parseFloat(ddMatch[1]);
+        const lng = Number.parseFloat(ddMatch[2]);
+
+        // Validate ranges
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+            return { lat, lng };
+        }
+    }
+
+    // Try decimal minutes format: 32° 7.407' S, 115° 7.407' E
+    const dmRegex = /^(\d+)°\s*(\d+\.?\d*)'\s*([NS])\s*,\s*(\d+)°\s*(\d+\.?\d*)'\s*([EW])$/i;
+    const dmMatch = query.match(dmRegex);
+
+    if (dmMatch) {
+        const latDeg = Number.parseInt(dmMatch[1], 10);
+        const latMin = Number.parseFloat(dmMatch[2]);
+        const latDir = dmMatch[3].toUpperCase();
+        const lngDeg = Number.parseInt(dmMatch[4], 10);
+        const lngMin = Number.parseFloat(dmMatch[5]);
+        const lngDir = dmMatch[6].toUpperCase();
+
+        // Convert to decimal
+        let lat = latDeg + latMin / 60;
+        let lng = lngDeg + lngMin / 60;
+
+        // Apply direction
+        if (latDir === 'S') lat = -lat;
+        if (lngDir === 'W') lng = -lng;
+
+        // Validate ranges
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+            return { lat, lng };
+        }
+    }
+
+    return null;
+}
 
 function formatCoordinates(lng, lat) {
     const gmaps = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;

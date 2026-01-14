@@ -974,7 +974,7 @@ body {
         border-radius: 16px 16px 0 0;
         border-top: 1px solid rgba(0, 0, 0, 0.1);
         padding: 8px 16px 16px;
-        max-height: 55vh;
+        max-height: 33vh;
         overflow-y: auto;
     }
 
@@ -1175,7 +1175,7 @@ body {
     .legend-card {
         border-radius: 12px 12px 0 0;
         padding: 8px 12px 12px;
-        max-height: 45vh;
+        max-height: 30vh;
         overflow-y: auto;
     }
 
