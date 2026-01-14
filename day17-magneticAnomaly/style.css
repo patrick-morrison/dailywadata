@@ -917,6 +917,7 @@ body {
 
     /* Hide details by default on mobile */
     .title-card .subtitle,
+    .title-card .back-link,
     .title-card .title-meta {
         display: none;
     }
@@ -927,6 +928,7 @@ body {
     }
 
     .title-card.expanded .subtitle,
+    .title-card.expanded .back-link,
     .title-card.expanded .title-meta {
         display: block;
     }
