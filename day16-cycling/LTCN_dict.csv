@@ -1,0 +1,8 @@
+Name	Type	Description	Possible Values
+LTCN_Name	Text	Indicates if the route is final or draft (see Endorsed field).	Draft LTCN Ð is not endorsed by the Local Government Final LTCN Ð is endorsed by the Local Government
+Route_ID	Number	Identifier for a route within the network.	
+Hierarchy	Text	The function of the route within the network. For a description of the functions see: WA Cycling Network Hierarchy (transport.wa.gov.au)	Primary Route (1) Secondary Route (2) Local Route (3) Transport Trail (formerly named Tourist Trail) (4)
+LGA_Name	Text	Name of the Local Government Area.	
+Endorsed	Text	Indicates if the Local Government has endorsed the draft LTCN at Council.	
+Date_Endor	Text	Date of endorsement by the Local Government.	
+Shape_Leng	Double	Length (m) using MGAz50 on GDA2020 datum	

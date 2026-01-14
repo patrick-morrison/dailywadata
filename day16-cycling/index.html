@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Western Australia Cycling Routes</title>
+    <meta name="description" content="Interactive map of Western Australia's Long Term Cycle Network">
+
+    <!-- External Dependencies -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/deck.gl@9.0.16/dist.min.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Analytics -->
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
+</head>
+
+<body>
+    <!-- Loading State -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Loading cycling route data...</div>
+    </div>
+
+    <!-- Navigation -->
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Header -->
+    <div class="overlay header">
+        <div class="title-card">
+            <h1>Western Australia Cycling Routes</h1>
+            <div class="subtitle">Long Term Cycle Network Infrastructure</div>
+            <div class="title-meta"><span class="attribution">Coen Arrow 2026</span><a href="methods.md"
+                    class="methods-link">Show methods notes →</a></div>
+        </div>
+    </div>
+
+    <!-- Location Button -->
+    <button class="location-btn" id="location-btn" title="Show my location">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+        </svg>
+    </button>
+
+    <!-- Dark Mode Toggle -->
+    <div class="dark-mode-toggle">
+        <label class="toggle-label">
+            <input type="checkbox" id="dark-mode-checkbox">
+            <span class="toggle-slider"></span>
+            <span class="toggle-text">Dark Mode</span>
+        </label>
+    </div>
+
+    <!-- Info Panel (fixed, collapsible) -->
+    <div class="overlay info-panel">
+        <div class="info-card">
+            <!-- Collapsible Info Header -->
+            <div class="panel-header" id="info-header">
+                <h3>Route Information</h3>
+                <div class="collapse-icon">▼</div>
+            </div>
+
+            <!-- Collapsible Info Content -->
+            <div class="panel-content" id="info-content">
+                <div id="route-info-empty" class="info-empty">
+                    Click a route to view details
+                </div>
+                <div id="route-info-data" class="info-data hidden">
+                    <!-- Content populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Panel -->
+    <div class="overlay filters-panel">
+        <div class="filters-card">
+            <!-- Collapsible Filters Header -->
+            <div class="panel-header" id="filters-header">
+                <h3>Filters</h3>
+                <div class="collapse-icon">▼</div>
+            </div>
+
+            <!-- Collapsible Filters Content -->
+            <div class="panel-content" id="filters-content">
+                <!-- Route Statistics -->
+                <div class="legend-stats">
+                    <div class="stats-row">
+                        <span class="stats-label">Metro routes:</span>
+                        <span class="stats-value" id="metro-count">--</span>
+                    </div>
+                    <div class="stats-row">
+                        <span class="stats-label">Regional routes:</span>
+                        <span class="stats-value" id="regional-count">--</span>
+                    </div>
+                </div>
+
+                <!-- Network Toggles -->
+                <div class="legend-title">Networks</div>
+                <div class="legend-content">
+                    <div class="legend-item active" data-network="metro">
+                        <div class="legend-checkbox">☑</div>
+                        <span>Metro Cycling Network</span>
+                    </div>
+                    <div class="legend-item active" data-network="regional">
+                        <div class="legend-checkbox">☑</div>
+                        <span>Regional Cycling Network</span>
+                    </div>
+                </div>
+
+                <!-- Hierarchy Type Toggles -->
+                <div class="legend-title">Route Types</div>
+                <div class="legend-content">
+                    <div class="legend-item active" data-hierarchy="Primary Route">
+                        <div class="legend-line" style="background: rgb(31, 120, 180); height: 4px;"></div>
+                        <span>Primary Route</span>
+                    </div>
+                    <div class="legend-item active" data-hierarchy="Secondary Route">
+                        <div class="legend-line" style="background: rgb(51, 160, 44); height: 3px;"></div>
+                        <span>Secondary Route</span>
+                    </div>
+                    <div class="legend-item active" data-hierarchy="Local Route">
+                        <div class="legend-line" style="background: rgb(227, 26, 28); height: 2px;"></div>
+                        <span>Local Route</span>
+                    </div>
+                    <div class="legend-item active" data-hierarchy="Transport Trail">
+                        <div class="legend-line" style="background: rgb(255, 127, 0); height: 3px;"></div>
+                        <span>Transport Trail</span>
+                    </div>
+                    <div class="legend-item active" data-hierarchy="Road Cycling Route">
+                        <div class="legend-line" style="background: rgb(106, 61, 154); height: 2.5px;"></div>
+                        <span>Road Cycling Route</span>
+                    </div>
+                </div>
+
+                <!-- Line Style Legend -->
+                <div class="legend-title">Path Status</div>
+                <div class="legend-content">
+                    <div class="legend-item active" data-linestyle="Final/Existing">
+                        <div class="legend-line-solid"></div>
+                        <span>Final/Existing</span>
+                    </div>
+                    <div class="legend-item active" data-linestyle="Draft/Proposed">
+                        <div class="legend-line-dashed"></div>
+                        <span>Draft/Proposed</span>
+                    </div>
+                </div>
+
+                <!-- Geographic Filter Section -->
+                <div class="legend-title">Geographic Area</div>
+                <div class="legend-content">
+                    <!-- Search Input -->
+                    <div class="geo-search-container">
+                        <input
+                            type="text"
+                            id="geo-search"
+                            class="geo-search-input"
+                            placeholder="Search councils or regions..."
+                            autocomplete="off"
+                        />
+                        <div class="search-icon">🔍</div>
+                    </div>
+
+                    <!-- Toggle All Buttons -->
+                    <div class="geo-toggle-buttons">
+                        <button class="geo-toggle-btn" id="geo-select-all">Select All</button>
+                        <button class="geo-toggle-btn" id="geo-deselect-all">Deselect All</button>
+                    </div>
+
+                    <!-- Dropdown List -->
+                    <div class="geo-dropdown" id="geo-dropdown">
+                        <!-- Region Section -->
+                        <div class="geo-section-header">Region</div>
+                        <div id="region-list" class="geo-checkbox-list">
+                            <!-- Populated by JavaScript -->
+                        </div>
+
+                        <!-- Council Section -->
+                        <div class="geo-section-header">Council</div>
+                        <div id="council-list" class="geo-checkbox-list">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Selection Summary -->
+                    <div class="geo-selection-summary" id="geo-summary">
+                        All areas selected
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="main.js"></script>
+</body>
+
+</html>
