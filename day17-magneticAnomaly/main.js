@@ -60,6 +60,9 @@ const CONFIG = {
     }
 };
 
+// Register COG protocol for local GeoTIFF files
+maplibregl.addProtocol('cog', MaplibreCOGProtocol.cogProtocol);
+
 // ============================================
 // State Management
 // ============================================
@@ -69,12 +72,14 @@ const state = {
     layerVisibility: {
         '5': true,
         '3': false,
-        '4': false
+        '4': false,
+        'rotto': true
     },
     layerOpacity: {
         '5': 0.3,
         '3': 0.3,
-        '4': 0.3
+        '4': 0.3,
+        'rotto': 0.5
     },
 
     // Shipwrecks
@@ -219,6 +224,27 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom
 map.on('load', () => {
     // Add WMS sources and layers
     addWmsLayers();
+
+    // Add High Res Rotto 1VD (local COG)
+    map.addSource('wms-rotto', {
+        type: 'raster',
+        url: 'cog://https://cdn.arenleishman.com/20m1VD_rendered_cog.tif',
+        tileSize: 128,
+        maxzoom: 22
+    });
+
+    map.addLayer({
+        id: 'wms-layer-rotto',
+        type: 'raster',
+        source: 'wms-rotto',
+        paint: {
+            'raster-opacity': state.layerOpacity['rotto'],
+            'raster-resampling': 'linear'
+        },
+        layout: {
+            visibility: state.layerVisibility['rotto'] ? 'visible' : 'none'
+        }
+    });
 
     // Load and add vector layers
     loadShipwrecks();
