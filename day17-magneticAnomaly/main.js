@@ -221,30 +221,12 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom
 // Map Load Event
 // ============================================
 
-map.on('load', () => {
+map.on('load', async () => {
     // Add WMS sources and layers
     addWmsLayers();
 
-    // Add High Res Rotto 1VD (local COG)
-    map.addSource('wms-rotto', {
-        type: 'raster',
-        url: 'cog://https://cdn.arenleishman.com/20m1VD_rendered_cog.tif',
-        tileSize: 128,
-        maxzoom: 22
-    });
-
-    map.addLayer({
-        id: 'wms-layer-rotto',
-        type: 'raster',
-        source: 'wms-rotto',
-        paint: {
-            'raster-opacity': state.layerOpacity['rotto'],
-            'raster-resampling': 'linear'
-        },
-        layout: {
-            visibility: state.layerVisibility['rotto'] ? 'visible' : 'none'
-        }
-    });
+    // Add High Res Rotto 1VD (local COG) - only if CDN resource is available
+    await addHighRes1VDLayer();
 
     // Load and add vector layers
     loadShipwrecks();
@@ -300,6 +282,59 @@ function handleUrlHash() {
 globalThis.addEventListener('hashchange', handleUrlHash);
 
 // ============================================
+// High Resolution 1VD Layer (CDN dependency)
+// ============================================
+
+const HIGH_RES_1VD_URL = 'https://cdn.arenleishman.com/20m1VD_rendered_cog.tif';
+
+async function checkCdnResourceAvailable(url) {
+    try {
+        const response = await fetch(url, { method: 'HEAD' });
+        return response.ok;
+    } catch {
+        return false;
+    }
+}
+
+async function addHighRes1VDLayer() {
+    const legendControl = document.querySelector('.layer-control[data-layer="rotto"]');
+
+    const isAvailable = await checkCdnResourceAvailable(HIGH_RES_1VD_URL);
+
+    if (!isAvailable) {
+        // Hide the legend item if resource is unavailable
+        if (legendControl) {
+            legendControl.style.display = 'none';
+        }
+        // Update state to reflect layer is not available
+        state.layerVisibility['rotto'] = false;
+        console.warn('High Res 1VD layer unavailable - CDN resource not accessible');
+        return;
+    }
+
+    // Resource is available, add the layer
+    map.addSource('wms-rotto', {
+        type: 'raster',
+        url: `cog://${HIGH_RES_1VD_URL}`,
+        tileSize: 128,
+        maxzoom: 22
+    });
+
+    map.addLayer({
+        id: 'wms-layer-rotto',
+        type: 'raster',
+        source: 'wms-rotto',
+        paint: {
+            'raster-opacity': state.layerOpacity['rotto'],
+            'raster-resampling': 'linear'
+        },
+        layout: {
+            visibility: state.layerVisibility['rotto'] ? 'visible' : 'none'
+        }
+    });
+}
+
+// ============================================
 // WMS Layer Management
 // ============================================
 
@@ -332,7 +367,11 @@ function addWmsLayers() {
 
 function updateLayerVisibility(layerId, visible) {
     state.layerVisibility[layerId] = visible;
-    map.setLayoutProperty(`wms-layer-${layerId}`, 'visibility', visible ? 'visible' : 'none');
+
+    // Check if layer exists before updating
+    if (map.getLayer(`wms-layer-${layerId}`)) {
+        map.setLayoutProperty(`wms-layer-${layerId}`, 'visibility', visible ? 'visible' : 'none');
+    }
 
     // Update UI state
     const control = document.querySelector(`.layer-control[data-layer="${layerId}"]`);
@@ -343,7 +382,11 @@ function updateLayerVisibility(layerId, visible) {
 
 function updateLayerOpacity(layerId, opacity) {
     state.layerOpacity[layerId] = opacity;
-    map.setPaintProperty(`wms-layer-${layerId}`, 'raster-opacity', opacity);
+
+    // Check if layer exists before updating
+    if (map.getLayer(`wms-layer-${layerId}`)) {
+        map.setPaintProperty(`wms-layer-${layerId}`, 'raster-opacity', opacity);
+    }
 }
 
 // ============================================
