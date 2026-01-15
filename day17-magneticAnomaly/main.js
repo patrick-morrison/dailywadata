@@ -316,7 +316,7 @@ async function addHighRes1VDLayer() {
     map.addSource('wms-rotto', {
         type: 'raster',
         url: `cog://${HIGH_RES_1VD_URL}`,
-        tileSize: 128,
+        tileSize: 256,
         maxzoom: 22
     });
 
