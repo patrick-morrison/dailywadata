@@ -1,0 +1,1197 @@
+/**
+ * Western Australia Magnetic Anomaly Visualization
+ * Styles for the interactive TMI map
+ */
+
+/* ============================================
+   Reset & Base
+   ============================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'JetBrains Mono', monospace;
+    background: #f5f5f0;
+    color: #1a1a1a;
+    overflow: hidden;
+}
+
+/* ============================================
+   Map Container
+   ============================================ */
+
+#map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* ============================================
+   Overlay System
+   ============================================ */
+
+.overlay {
+    position: absolute;
+    z-index: 100;
+    pointer-events: none;
+}
+
+/* ============================================
+   Back Link (inside title card)
+   ============================================ */
+
+.back-link {
+    display: block;
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.5);
+    text-decoration: none;
+    transition: color 0.2s ease;
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+
+.back-link:hover {
+    color: #d97706;
+}
+
+/* ============================================
+   Desktop Sidebar (Header + Legend combined)
+   ============================================ */
+
+.header {
+    top: 50px;
+    left: 20px;
+    bottom: 30px;
+    width: 320px;
+    z-index: 600;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
+}
+
+.title-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
+    padding: 20px 24px;
+    pointer-events: auto;
+}
+
+.title-card h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    margin-bottom: 4px;
+    color: #d97706;
+}
+
+.title-card .subtitle {
+    font-size: 0.75rem;
+    color: rgba(0, 0, 0, 0.5);
+    font-weight: 300;
+}
+
+.title-meta {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.attribution {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.4);
+    margin-right: 12px;
+}
+
+.methods-link {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.4);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.methods-link:hover {
+    color: #d97706;
+}
+
+/* ============================================
+   Location Button
+   ============================================ */
+
+.location-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 601;
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(0, 0, 0, 0.6);
+    transition: all 0.2s ease;
+}
+
+.location-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    color: #d97706;
+}
+
+.location-btn.active {
+    color: #d97706;
+    border-color: rgba(217, 119, 6, 0.3);
+}
+
+/* ============================================
+   Search Bar
+   ============================================ */
+
+.search-container {
+    position: absolute;
+    top: 20px;
+    right: 66px;
+    z-index: 601;
+    width: 240px;
+    pointer-events: none;
+}
+
+.search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    pointer-events: auto;
+}
+
+.search-input-wrapper:focus-within {
+    background: rgba(255, 255, 255, 1);
+    border-color: rgba(217, 119, 6, 0.3);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.search-icon {
+    position: absolute;
+    left: 10px;
+    color: rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+}
+
+.search-input {
+    width: 100%;
+    padding: 8px 32px 8px 32px;
+    border: none;
+    background: transparent;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: #1a1a1a;
+    outline: none;
+}
+
+.search-input::placeholder {
+    color: rgba(0, 0, 0, 0.4);
+}
+
+.search-clear {
+    position: absolute;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.search-clear:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: rgba(0, 0, 0, 0.6);
+}
+
+.search-results {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 700;
+    max-height: 320px;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    display: none;
+    pointer-events: auto;
+}
+
+.search-results.visible {
+    display: block;
+}
+
+.search-result-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-left: 4px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.search-result-item:hover {
+    background: rgba(217, 119, 6, 0.08);
+}
+
+.search-result-item:not(:last-child) {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.search-result-name {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: #1a1a1a;
+    margin-bottom: 2px;
+}
+
+.search-result-type {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.search-no-results {
+    padding: 16px 12px;
+    text-align: center;
+    font-size: 0.75rem;
+    color: rgba(0, 0, 0, 0.5);
+}
+
+/* User location marker */
+.user-location-marker {
+    position: relative;
+    width: 24px;
+    height: 24px;
+}
+
+.location-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    background: #d97706;
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.location-heading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 60px;
+    height: 60px;
+    background: conic-gradient(from -30deg,
+            transparent 0deg,
+            rgba(217, 119, 6, 0.25) 0deg,
+            rgba(217, 119, 6, 0.15) 30deg,
+            rgba(217, 119, 6, 0.25) 60deg,
+            transparent 60deg);
+    border-radius: 50%;
+    transform-origin: center center;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    display: none;
+    pointer-events: none;
+}
+
+/* ============================================
+   Legend / Controls Panel (part of sidebar on desktop)
+   ============================================ */
+
+.legend {
+    position: static;
+    z-index: 600;
+    max-width: none;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.legend-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    padding: 0 20px 16px;
+    pointer-events: auto;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.legend-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(0, 0, 0, 0.5);
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.legend-title::after {
+    content: ' ▼';
+    font-size: 0.6rem;
+    opacity: 0.5;
+}
+
+.legend-title.collapsed::after {
+    content: ' ▶';
+}
+
+.legend-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: 800px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.legend-content.collapsed {
+    max-height: 0;
+}
+
+/* ============================================
+   Basemap Toggle
+   ============================================ */
+
+.basemap-toggle {
+    margin-bottom: 4px;
+}
+
+.basemap-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(0, 0, 0, 0.5);
+    margin-bottom: 8px;
+}
+
+.basemap-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.basemap-btn {
+    flex: 1;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.basemap-btn:hover {
+    background: rgba(217, 119, 6, 0.1);
+    color: #d97706;
+}
+
+.basemap-btn.active {
+    background: rgba(217, 119, 6, 0.15);
+    border-color: rgba(217, 119, 6, 0.3);
+    color: #d97706;
+}
+
+/* ============================================
+   Layer Controls
+   ============================================ */
+
+.layer-control {
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.layer-control:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.layer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+}
+
+.layer-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.layer-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #d97706;
+    cursor: pointer;
+}
+
+/* ============================================
+   Color Legend (for categorized layers)
+   ============================================ */
+
+.color-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-top: 8px;
+    margin-left: 24px;
+}
+
+.color-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.color-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.color-item:not(.active) {
+    opacity: 0.35;
+}
+
+.color-item:not(.active) .color-dot {
+    filter: grayscale(60%);
+}
+
+.color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid white;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.vector-layer.disabled .color-legend {
+    opacity: 0.4;
+}
+
+.layer-name {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: #1a1a1a;
+}
+
+.layer-description {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.5);
+    margin-top: 4px;
+    margin-left: 24px;
+}
+
+.layer-opacity {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    margin-left: 24px;
+}
+
+.opacity-slider {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: #d97706;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+}
+
+.opacity-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.opacity-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: #d97706;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.opacity-value {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.5);
+    min-width: 36px;
+    text-align: right;
+}
+
+/* Disabled state for layer controls */
+.layer-control.disabled .layer-toggle,
+.layer-control.disabled .layer-description,
+.layer-control.disabled .layer-opacity,
+.layer-control.disabled .color-legend {
+    opacity: 0.5;
+}
+
+.layer-control.disabled .layer-name {
+    color: rgba(0, 0, 0, 0.4);
+}
+
+.layer-control.disabled .opacity-slider {
+    pointer-events: none;
+}
+
+/* Keep info button and popover fully visible when layer is disabled */
+.layer-control.disabled .info-btn,
+.layer-control.disabled .info-popover {
+    opacity: 1;
+}
+
+/* ============================================
+   Info Button & Popover
+   ============================================ */
+
+.info-btn {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    color: rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.info-btn:hover {
+    color: #d97706;
+    background: rgba(217, 119, 6, 0.1);
+}
+
+.info-btn.active {
+    color: #d97706;
+    background: rgba(217, 119, 6, 0.15);
+}
+
+.info-popover {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    z-index: 800;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    animation: popoverFadeIn 0.15s ease;
+}
+
+.info-popover.visible {
+    display: block;
+}
+
+@keyframes popoverFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.info-popover-content {
+    padding: 12px 14px;
+    font-size: 0.7rem;
+    line-height: 1.5;
+    color: rgba(0, 0, 0, 0.7);
+}
+
+.info-popover-content strong {
+    color: #d97706;
+    font-weight: 400;
+}
+
+/* Arrow pointing up */
+.info-popover::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 16px;
+    width: 10px;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.98);
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    transform: rotate(45deg);
+}
+
+/* ============================================
+   Loading Status
+   ============================================ */
+
+.loading-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+}
+
+.loading-overlay.hidden {
+    opacity: 0;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(217, 119, 6, 0.2);
+    border-top-color: #d97706;
+    border-radius: 50%;
+    animation: spin 1s cubic-bezier(0.55, 0.055, 0.675, 0.19) infinite;
+    margin-bottom: 16px;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.loading-text {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 1.5rem;
+    font-weight: 400;
+    color: #d97706;
+    text-shadow:
+        0 0 20px rgba(255, 255, 255, 0.9),
+        0 0 10px rgba(255, 255, 255, 0.8);
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================
+   Shipwreck Popup
+   ============================================ */
+
+.maplibregl-popup-content {
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 8px !important;
+    padding: 12px 16px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.maplibregl-popup-close-button {
+    font-size: 18px;
+    color: rgba(0, 0, 0, 0.4);
+    padding: 4px 8px;
+}
+
+.maplibregl-popup-close-button:hover {
+    color: #d97706;
+    background: transparent;
+}
+
+.shipwreck-popup .popup-title,
+.mine-popup .popup-title {
+    font-family: 'Instrument Serif', serif;
+    font-size: 1.1rem;
+    color: #c2410c;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.mine-popup .popup-title {
+    color: #795548;
+}
+
+.shipwreck-popup .popup-row,
+.mine-popup .popup-row {
+    font-size: 0.75rem;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+}
+
+.shipwreck-popup .popup-label,
+.mine-popup .popup-label {
+    color: rgba(0, 0, 0, 0.5);
+    text-transform: uppercase;
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+    margin-right: 6px;
+}
+
+/* ============================================
+   Context Menu (Right Click)
+   ============================================ */
+
+.context-menu {
+    position: absolute;
+    z-index: 2000;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 6px 0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    min-width: 180px;
+    font-size: 0.8rem;
+    color: #1a1a1a;
+    pointer-events: auto;
+}
+
+.context-menu-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.context-menu-item:hover {
+    background: rgba(217, 119, 6, 0.1);
+    color: #d97706;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 4px 0;
+}
+
+/* ============================================
+   MapLibre Attribution - Force Compact
+   ============================================ */
+
+.maplibregl-ctrl-attrib {
+    display: none !important;
+}
+
+.maplibregl-ctrl-attrib.maplibregl-compact {
+    display: block !important;
+    min-height: 20px;
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+}
+
+.maplibregl-ctrl-attrib-button {
+    display: block !important;
+}
+
+.maplibregl-ctrl-attrib:not(.maplibregl-compact-show) .maplibregl-ctrl-attrib-inner {
+    display: none;
+}
+
+/* ============================================
+   Mobile Responsive (< 768px)
+   ============================================ */
+
+@media (max-width: 768px) {
+
+    /* Back link - always visible on mobile */
+    .back-link {
+        font-size: 0.6rem;
+        margin-top: 4px;
+        margin-bottom: 4px;
+    }
+
+    /* Header - compact, positioned at top only (no bottom) */
+    .header {
+        top: 12px;
+        left: 12px;
+        right: 60px;
+        bottom: auto;
+        width: auto;
+        display: block;
+    }
+
+    /* Title card - collapsible, fully rounded on mobile */
+    .title-card {
+        padding: 10px 14px;
+        cursor: pointer;
+        border-radius: 12px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .title-card h1 {
+        font-size: 1rem;
+        margin-bottom: 0;
+    }
+
+    /* Add expand indicator */
+    .title-card h1::after {
+        content: ' ⓘ';
+        font-size: 0.7rem;
+        opacity: 0.4;
+    }
+
+    .title-card.expanded h1::after {
+        content: '';
+    }
+
+    /* Hide details by default on mobile */
+    .title-card .subtitle,
+    .title-card .back-link,
+    .title-card .title-meta {
+        display: none;
+    }
+
+    /* Show on expanded state */
+    .title-card.expanded {
+        cursor: default;
+    }
+
+    .title-card.expanded .subtitle,
+    .title-card.expanded .back-link,
+    .title-card.expanded .title-meta {
+        display: block;
+    }
+
+    .title-card.expanded h1 {
+        margin-bottom: 4px;
+    }
+
+    /* Location button */
+    .location-btn {
+        top: 12px;
+        right: 12px;
+    }
+
+    /* Search bar - positioned below header, uses CSS variable for dynamic top */
+    .search-container {
+        top: var(--search-top, 80px);
+        bottom: auto;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        transition: top 0.2s ease;
+    }
+
+    .search-results {
+        top: calc(100% + 4px);
+        bottom: auto;
+        max-height: 180px;
+    }
+
+    /* Legend - separate from header, fixed to viewport bottom */
+    .legend {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        max-width: 100%;
+        flex: none;
+        z-index: 600;
+    }
+
+    .legend-card {
+        border-radius: 16px 16px 0 0;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+        padding: 8px 16px 16px;
+        max-height: 33vh;
+        overflow-y: auto;
+    }
+
+    /* Legend - tighter spacing on mobile */
+    .legend-title {
+        margin-top: 8px;
+        padding-top: 8px;
+    }
+
+    .legend-content {
+        max-height: 400px;
+    }
+
+    /* Basemap toggle - more compact */
+    .basemap-toggle {
+        margin-bottom: 0;
+    }
+
+    .basemap-btn {
+        padding: 6px 10px;
+        font-size: 0.65rem;
+    }
+
+    /* Layer controls - more compact */
+    .layer-control {
+        padding: 8px 10px;
+    }
+
+    .layer-name {
+        font-size: 0.75rem;
+    }
+
+    .layer-description {
+        font-size: 0.6rem;
+        margin-left: 22px;
+    }
+
+    .layer-opacity {
+        margin-left: 22px;
+    }
+
+    /* Color legend - tighter spacing */
+    .color-legend {
+        gap: 4px 10px;
+        margin-left: 22px;
+    }
+
+    .color-item {
+        font-size: 0.6rem;
+    }
+
+    /* Info popover - full width on mobile */
+    .info-popover {
+        position: fixed;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        border-radius: 16px 16px 0 0;
+        z-index: 900;
+    }
+
+    .info-popover::before {
+        display: none;
+    }
+
+    .info-popover-content {
+        padding: 20px 16px 24px;
+        font-size: 0.8rem;
+    }
+}
+
+/* ============================================
+   Very Small Screens (< 480px)
+   ============================================ */
+
+@media (max-width: 480px) {
+    .back-link {
+        font-size: 0.65rem;
+    }
+
+    .title-card h1 {
+        font-size: 0.9rem;
+    }
+
+    .location-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .location-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* Search - smaller on very small screens */
+    .search-input {
+        font-size: 0.7rem;
+        padding: 7px 28px;
+    }
+
+    .search-result-name {
+        font-size: 0.75rem;
+    }
+
+    .search-result-type {
+        font-size: 0.6rem;
+    }
+
+    /* Legend - even more compact */
+    .legend-card {
+        padding: 6px 12px 12px;
+    }
+
+    .basemap-btn {
+        padding: 5px 8px;
+    }
+
+    .layer-control {
+        padding: 6px 8px;
+    }
+
+    .layer-toggle input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+    }
+
+    .layer-name {
+        font-size: 0.7rem;
+    }
+
+    .color-dot {
+        width: 8px;
+        height: 8px;
+    }
+
+    .color-item {
+        font-size: 0.55rem;
+        gap: 3px;
+    }
+
+    .opacity-slider {
+        height: 3px;
+    }
+
+    .opacity-slider::-webkit-slider-thumb {
+        width: 12px;
+        height: 12px;
+    }
+
+    .opacity-slider::-moz-range-thumb {
+        width: 12px;
+        height: 12px;
+    }
+}
+
+/* ============================================
+   Short Screens on Desktop - Limit sidebar height
+   Only applies when screen is wide enough for desktop layout
+   ============================================ */
+
+@media (min-width: 769px) and (max-height: 800px) {
+
+    /* On short desktop screens, limit the sidebar height and ensure scrolling */
+    .header {
+        bottom: 20px;
+    }
+
+    .legend-card {
+        max-height: none;
+    }
+
+    /* Make legend content more compact with 2-column grid */
+    .legend-content {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .legend-title {
+        grid-column: 1 / -1;
+    }
+
+    /* Hide descriptions on short screens */
+    .layer-description {
+        display: none;
+    }
+}
+
+/* Short screens on mobile - more compact horizontal */
+@media (max-width: 768px) and (max-height: 700px) {
+    .legend {
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+
+    .legend-card {
+        border-radius: 12px 12px 0 0;
+        padding: 8px 12px 12px;
+        max-height: 30vh;
+        overflow-y: auto;
+    }
+
+    .legend-content {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    /* Hide layer descriptions on very short mobile */
+    .layer-description {
+        display: none;
+    }
+
+    /* Compact opacity sliders */
+    .layer-opacity {
+        margin-top: 4px;
+    }
+}
