@@ -21,7 +21,8 @@ knitr::opts_chunk$set(
   message = FALSE, 
   fig.width = 10, 
   fig.height = 6,
-  fig.path = "figures/"
+  fig.path = "figures/",
+  dev.args = list(bg = "white")
 )
 
 library(tidyverse)
@@ -30,7 +31,7 @@ library(tidyterra)
 library(sf)
 ```
 
-# Pretense
+# A thought experiment
 
 For most of Australia's human past, sea levels were much lower than today. The Last Glacial Maximum saw seas rise over 120m, submerging 2.12 million km². In [Day 6](/day6-submergedlandscapes/), you can see estimates of what that would have looked like.
 
@@ -40,7 +41,7 @@ To wrangle on the importance of underwater work, we could work through a thought
 
 # Figure 1: How much land is underwater?
 
-By the end of the 21st century, scientists accurately predicted about a metre of global mean sea-level rise, which doesn't sound like much, but prior to that even the ancient city of Fremantle was entirely on land. Sources vary, but conservatively they warmed the world by 3 degrees, and over the next 2,000 years sea levels rose at least 7m higher; some historians suggest that the warming peaked close to 5 degrees, and rose 21m ([IPCC](https://www.ipcc.ch/report/ar6/wg1/downloads/report/IPCC_AR6_WGI_SPM_Stand_Alone.pdf)). During that time the world was as warm as the last Interglacial, which 21st century scientists contemplated on Wadjemup / Rottnest Island, where they walked along the [Fairbridge Bluff](https://storymaps.arcgis.com/stories/cbdd7359caea436aa84e4153c41583fa) Acropora reef on land, above head height, well south of its contemporary southern extent in the Abrolhos. Over many thousands of years after, for a variety of complicated reasons, the Earth reached the absolute limits of its climate system, and all glaciers and ice sheets melted, raising global mean sea level by [\>60m](https://sealevel.nasa.gov/understanding-sea-level/global-sea-level/ice-melt/) to [\~70m](https://www.usgs.gov/faqs/how-would-sea-level-change-if-all-glaciers-melted), compared to 2026.
+By the end of the 21st century, scientists accurately predicted about a metre of global mean sea-level rise, which doesn't sound like much, but prior to that even the ancient city of Fremantle was entirely on land. Sources vary, but conservatively they warmed the world by 3 degrees, and over the next 2,000 years sea levels rose at least 7m higher; some historians suggest that the warming peaked close to 5 degrees, and rose 21m ([IPCC](https://www.ipcc.ch/report/ar6/wg1/downloads/report/IPCC_AR6_WGI_SPM_Stand_Alone.pdf)). During that time the world was as warm as the last Interglacial, which 21st century scientists contemplated on Wadjemup / Rottnest Island, where they walked along the [Fairbridge Bluff](https://storymaps.arcgis.com/stories/cbdd7359caea436aa84e4153c41583fa) Acropora reef on land, above head height, well south of its contemporary southern extent in the Abrolhos. Over many thousands of years, all glaciers and ice sheets melted, raising global mean sea level by [\>60m](https://sealevel.nasa.gov/understanding-sea-level/global-sea-level/ice-melt/) to [\~70m](https://www.usgs.gov/faqs/how-would-sea-level-change-if-all-glaciers-melted), compared to 2026.
 
 ```{r area-calc}
 
@@ -80,6 +81,12 @@ land_lost_wa <- current_land_wa - remaining_land_wa
 aus_df_quick <- data.frame(elev = values(elev)[,1], pop = values(pop)[,1]) %>% 
   filter(!is.na(elev) & !is.na(pop))
 pop_aus_70m <- round(sum(aus_df_quick$pop[aus_df_quick$elev > 70]) / sum(aus_df_quick$pop) * 100)
+
+# WA population (uses WA cropped elevation)
+pop_wa <- crop(pop, wa_ext)
+wa_df_quick <- data.frame(elev = values(elev_wa_crop)[,1], pop = values(pop_wa)[,1]) %>%
+  filter(!is.na(elev) & !is.na(pop))
+pop_wa_70m <- round(sum(wa_df_quick$pop[wa_df_quick$elev > 70]) / sum(wa_df_quick$pop) * 100)
 ```
 
 From the [Australian Bathymetry and Topography Grid 2024](https://ausseabed.gov.au/), we can see Australia lost `r format(round(land_lost_aus / 1000), big.mark = ",")` thousand km², and Western Australia lost `r format(round(land_lost_wa / 1000), big.mark = ",")` thousand km² - less than the 2.12 million km² lost when the ice age ended, but very substantial.
@@ -128,7 +135,7 @@ ggplot() +
 
 # Figure 2: Wet and dry archaeology
 
-How much of the 21st century archaeology is available to land-based archaeologists without requiring underwater work? After 70m of sea level rise, `r pop_aus_70m`% is accessible without diving. In Western Australia, the 21st century economy stretched far inland, driven by agriculture and mining; so fortunately there is better preservation in Western Australia than the eastern states, but there still may be different sorts of sites underwater.
+How much of the 21st century archaeology is available to land-based archaeologists without requiring underwater work? After 70m of sea level rise, `r pop_aus_70m`% of Australia's population is accessible without diving. Despite Western Australia's economy stretching far inland with agriculture and mining, only `r pop_wa_70m`% of the population remains above water; the state was more affected than the more diverse eastern states, and different sorts of sites may be underwater.
 
 ```{r population-graph}
 # Create WA boundary from SA2 data
@@ -242,7 +249,7 @@ top_survivors <- sa3 %>%
 current_top <- sa3 %>% arrange(desc(population)) %>% slice_head(n = 1)
 ```
 
-The ancient city of Perth has been of interest to underwater archaeologists; while the surviving metropolises of Kalgoorlie, Mundaring, and Augusta were likely similar in importance to the former capital, it is possible their demographic, economic, and social structures differed in interesting ways.
+The ancient city of Perth has been of interest to underwater archaeologists; while the surviving metropolises of Kalgoorlie, Mundaring, and Margaret River were likely similar in importance to the former capital, it is possible their demographic, economic, and social structures differed in interesting ways.
 
 ```{r wa-cities-plot, fig.height = 6}
 
@@ -307,5 +314,5 @@ bind_rows(
         panel.background = element_rect(fill = "white", color = NA),
         panel.grid.major = element_line(color = "#e4e6e4"),
         panel.grid.minor = element_blank()) +
-  labs(title = "Heritage Sites by Status", fill = NULL, x = NULL, y = "Number of sites")
+  labs(title = "Heritage Sites Above and Below Water", fill = NULL, x = NULL, y = "Number of sites")
 ```
