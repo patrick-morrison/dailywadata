@@ -1,0 +1,311 @@
+---
+title: "The archaeology of today, when the sea Levels rise"
+description: |
+  What might 21st century Australia look like to future archaeologists? When the seas rise, they will have to look underwater.
+author:
+  - name: Patrick Morrison
+    url: https://padmorrison.com
+date: 2026-01-16
+output:
+  html_document:
+    self_contained: false
+    toc: false
+    theme: flatly
+creative_commons: CC BY
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, 
+  warning = FALSE, 
+  message = FALSE, 
+  fig.width = 10, 
+  fig.height = 6,
+  fig.path = "figures/"
+)
+
+library(tidyverse)
+library(terra)
+library(tidyterra)
+library(sf)
+```
+
+# Pretense
+
+For most of Australia's human past, sea levels were much lower than today. The Last Glacial Maximum saw seas rise over 120m, submerging 2.12 million km². In [Day 6](/day6-submergedlandscapes/), you can see estimates of what that would have looked like.
+
+One of the reasons underwater archaeology is important is that it reveals a very different world: for Australia this can show how people lived in a cooler world before the modern warm climate, and before people migrated due to sea-level rise.
+
+To wrangle on the importance of underwater work, we could work through a thought experiment: what happens when sea levels rise again? What does the 21st century look like to our future colleagues: the maritime archaeologists based in Western Australia's capital of sunny Kalgoorlie, carefully lifting a waterlogged iPad from the foundations of an 'Osborne Park JB Hi-Fi HOME', 50m underwater?
+
+# Figure 1: How much land is underwater?
+
+By the end of the 21st century, scientists accurately predicted about a metre of global mean sea-level rise, which doesn't sound like much, but prior to that even the ancient city of Fremantle was entirely on land. Sources vary, but conservatively they warmed the world by 3 degrees, and over the next 2,000 years sea levels rose at least 7m higher; some historians suggest that the warming peaked close to 5 degrees, and rose 21m ([IPCC](https://www.ipcc.ch/report/ar6/wg1/downloads/report/IPCC_AR6_WGI_SPM_Stand_Alone.pdf)). During that time the world was as warm as the last Interglacial, which 21st century scientists contemplated on Wadjemup / Rottnest Island, where they walked along the [Fairbridge Bluff](https://storymaps.arcgis.com/stories/cbdd7359caea436aa84e4153c41583fa) Acropora reef on land, above head height, well south of its contemporary southern extent in the Abrolhos. Over many thousands of years after, for a variety of complicated reasons, the Earth reached the absolute limits of its climate system, and all glaciers and ice sheets melted, raising global mean sea level by [\>60m](https://sealevel.nasa.gov/understanding-sea-level/global-sea-level/ice-melt/) to [\~70m](https://www.usgs.gov/faqs/how-would-sea-level-change-if-all-glaciers-melted), compared to 2026.
+
+```{r area-calc}
+
+# Downscale for faster iteration (set to 1 for final output)
+DOWNSCALE <- 1
+
+aus_ext <- ext(110, 155, -45, -9)
+elev <- rast('/Users/patrickmorrison/Downloads/AusBathyTopo (Australia) 2024 250m/AusBathyTopo__Australia__2024_250m_MSL_cog.tif') %>%
+  crop(aus_ext) %>%
+  aggregate(fact = DOWNSCALE, fun = "mean")
+
+pop <- rast('/Users/patrickmorrison/Downloads/GEOTIFF/apg24e_1_0_0.tif') %>%
+  project(elev, method = "bilinear")
+
+heritage_state <- st_read('/Users/patrickmorrison/Downloads/Heritage_Council_State_Register_DPLH_006_WA_GDA2020_Public_Secure_GeoJSON/Heritage_Council_State_Register_DPLH_006_WA_GDA2020_Public_Secure.geojson', quiet = TRUE)
+
+heritage_aboriginal <- st_read('/Users/patrickmorrison/Downloads/Aboriginal_Cultural_Heritage_Register_DPLH_099_WA_GDA2020_Public_Secure_GeoJSON/Aboriginal_Cultural_Heritage_Register_DPLH_099_WA_GDA2020_Public_Secure.geojson', quiet = TRUE)
+
+# Calculate land area lost at +70m
+cell_area_km2 <- prod(res(elev)) / 1e6  # cell size in km²
+
+# Current land (elevation > 0)
+current_land_aus <- sum(values(elev) > 0, na.rm = TRUE) * cell_area_km2
+# Land remaining at +70m
+remaining_land_aus <- sum(values(elev) > 70, na.rm = TRUE) * cell_area_km2
+# Land lost
+land_lost_aus <- current_land_aus - remaining_land_aus
+
+# WA only (rough bbox: 112-130 lon, -36 to -13 lat)
+wa_ext <- ext(112, 130, -36, -13)
+elev_wa_crop <- crop(elev, wa_ext)
+current_land_wa <- sum(values(elev_wa_crop) > 0, na.rm = TRUE) * cell_area_km2
+remaining_land_wa <- sum(values(elev_wa_crop) > 70, na.rm = TRUE) * cell_area_km2
+land_lost_wa <- current_land_wa - remaining_land_wa
+
+# Quick population calculation for inline text (full calc in population-graph chunk)
+aus_df_quick <- data.frame(elev = values(elev)[,1], pop = values(pop)[,1]) %>% 
+  filter(!is.na(elev) & !is.na(pop))
+pop_aus_70m <- round(sum(aus_df_quick$pop[aus_df_quick$elev > 70]) / sum(aus_df_quick$pop) * 100)
+```
+
+From the [Australian Bathymetry and Topography Grid 2024](https://ausseabed.gov.au/), we can see Australia lost `r format(round(land_lost_aus / 1000), big.mark = ",")` thousand km², and Western Australia lost `r format(round(land_lost_wa / 1000), big.mark = ",")` thousand km² - less than the 2.12 million km² lost when the ice age ended, but very substantial.
+
+```{r land-lost-map, fig.height = 8}
+elev_cat <- classify(elev, 
+                    rcl = matrix(c(-Inf, 0, 1,
+                                   0, 70, 2,
+                                   70, Inf, 3), 
+                                ncol = 3, byrow = TRUE))
+
+levels(elev_cat) <- data.frame(value = 1:3, 
+                               category = c("Ocean", "Submerged at +70m", "Remaining Land"))
+
+cities <- tibble(
+  city = c("Perth", "Kalgoorlie", "Albany", "Karratha", "Broome", 
+           "Sydney", "Melbourne", "Brisbane", "Adelaide"),
+  lon = c(115.86, 121.47, 117.88, 116.85, 122.23, 
+          151.21, 144.96, 153.03, 138.60),
+  lat = c(-31.95, -30.75, -35.03, -20.74, -17.96, 
+          -33.87, -37.81, -27.47, -34.93),
+  hjust = c(-0.2, -0.2, -0.2, 1.2, 1.2, 
+            1.2, -0.2, 1.2, 1.2)
+)
+
+ggplot() +
+  geom_spatraster(data = elev_cat) +
+  geom_point(data = cities, aes(x = lon, y = lat), size = 2, color = "#1a1a1a") +
+  geom_text(data = cities, aes(x = lon, y = lat, label = city, hjust = hjust), 
+            vjust = 0, size = 3, color = "#1a1a1a", fontface = "bold") +
+  scale_fill_manual(
+    values = c("Ocean" = "white", 
+               "Submerged at +70m" = "#1B54A8", 
+               "Remaining Land" = "#CDD6E2"),
+    na.value = "white"
+  ) +
+  coord_sf(xlim = c(110, 155), ylim = c(-45, -9), expand = FALSE) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        plot.background = element_rect(fill = "#fbfdfb", color = NA),
+        panel.background = element_rect(fill = "white", color = NA)) +
+  labs(title = "Australia After All Glaciers Melted (+70m)", 
+       x = NULL, y = NULL)
+```
+
+# Figure 2: Wet and dry archaeology
+
+How much of the 21st century archaeology is available to land-based archaeologists without requiring underwater work? After 70m of sea level rise, `r pop_aus_70m`% is accessible without diving. In Western Australia, the 21st century economy stretched far inland, driven by agriculture and mining; so fortunately there is better preservation in Western Australia than the eastern states, but there still may be different sorts of sites underwater.
+
+```{r population-graph}
+# Create WA boundary from SA2 data
+sa2_all <- st_read('/Users/patrickmorrison/Downloads/32180_ERP_2024_SA2_GDA2020/32180_ERP_2024_SA2_GDA2020.gpkg', quiet = TRUE)
+wa_boundary <- sa2_all %>%
+  filter(state_code_2021 == 5) %>%
+  st_union() %>%
+  st_transform(crs(elev))
+
+# Mask elevation and population to WA
+elev_wa <- mask(elev, vect(wa_boundary))
+pop_wa <- mask(pop, vect(wa_boundary))
+
+total_pop_aus <- global(pop, "sum", na.rm = TRUE)[[1]]
+total_pop_wa <- global(pop_wa, "sum", na.rm = TRUE)[[1]]
+
+markers <- tibble(
+  level = c(1, 7, 17, 21, 70),
+  label = c("2100\n(~1m)", "3°C, 2kyr\n(7m)", "3°C, 10kyr\n(17m)", "5°C\n(21m)", "All ice\n(70m)"),
+  alpha = c(0.3, 0.4, 0.4, 0.4, 0.5),
+  y_pos = c(92, 84, 72, 64, 45)
+)
+
+# Calculate pop by elevation band then cumsum
+aus_df <- data.frame(
+  elev = values(elev)[,1],
+  pop = values(pop)[,1]
+) %>% filter(!is.na(elev) & !is.na(pop))
+
+wa_df <- data.frame(
+  elev = values(elev_wa)[,1],
+  pop = values(pop_wa)[,1]
+) %>% filter(!is.na(elev) & !is.na(pop))
+
+# Calculate population above each sea level
+sea_levels <- seq(0, 150, 2)
+
+pop_data <- tibble(sea_level = sea_levels) %>%
+  mutate(
+    aus_remaining = map_dbl(sea_level, ~sum(aus_df$pop[aus_df$elev > .x])),
+    wa_remaining = map_dbl(sea_level, ~sum(wa_df$pop[wa_df$elev > .x])),
+    Australia = aus_remaining / sum(aus_df$pop) * 100,
+    `Western Australia` = wa_remaining / sum(wa_df$pop) * 100
+  ) %>%
+  pivot_longer(cols = c(Australia, `Western Australia`), 
+               names_to = "region", values_to = "percent_remaining")
+
+# Key figures for inline text
+pop_aus_7m <- round(sum(aus_df$pop[aus_df$elev > 7]) / sum(aus_df$pop) * 100)
+pop_aus_21m <- round(sum(aus_df$pop[aus_df$elev > 21]) / sum(aus_df$pop) * 100)
+pop_aus_70m <- round(sum(aus_df$pop[aus_df$elev > 70]) / sum(aus_df$pop) * 100)
+pop_wa_70m <- round(sum(wa_df$pop[wa_df$elev > 70]) / sum(wa_df$pop) * 100)
+
+pop_data %>%
+  ggplot(aes(sea_level, percent_remaining, color = region)) +
+  geom_line(linewidth = 1.5) +
+  geom_vline(data = markers, aes(xintercept = level, alpha = alpha), 
+             linetype = "dashed", color = "#5b8a72") +
+  geom_text(data = markers, aes(x = level, y = y_pos, label = label),
+            hjust = -0.1, vjust = 0.5, color = "#5b615c", size = 2.8) +
+  scale_alpha_identity() +
+  scale_color_manual(values = c("Australia" = "#2d6a4f", "Western Australia" = "#c85a3e")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  theme_minimal() +
+  theme(plot.background = element_rect(fill = "#fbfdfb", color = NA),
+        panel.background = element_rect(fill = "white", color = NA),
+        panel.grid.major = element_line(color = "#e4e6e4"),
+        panel.grid.minor = element_blank(),
+        legend.position = "bottom") +
+  labs(title = "21st Century Population: Land vs Underwater",
+       subtitle = "Most evidence requires underwater archaeology",
+       x = "Sea level above 2026 (m)", 
+       y = "Population on land (%)",
+       color = NULL)
+```
+
+# Figure 3: Western Australia's inland capitals
+
+To understand 21st century population centers, historical archaeologists use the [ABS Estimated Resident Population](https://www.abs.gov.au/statistics/people/population/regional-population/latest-release#data-downloads). Analysing this by SA3 shows where people lived at the time versus what remains on land.
+
+```{r wa-cities, fig.height = 6}
+sa2 <- st_read('/Users/patrickmorrison/Downloads/32180_ERP_2024_SA2_GDA2020/32180_ERP_2024_SA2_GDA2020.gpkg', quiet = TRUE) %>%
+  filter(state_code_2021 == 5) %>%  # Western Australia
+  st_transform(st_crs(elev))
+
+# Extract mean elevation for each SA2 polygon
+elev_values <- extract(elev, vect(sa2), fun = mean, na.rm = TRUE)
+
+sa2 <- sa2 %>%
+  mutate(
+    mean_elev = elev_values[, 2],
+    above_70m = mean_elev >= 70
+  )
+
+sa3 <- sa2 %>%
+  st_drop_geometry() %>%
+  group_by(sa3_name_2021) %>%
+  summarise(
+    population = sum(erp_2024, na.rm = TRUE),
+    population_above_70m = sum(erp_2024[above_70m], na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Top surviving cities for text
+top_survivors <- sa3 %>%
+  filter(population_above_70m > 0) %>%
+  arrange(desc(population_above_70m)) %>%
+  slice_head(n = 5)
+
+# Current top city (Perth area)
+current_top <- sa3 %>% arrange(desc(population)) %>% slice_head(n = 1)
+```
+
+The ancient city of Perth has been of interest to underwater archaeologists; while the surviving metropolises of Kalgoorlie, Mundaring, and Augusta were likely similar in importance to the former capital, it is possible their demographic, economic, and social structures differed in interesting ways.
+
+```{r wa-cities-plot, fig.height = 6}
+
+# Top 10 current
+p1 <- sa3 %>%
+  arrange(desc(population)) %>%
+  slice_head(n = 10) %>%
+  ggplot(aes(x = population, y = reorder(sa3_name_2021, population))) +
+  geom_col(fill = "#5b615c") +
+  scale_x_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(plot.background = element_rect(fill = "#fbfdfb", color = NA),
+        panel.background = element_rect(fill = "white", color = NA),
+        panel.grid.major = element_line(color = "#e4e6e4"),
+        panel.grid.minor = element_blank(),
+        axis.text.y = element_text(size = 9)) +
+  labs(title = "Current Top 10", x = "Population", y = NULL)
+
+# Top 10 at +70m (regions with remaining population)
+p2 <- sa3 %>%
+  filter(population_above_70m > 0) %>%
+  arrange(desc(population_above_70m)) %>%
+  slice_head(n = 10) %>%
+  ggplot(aes(x = population_above_70m, y = reorder(sa3_name_2021, population_above_70m))) +
+  geom_col(fill = "#5b8a72") +
+  scale_x_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(plot.background = element_rect(fill = "#fbfdfb", color = NA),
+        panel.background = element_rect(fill = "white", color = NA),
+        panel.grid.major = element_line(color = "#e4e6e4"),
+        panel.grid.minor = element_blank(),
+        axis.text.y = element_text(size = 9)) +
+  labs(title = "At +70m Top 10", x = "Population", y = NULL)
+
+library(patchwork)
+p1 + p2 + plot_annotation(
+  title = "WA Population Centers: 2026 vs After +70m",
+  subtitle = paste0(scales::percent(sum(sa3$population_above_70m)/sum(sa3$population)), " of 2026 population remained above water")
+)
+```
+
+# Figure 4: The potential for coastal sites prior to modern sea level?
+
+Due to excellent preservation of open data, we can access the 2026 copies of the [WA State Heritage Register](https://catalogue.data.wa.gov.au/dataset/heritage-council-wa-state-register/resource/981dd9e7-ead5-49b6-9842-053943d345fc) and the [Aboriginal Cultural Heritage Register](https://catalogue.data.wa.gov.au/dataset/aboriginal-cultural-heritage-register). The results are quite surprising, and suggest the possibility there may be more archaeology underwater! This supports the arguments of maritime archaeologists suggesting coastal settlement prior to, and during the 21st century, but still our much better modern data suggest this was likely peripheral, and most cities were far inland up until the last few thousand years. The site of Devil's Lair remains the oldest dated site in the southwest, high up on the limestone ridge where it has been preserved.
+
+```{r heritage-sites, fig.height = 4}
+# Combine heritage data, extract elevation, and plot
+bind_rows(
+  heritage_state %>% filter(st_is_valid(geometry)) %>% mutate(type = "State Register"),
+  heritage_aboriginal %>% filter(st_is_valid(geometry)) %>% mutate(type = "Aboriginal Heritage")
+) %>%
+  mutate(elevation = extract(elev, vect(st_point_on_surface(.)))[, 2]) %>%
+  st_drop_geometry() %>%
+  count(type, status = if_else(elevation >= 70, "Above Water", "Submerged")) %>%
+  ggplot(aes(type, n, fill = status)) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = c("Above Water" = "#2d6a4f", "Submerged" = "#c85a3e")) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.background = element_rect(fill = "#fbfdfb", color = NA),
+        panel.background = element_rect(fill = "white", color = NA),
+        panel.grid.major = element_line(color = "#e4e6e4"),
+        panel.grid.minor = element_blank()) +
+  labs(title = "Heritage Sites by Status", fill = NULL, x = NULL, y = "Number of sites")
+```
