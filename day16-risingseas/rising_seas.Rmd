@@ -286,8 +286,8 @@ p2 <- sa3 %>%
 
 library(patchwork)
 p1 + p2 + plot_annotation(
-  title = "WA Population Centers: 2026 vs After +70m",
-  subtitle = paste0(scales::percent(sum(sa3$population_above_70m)/sum(sa3$population)), " of 2026 population remained above water")
+  title = "WA Population Centers: 2024 vs After +70m",
+  subtitle = paste0(scales::percent(sum(sa3$population_above_70m)/sum(sa3$population)), " of 2024 population remained above water")
 )
 ```
 
