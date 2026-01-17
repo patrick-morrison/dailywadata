@@ -35,7 +35,7 @@ library(sf)
 
 For most of Australia's human past, sea levels were much lower than today. The Last Glacial Maximum saw seas rise over 120m, submerging 2.12 million km². In [Day 6](/day6-submergedlandscapes/), you can see estimates of what that would have looked like.
 
-One of the reasons underwater archaeology is important is that it reveals a very different world: for Australia this can show how people lived in a cooler world before the modern warm climate, and before people migrated due to sea-level rise.
+One of the reasons underwater archaeology is important is that it reveals a very different world: for Australia this can show how people lived in a cooler world before the modern warm climate, and before people migrated off the continental shelves due to sea-level rise.
 
 To contemplate the importance of underwater work, we could work through a thought experiment: what happens when sea levels rise again? What does the 21st century look like to our future colleagues: the maritime archaeologists based in Western Australia's capital of sunny Kalgoorlie, carefully lifting a waterlogged iPad from the foundations of an 'Osborne Park JB Hi-Fi HOME', 50m underwater?
 
