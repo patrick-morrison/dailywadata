@@ -22,7 +22,7 @@ knitr::opts_chunk$set(
   fig.width = 10, 
   fig.height = 6,
   fig.path = "figures/",
-  dev.args = list(bg = "white")
+  dev.args = list(bg = "#fbfdfb")
 )
 
 library(tidyverse)
@@ -37,7 +37,7 @@ For most of Australia's human past, sea levels were much lower than today. The L
 
 One of the reasons underwater archaeology is important is that it reveals a very different world: for Australia this can show how people lived in a cooler world before the modern warm climate, and before people migrated due to sea-level rise.
 
-To wrangle on the importance of underwater work, we could work through a thought experiment: what happens when sea levels rise again? What does the 21st century look like to our future colleagues: the maritime archaeologists based in Western Australia's capital of sunny Kalgoorlie, carefully lifting a waterlogged iPad from the foundations of an 'Osborne Park JB Hi-Fi HOME', 50m underwater?
+To contemplate the importance of underwater work, we could work through a thought experiment: what happens when sea levels rise again? What does the 21st century look like to our future colleagues: the maritime archaeologists based in Western Australia's capital of sunny Kalgoorlie, carefully lifting a waterlogged iPad from the foundations of an 'Osborne Park JB Hi-Fi HOME', 50m underwater?
 
 # Figure 1: How much land is underwater?
 
