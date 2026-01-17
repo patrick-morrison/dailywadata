@@ -135,7 +135,7 @@ ggplot() +
 
 # Figure 2: Wet and dry archaeology
 
-How much of the 21st century archaeology is available to land-based archaeologists without requiring underwater work? After 70m of sea level rise, `r pop_aus_70m`% of Australia's population is accessible without diving. Despite Western Australia's economy stretching far inland with agriculture and mining, only `r pop_wa_70m`% of the population remains above water; the state was more affected than the more diverse eastern states, and different sorts of sites may be underwater.
+How much of the 21st century archaeology is available to land-based archaeologists without requiring underwater work? After 70m of sea level rise, the homes of around `r pop_aus_70m`% of Australia's population are accessible without diving. Despite Western Australia's economy stretching far inland with agriculture and mining, only `r pop_wa_70m`% of the population remains above water; the state was more affected than the more diverse eastern states, and different sorts of sites may be underwater.
 
 ```{r population-graph}
 # Create WA boundary from SA2 data
