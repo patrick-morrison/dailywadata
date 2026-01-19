@@ -6,7 +6,7 @@ As scientists voyaged around the Kimberley between 2008 and 2011 during their wh
 
 [Download data from dataWA](https://data.gov.au/data/dataset/wamsi-2-kimberley-node-project-1-2-1b-monitoring-of-humpback-whales-megaptera-novaeangliae-_7e9)
 
-**Licence:** CC BY 4.0 — [Creative Commons Attribution](https://creativecommons.org/licenses/by/4.0/)
+**Licence:** CC BY 3.0 — [Creative Commons Attribution](https://creativecommons.org/licenses/by-sa/3.0/au/)
 
 ---
 
