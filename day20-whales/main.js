@@ -18,12 +18,8 @@ const state = {
     animationInterval: null
 };
 
-// Species colors
-const SPECIES_COLORS = {
-    'HB': [59, 130, 246, 200],    // Blue - Humpback
-    'SR': [239, 68, 68, 200],      // Red - Southern Right
-    'Unknown': [156, 163, 175, 180] // Gray
-};
+// Whale marker color (Humpback blue)
+const WHALE_COLOR = [59, 130, 246, 200];
 
 // ============================================
 // Initialization
@@ -166,7 +162,7 @@ function updateDeckLayers(visibleData) {
         lineWidthMinPixels: 1,
         getPosition: d => [d.lng, d.lat],
         getRadius: d => Math.max(300, (d.total || 1) * 150),
-        getFillColor: d => SPECIES_COLORS[d.species] || SPECIES_COLORS['Unknown'],
+        getFillColor: WHALE_COLOR,
         getLineColor: [255, 255, 255, 200],
         onClick: (info) => {
             if (info.object) {
@@ -263,13 +259,10 @@ document.getElementById('map')?.addEventListener('click', (e) => {
 function initializeChart() {
     const ctx = document.getElementById('timeline-chart').getContext('2d');
 
-    // Prepare chart data - use indices for even spacing, but track gaps
+    // Prepare chart data - use indices for even spacing
     const chartData = state.timepoints.map((tp, i) => {
         const totalWhales = tp.sightings.reduce((sum, s) => sum + (s.adults || 0) + (s.calves || 0), 0);
-        return {
-            x: i,
-            y: totalWhales
-        };
+        return { x: i, y: totalWhales };
     });
 
     // Find significant time gaps (> 7 days) for break markers
@@ -311,7 +304,7 @@ function initializeChart() {
             datasets: [{
                 label: 'Whales',
                 data: chartData,
-                backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                backgroundColor: 'rgba(59, 130, 246, 0.7)',
                 borderColor: 'rgba(59, 130, 246, 1)',
                 borderWidth: 0,
                 borderRadius: 2,
@@ -384,7 +377,7 @@ function initializeChart() {
                             type: 'line',
                             xMin: 0,
                             xMax: 0,
-                            borderColor: '#ef4444',
+                            borderColor: '#000000',
                             borderWidth: 2,
                             z: 10
                         },
