@@ -5256,9 +5256,31 @@ function asArray(value) {
     .leaflet-popup-content { padding: 10px !important; }
     .leaflet-popup-content-wrapper { border-radius: 12px !important; }
     .info.legend { background: white; padding: 10px; border-radius: 8px; }
+    .leaflet-bottom.leaflet-left > div { 
+      max-width: 360px !important; 
+      max-height: 80vh !important;
+      overflow-y: auto !important;
+      pointer-events: auto !important;
+      transform: scale(min(1, calc(35vw / 360px))) !important;
+      transform-origin: bottom left !important;
+    }
+    @media (max-width: 700px) {
+      .leaflet-bottom.leaflet-left > div {
+        transform: scale(calc(700px * 0.35 / 360px)) !important;
+        max-height: 40vh !important;
+      }
+    }
   </style>
   <script>
-    // Console info
+    // Prevent scroll events on info panels from propagating to map
+    window.addEventListener('load', function() {
+      const panels = document.querySelectorAll('.leaflet-bottom.leaflet-left > div');
+      panels.forEach(panel => {
+        panel.addEventListener('wheel', function(e) {
+          e.stopPropagation();
+        }, { passive: true });
+      });
+    });
   </script>
 </head>
 <body style="background-color: white;">
