@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Whale Sightings - Western Australia 2008-2011</title>
+    <meta name="description"
+        content="Interactive map of whale sightings along the Western Australian coast from 2008-2011">
+
+    <!-- External Dependencies -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/deck.gl@9.0.16/dist.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
+</head>
+
+<body>
+    <!-- Navigation -->
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Header -->
+    <div class="overlay header">
+        <div class="title-card">
+            <a href="../index.html" class="back-link">← Back to calendar</a>
+            <br>
+            <h1>Whale Sightings</h1>
+            <div class="subtitle">Western Australian Coast, 2008-2011</div>
+            <div class="title-meta">
+                <span class="attribution">Research vessel observations</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend" id="legend">
+        <div class="legend-title">Species</div>
+        <div class="legend-items">
+            <div class="legend-item">
+                <span class="legend-dot humpback"></span>
+                <span class="legend-label">Humpback</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot southern-right"></span>
+                <span class="legend-label">Southern Right</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Panel -->
+    <div class="info-panel" id="info-panel">
+        <div class="info-date">
+            <span class="info-label">Time</span>
+            <span class="info-value" id="date-value">-</span>
+        </div>
+        <div class="info-count">
+            <span class="info-label">Adults</span>
+            <span class="info-value" id="adults-value">0</span>
+        </div>
+        <div class="info-count">
+            <span class="info-label">Calves</span>
+            <span class="info-value" id="calves-value">0</span>
+        </div>
+    </div>
+
+    <!-- Popup -->
+    <div class="popup hidden" id="popup">
+        <button class="popup-close" id="popup-close">&times;</button>
+        <div class="popup-content" id="popup-content"></div>
+    </div>
+
+    <!-- Bottom Shelf -->
+    <div class="shelf" id="shelf">
+        <div class="shelf-header">
+            <div class="shelf-title">
+                <h3>Timeline</h3>
+                <span class="shelf-subtitle">Click or drag on chart to navigate</span>
+            </div>
+            <div class="shelf-controls">
+                <button class="play-btn" id="play-btn" title="Play/Pause animation">
+                    <svg class="play-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5,3 19,12 5,21" />
+                    </svg>
+                    <svg class="pause-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+                        <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="shelf-content">
+            <div class="chart-container">
+                <canvas id="timeline-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="main.js"></script>
+</body>
+
+</html>
