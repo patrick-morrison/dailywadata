@@ -250,6 +250,7 @@ body {
     z-index: 200;
     overflow: hidden;
     pointer-events: auto;
+    transition: height 0.3s ease;
 }
 
 .shelf-header {
@@ -278,6 +279,33 @@ body {
     gap: 8px;
 }
 
+.collapse-btn {
+    width: 36px;
+    height: 36px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.collapse-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.collapse-btn svg {
+    transition: transform 0.3s ease;
+}
+
+.shelf.collapsed .collapse-btn svg {
+    transform: rotate(180deg);
+}
+
+.clear-btn,
 .play-btn {
     width: 36px;
     height: 36px;
@@ -292,6 +320,7 @@ body {
     transition: all 0.2s;
 }
 
+.clear-btn:hover,
 .play-btn:hover {
     background: rgba(0, 0, 0, 0.1);
 }
@@ -323,6 +352,22 @@ body {
 }
 
 /* ============================================
+   Shelf Collapsed State
+   ============================================ */
+
+.shelf.collapsed {
+    height: auto;
+}
+
+.shelf.collapsed .shelf-content {
+    display: none;
+}
+
+.shelf.collapsed .shelf-subtitle {
+    display: none;
+}
+
+/* ============================================
    Chart Area
    ============================================ */
 
@@ -345,12 +390,8 @@ body {
 #timeline-chart {
     width: 100% !important;
     height: 100% !important;
-    cursor: grab;
+    cursor: crosshair;
     touch-action: none;
-}
-
-#timeline-chart:active {
-    cursor: grabbing;
 }
 
 /* ============================================
@@ -383,7 +424,7 @@ body {
 
 @media (max-width: 768px) {
     :root {
-        --shelf-height: 160px;
+        --shelf-height: 200px;
     }
 
     .back-link {
@@ -444,6 +485,10 @@ body {
         padding: 6px 12px 10px;
     }
 
+    .collapse-btn {
+        display: flex;
+    }
+
     .maplibregl-ctrl-bottom-left,
     .maplibregl-ctrl-bottom-right {
         bottom: calc(var(--shelf-height) + 20px) !important;
@@ -452,10 +497,22 @@ body {
 
 @media (max-width: 480px) {
     :root {
-        --shelf-height: 140px;
+        --shelf-height: 180px;
     }
 
     .title-card {
+        padding: 10px 14px;
+    }
+
+    .title-card h1 {
+        font-size: 1rem;
+    }
+
+    .title-card .subtitle {
+        font-size: 0.6rem;
+    }
+
+    .title-meta {
         display: none;
     }
 

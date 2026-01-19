@@ -76,9 +76,20 @@
         <div class="shelf-header">
             <div class="shelf-title">
                 <h3>Timeline</h3>
-                <span class="shelf-subtitle">Click or drag on chart to navigate</span>
+                <span class="shelf-subtitle">Drag to select a range</span>
             </div>
             <div class="shelf-controls">
+                <button class="collapse-btn" id="collapse-btn" title="Expand/Collapse timeline">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                </button>
+                <button class="clear-btn" id="clear-btn" title="Clear selection (show all)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
                 <button class="play-btn" id="play-btn" title="Play/Pause animation">
                     <svg class="play-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                         <polygon points="5,3 19,12 5,21" />

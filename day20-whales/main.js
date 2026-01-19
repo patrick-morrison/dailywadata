@@ -14,6 +14,9 @@ const state = {
     data: [],           // All whale sighting records
     timepoints: [],     // Unique datetime points for timeline
     currentIndex: 0,
+    rangeStart: 0,      // Start index of selected range
+    rangeEnd: 0,        // End index of selected range (inclusive)
+    isSelectingRange: false,  // Whether user is currently dragging to select
     isPlaying: false,
     animationInterval: null
 };
@@ -87,6 +90,7 @@ function processDataForTimeline() {
     state.timepoints = Object.values(timepointMap).sort((a, b) =>
         a.timestamp - b.timestamp
     );
+    clearSelection();
 }
 
 // ============================================
@@ -106,8 +110,7 @@ function initializeMap() {
                     tiles: [
                         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
                     ],
-                    tileSize: 256,
-                    attribution: '&copy; Esri, Maxar, Earthstar Geographics'
+                    tileSize: 256
                 }
             },
             layers: [{
@@ -116,8 +119,8 @@ function initializeMap() {
                 source: 'satellite'
             }]
         },
-        center: [123.5, -16.5],  // Kimberley coast, WA
-        zoom: 7,
+        center: [123.35201658094138, -16.968302771286815],  // Kimberley coast, WA
+        zoom: 6.443248335685459,
         maxZoom: 17,
         minZoom: 4,
         attributionControl: false
@@ -269,6 +272,7 @@ function initializeChart() {
     const GAP_THRESHOLD = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
     const breakAnnotations = {};
 
+    let nAnnotations = 0;
     for (let i = 1; i < state.timepoints.length; i++) {
         const gap = state.timepoints[i].timestamp - state.timepoints[i - 1].timestamp;
         if (gap > GAP_THRESHOLD) {
@@ -286,15 +290,17 @@ function initializeChart() {
                 borderWidth: 1,
                 borderDash: [4, 4],
                 label: {
-                    display: true,
+                    display: 'auto',
                     content: formatGapLabel(prevDate, nextDate, gapDays),
                     position: 'start',
                     font: { size: 9 },
                     color: 'rgba(0, 0, 0, 0.5)',
                     backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                    padding: 2
+                    padding: 2,
+                    yAdjust: (nAnnotations)*15
                 }
             };
+            nAnnotations++;
         }
     }
 
@@ -373,13 +379,15 @@ function initializeChart() {
                 },
                 annotation: {
                     annotations: {
-                        currentLine: {
-                            type: 'line',
-                            xMin: 0,
-                            xMax: 0,
-                            borderColor: '#000000',
+                        selectionBox: {
+                            type: 'box',
+                            xMin: -0.4,
+                            xMax: 0.4,
+                            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                            borderColor: 'rgba(59, 130, 246, 0.8)',
                             borderWidth: 2,
-                            z: 10
+                            borderRadius: 4,
+                            z: 5
                         },
                         ...breakAnnotations
                     }
@@ -407,48 +415,31 @@ function formatGapLabel(prevDate, nextDate, days) {
 }
 
 function handleChartClick(event, elements, chart) {
-    const chartArea = chart.chartArea;
-    if (!chartArea) return;
-
-    const rect = chart.canvas.getBoundingClientRect();
-    const x = event.native.clientX - rect.left;
-    const y = event.native.clientY - rect.top;
-
-    if (x < chartArea.left || x > chartArea.right || y < chartArea.top || y > chartArea.bottom) {
-        return;
-    }
-
-    const xScale = chart.scales.x;
-    const index = Math.round(xScale.getValueForPixel(x));
-    const clampedIndex = Math.max(0, Math.min(state.timepoints.length - 1, index));
-
-    updateIndex(clampedIndex);
+    // Click handling is now done in setupChartDrag
+    // This is kept for Chart.js but we handle selection ourselves
 }
 
 function setupChartDrag() {
     if (!state.chart) return;
 
     const canvas = state.chart.canvas;
-    let isDragging = false;
+    let dragStartIndex = null;
 
-    const handleMove = (e) => {
-        if (!isDragging) return;
-
+    const getIndexFromEvent = (e) => {
         const chartArea = state.chart.chartArea;
-        if (!chartArea) return;
+        if (!chartArea) return null;
 
         const rect = canvas.getBoundingClientRect();
         const clientX = e.clientX ?? e.touches?.[0]?.clientX;
-        if (clientX == null) return;
+        if (clientX == null) return null;
 
         const x = clientX - rect.left;
-        const clampedX = Math.max(chartArea.left, Math.min(chartArea.right, x));
+        if (x < chartArea.left || x > chartArea.right) return null;
 
+        const clampedX = Math.max(chartArea.left, Math.min(chartArea.right, x));
         const xScale = state.chart.scales.x;
         const index = Math.round(xScale.getValueForPixel(clampedX));
-        const clampedIndex = Math.max(0, Math.min(state.timepoints.length - 1, index));
-
-        updateIndex(clampedIndex);
+        return Math.max(0, Math.min(state.timepoints.length - 1, index));
     };
 
     const handleStart = (e) => {
@@ -467,14 +458,40 @@ function setupChartDrag() {
             return;
         }
 
-        isDragging = true;
-        canvas.style.cursor = 'grabbing';
-        handleMove(e);
+        const index = getIndexFromEvent(e);
+        if (index === null) return;
+
+        // Start range selection
+        dragStartIndex = index;
+        state.isSelectingRange = true;
+        state.rangeStart = index;
+        state.rangeEnd = index;
+        canvas.style.cursor = 'col-resize';
+
+        updateChartHighlight();
+    };
+
+    const handleMove = (e) => {
+        if (!state.isSelectingRange || dragStartIndex === null) return;
+
+        const index = getIndexFromEvent(e);
+        if (index === null) return;
+
+        // Update range - ensure start <= end
+        state.rangeStart = Math.min(dragStartIndex, index);
+        state.rangeEnd = Math.max(dragStartIndex, index);
+
+        updateChartHighlight();
     };
 
     const handleEnd = () => {
-        isDragging = false;
-        canvas.style.cursor = '';
+        if (state.isSelectingRange) {
+            state.isSelectingRange = false;
+            canvas.style.cursor = '';
+            // Update visualization with the selected range
+            updateVisualization();
+        }
+        dragStartIndex = null;
     };
 
     canvas.addEventListener('mousedown', handleStart);
@@ -487,12 +504,18 @@ function setupChartDrag() {
     canvas.addEventListener('touchend', handleEnd, { passive: true });
 }
 
-function updateChartHighlight(index) {
+function updateChartHighlight() {
     if (!state.chart) return;
 
     const annotations = state.chart.options.plugins.annotation.annotations;
-    annotations.currentLine.xMin = index;
-    annotations.currentLine.xMax = index;
+    annotations.selectionBox.xMin = state.rangeStart - 0.4;
+    annotations.selectionBox.xMax = state.rangeEnd + 0.4;
+
+    // Remove animation line when not playing
+    if (annotations.animationLine) {
+        delete annotations.animationLine;
+    }
+
     state.chart.update('none');
 }
 
@@ -500,46 +523,76 @@ function updateChartHighlight(index) {
 // Visualization Update
 // ============================================
 
-function updateIndex(index) {
-    state.currentIndex = index;
-    updateVisualization();
-}
-
 function updateVisualization() {
-    const currentTimepoint = state.timepoints[state.currentIndex];
-    if (!currentTimepoint) return;
-
-    // Show only sightings at the current timepoint (not cumulative)
-    const visibleData = currentTimepoint.sightings;
+    // Collect all sightings from rangeStart to rangeEnd
+    const visibleData = [];
+    for (let i = state.rangeStart; i <= state.rangeEnd; i++) {
+        const tp = state.timepoints[i];
+        if (tp) {
+            visibleData.push(...tp.sightings);
+        }
+    }
 
     // Update deck layers
     updateDeckLayers(visibleData);
 
     // Update chart highlight
-    updateChartHighlight(state.currentIndex);
+    updateChartHighlight();
 
     // Update info panel
-    updateInfoPanel(currentTimepoint);
+    updateInfoPanel();
 }
 
-function updateInfoPanel(timepoint) {
+function updateInfoPanel() {
     const dateValue = document.getElementById('date-value');
     const adultsValue = document.getElementById('adults-value');
     const calvesValue = document.getElementById('calves-value');
 
+    const startTp = state.timepoints[state.rangeStart];
+    const endTp = state.timepoints[state.rangeEnd];
+
+    if (!startTp) return;
+
+    // Format date display
     if (dateValue) {
-        const dateObj = new Date(timepoint.date);
-        const dateStr = dateObj.toLocaleDateString('en-AU', {
+        const startDate = new Date(startTp.date);
+        const startStr = startDate.toLocaleDateString('en-AU', {
             day: 'numeric',
             month: 'short',
             year: 'numeric'
         });
-        dateValue.textContent = `${dateStr} ${timepoint.time}`;
+
+        if (state.rangeStart === state.rangeEnd) {
+            // Single timepoint selected
+            dateValue.textContent = `${startStr} ${startTp.time}`;
+        } else {
+            // Range selected - show date range
+            const endDate = new Date(endTp.date);
+            const endStr = endDate.toLocaleDateString('en-AU', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+            });
+
+            if (startStr === endStr) {
+                // Same day range
+                dateValue.textContent = `${startStr}`;
+            } else {
+                dateValue.textContent = `${startStr} - ${endStr}`;
+            }
+        }
     }
 
-    // Sum adults and calves across all sightings at this timepoint
-    const totalAdults = timepoint.sightings.reduce((sum, s) => sum + (s.adults || 0), 0);
-    const totalCalves = timepoint.sightings.reduce((sum, s) => sum + (s.calves || 0), 0);
+    // Sum adults and calves across all sightings in the range
+    let totalAdults = 0;
+    let totalCalves = 0;
+    for (let i = state.rangeStart; i <= state.rangeEnd; i++) {
+        const tp = state.timepoints[i];
+        if (tp) {
+            totalAdults += tp.sightings.reduce((sum, s) => sum + (s.adults || 0), 0);
+            totalCalves += tp.sightings.reduce((sum, s) => sum + (s.calves || 0), 0);
+        }
+    }
 
     if (adultsValue) {
         adultsValue.textContent = totalAdults;
@@ -556,35 +609,74 @@ function updateInfoPanel(timepoint) {
 
 function setupPlayButton() {
     const playBtn = document.getElementById('play-btn');
-    if (!playBtn) return;
+    if (playBtn) {
+        playBtn.addEventListener('click', () => {
+            if (state.isPlaying) {
+                stopAnimation();
+            } else {
+                startAnimation();
+            }
+        });
+    }
 
-    playBtn.addEventListener('click', () => {
-        if (state.isPlaying) {
-            stopAnimation();
-        } else {
-            startAnimation();
+    const clearBtn = document.getElementById('clear-btn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            clearSelection();
+        });
+    }
+
+    const collapseBtn = document.getElementById('collapse-btn');
+    const shelf = document.getElementById('shelf');
+    if (collapseBtn && shelf) {
+        // Start collapsed on mobile
+        if (window.innerWidth <= 768) {
+            shelf.classList.add('collapsed');
         }
-    });
+
+        collapseBtn.addEventListener('click', () => {
+            shelf.classList.toggle('collapsed');
+            // Resize chart when expanding
+            if (!shelf.classList.contains('collapsed') && state.chart) {
+                setTimeout(() => state.chart.resize(), 50);
+            }
+        });
+    }
+}
+
+function clearSelection() {
+    // Stop any animation
+    if (state.isPlaying) {
+        stopAnimation();
+    }
+
+    // Select all timepoints
+    state.rangeStart = 0;
+    state.rangeEnd = state.timepoints.length - 1;
+
+    updateVisualization();
 }
 
 function startAnimation() {
     state.isPlaying = true;
     document.getElementById('play-btn')?.classList.add('playing');
 
-    // If at end, restart from beginning
-    if (state.currentIndex >= state.timepoints.length - 1) {
-        state.currentIndex = 0;
-    }
+    // Start from the beginning of the selected range
+    state.currentIndex = state.rangeStart;
+
+    // Show initial frame
+    updateAnimationFrame();
 
     state.animationInterval = setInterval(() => {
-        if (state.currentIndex >= state.timepoints.length - 1) {
+        // Stop at end of selected range
+        if (state.currentIndex >= state.rangeEnd) {
             stopAnimation();
             return;
         }
 
         state.currentIndex++;
-        updateVisualization();
-    }, 100); // 100ms per step (faster since there are more timepoints)
+        updateAnimationFrame();
+    }, 100); // 100ms per step
 }
 
 function stopAnimation() {
@@ -594,5 +686,72 @@ function stopAnimation() {
     if (state.animationInterval) {
         clearInterval(state.animationInterval);
         state.animationInterval = null;
+    }
+
+    // When animation stops, show the full selected range again
+    updateVisualization();
+}
+
+// Update display during animation (shows single timepoint)
+function updateAnimationFrame() {
+    const tp = state.timepoints[state.currentIndex];
+    if (!tp) return;
+
+    // Show only sightings at current animation frame
+    updateDeckLayers(tp.sightings);
+
+    // Update chart to show current position within selection
+    if (state.chart) {
+        const annotations = state.chart.options.plugins.annotation.annotations;
+        // Keep selection box visible, add animation position indicator
+        annotations.selectionBox.xMin = state.rangeStart - 0.4;
+        annotations.selectionBox.xMax = state.rangeEnd + 0.4;
+
+        // Add or update animation line
+        if (!annotations.animationLine) {
+            annotations.animationLine = {
+                type: 'line',
+                xMin: state.currentIndex,
+                xMax: state.currentIndex,
+                borderColor: '#000000',
+                borderWidth: 2,
+                z: 10
+            };
+        } else {
+            annotations.animationLine.xMin = state.currentIndex;
+            annotations.animationLine.xMax = state.currentIndex;
+        }
+        state.chart.update('none');
+    }
+
+    // Update info panel for current frame
+    updateAnimationInfoPanel(tp);
+}
+
+// Update info panel during animation (single timepoint)
+function updateAnimationInfoPanel(timepoint) {
+    const dateValue = document.getElementById('date-value');
+    const adultsValue = document.getElementById('adults-value');
+    const calvesValue = document.getElementById('calves-value');
+
+    if (dateValue) {
+        const dateObj = new Date(timepoint.date);
+        const dateStr = dateObj.toLocaleDateString('en-AU', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+        dateValue.textContent = `${dateStr} ${timepoint.time}`;
+    }
+
+    const totalAdults = timepoint.sightings.reduce((sum, s) => sum + (s.adults || 0), 0);
+    const totalCalves = timepoint.sightings.reduce((sum, s) => sum + (s.calves || 0), 0);
+
+    if (adultsValue) {
+        adultsValue.textContent = totalAdults;
+    }
+
+    if (calvesValue) {
+        calvesValue.textContent = totalCalves;
     }
 }
