@@ -909,16 +909,58 @@
                 </div>
             </div>
 
+            <div class="day-entry" id="day21">
+                <div class="day-header">
+                    <span class="day-num">21</span>
+                    <h3 class="day-name"><a href="day21-coastlines/index.html">High Resolution National High Tide
+                            Coastline History</a>
+                    </h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Tracking coastline changes is critical for understanding coastal
+                            erosion, sea level rise impacts, and land use planning. This map makes it easy to visualise
+                            how Australia's high tide boundary has shifted between 2016 and 2022, with the ability to
+                            toggle individual years or animate through time to spot patterns of change.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://catalogue.data.wa.gov.au/dataset/high-resolution-national-high-tide-coastline-history-dpird-094">High
+                                Resolution National High Tide Coastline History (DPIRD-094)</a> from the Department of
+                            Primary Industries and Regional Development via Data WA. Derived from Sentinel-2 satellite
+                            imagery using the Normalised Difference Water Index. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">Data is fetched directly from the WA SLIP (Shared Location Information
+                            Platform) WFS service in GeoJSON format, then rendered on the map using Leaflet with custom
+                            styling.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">HTML/CSS/JS webmap using Leaflet for basemap rendering with Esri World
+                            Imagery tiles. Coastline vectors are loaded dynamically via WFS requests scoped to the
+                            current map viewport. Features include per-year colour-coded layers with toggle controls, an
+                            animation mode to cycle through years automatically, and debounced loading to avoid
+                            excessive requests during pan/zoom.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Nick Wright</div>
+                    </div>
+                </div>
+            </div>
+
+            <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each
+                day is published.</p>
+
         </div>
 
-        <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each
-            day is published.</p>
-
-    </div>
-
-    <footer>
-        Perth, Western Australia
-    </footer>
+        <footer>
+            Perth, Western Australia
+        </footer>
     </div>
 </body>
 
