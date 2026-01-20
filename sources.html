@@ -851,9 +851,10 @@
                     <div class="detail-section">
                         <div class="detail-label">Processing</div>
                         <div class="detail-text">BAG file hole-filled in QGIS, exported as GeoTIFF in original
-                            projection. Optimized for web
-                            by converting Float32 to Int16 (×100) at 25% resolution as a DEFLATE COG (731MB → 3.2MB).
-                            Client-side conversion to Web Mercator (EPSG:3857) for map display.</div>
+                            projection. Optimized for web by converting Float32 to Int16 (×100) at 25% resolution as a
+                            DEFLATE COG (731MB → 3.2MB). The GeoTIFF retains the original GDA94 / MGA zone 50 projection
+                            with on-the-fly conversion to Web Mercator (EPSG:3857) happening client-side for web map
+                            display.</div>
                     </div>
                     <div class="detail-section">
                         <div class="detail-label">Implementation Details</div>
