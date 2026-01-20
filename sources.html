@@ -833,47 +833,50 @@
                     <div class="detail-section">
                         <div class="detail-label">Rationale</div>
                         <div class="detail-text">We dive the Swan River often, and many people use underwater scooters
-                            and contour navigation for planning dives. This tool allows you to plan a route that
-                            includes "follow the 9m depth contour for 20 minutes, then go west for 5 minutes". I also
-                            used this dataset to find the oldest wreck in the river. With this I can identify a target,
+                            and contour navigation for planning dives. Technical diving is planned around times and
+                            depths, which this helps you calculate. This tool allows you to plan a route that includes
+                            "follow the 9m depth contour for 20 minutes, then go west for 5 minutes". This is the Swan
+                            River multibeam data I used to find the oldest wreck in the river - an 1882 barge upstream
+                            of Point Walter. We have more targets to investigate, so with this I can identify a target,
                             right-click on it and load its location into my Garmin - or share it with the dive team.
                         </div>
                     </div>
-                    <div class="detail-section">
-                        <div class="detail-label">Source</div>
-                        <div class="detail-text">Swan-Canning Multibeam Survey (SC2010) from the <a
-                                href="https://catalogue.data.wa.gov.au/dataset/bathymetry-catalogue">Department
-                                of Transport WA</a>. CC BY 4.0. Original coordinate system: GDA94 / MGA zone 50
-                            (EPSG:28350).</div>
-                    </div>
-                    <div class="detail-section">
-                        <div class="detail-label">Processing</div>
-                        <div class="detail-text">BAG file hole-filled in QGIS, exported as GeoTIFF in original
-                            projection. Optimized for web
-                            by converting Float32 to Int16 (×100) at 25% resolution as a DEFLATE COG (731MB → 3.2MB).
-                            Client-side conversion to Web Mercator (EPSG:3857) for map display.</div>
-                    </div>
-                    <div class="detail-section">
-                        <div class="detail-label">Implementation Details</div>
-                        <div class="detail-text">MapLibre GL + deck.gl for rendering, Chart.js for depth profiles,
-                            GeoTIFF.js for COG streaming. A* pathfinding with depth tolerance for contour-following
-                            routes. Shareable URLs encode waypoints and configuration.</div>
-                    </div>
-                    <div class="detail-section">
-                        <div class="detail-label">Author</div>
-                        <div class="detail-text">Patrick Morrison</div>
-                    </div>
+                </div>
+                <div class="detail-section">
+                    <div class="detail-label">Source</div>
+                    <div class="detail-text">Swan-Canning Multibeam Survey (SC2010) from the <a
+                            href="https://catalogue.data.wa.gov.au/dataset/bathymetry-catalogue">Department
+                            of Transport WA</a>. CC BY 4.0. Original coordinate system: GDA94 / MGA zone 50
+                        (EPSG:28350).</div>
+                </div>
+                <div class="detail-section">
+                    <div class="detail-label">Processing</div>
+                    <div class="detail-text">BAG file hole-filled in QGIS, exported as GeoTIFF in original
+                        projection. Optimized for web
+                        by converting Float32 to Int16 (×100) at 25% resolution as a DEFLATE COG (731MB → 3.2MB).
+                        Client-side conversion to Web Mercator (EPSG:3857) for map display.</div>
+                </div>
+                <div class="detail-section">
+                    <div class="detail-label">Implementation Details</div>
+                    <div class="detail-text">MapLibre GL + deck.gl for rendering, Chart.js for depth profiles,
+                        GeoTIFF.js for COG streaming. A* pathfinding with depth tolerance for contour-following
+                        routes. Shareable URLs encode waypoints and configuration.</div>
+                </div>
+                <div class="detail-section">
+                    <div class="detail-label">Author</div>
+                    <div class="detail-text">Patrick Morrison</div>
                 </div>
             </div>
-
-            <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each
-                day is published.</p>
-
         </div>
 
-        <footer>
-            Perth, Western Australia
-        </footer>
+        <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each
+            day is published.</p>
+
+    </div>
+
+    <footer>
+        Perth, Western Australia
+    </footer>
     </div>
 </body>
 
