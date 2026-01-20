@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:,">
+    <title>Australia Coastline Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <!-- Splash Screen -->
+    <div id="splash" class="splash">
+        <div class="splash-content">
+            <div class="splash-header">
+                <h1>High Resolution National High Tide Coastline History</h1>
+                <p class="splash-subtitle">Australian Six Monthly High Tides (2015-2022)</p>
+            </div>
+
+            <div class="splash-body">
+                <div class="splash-section">
+                    <h3>About This Map</h3>
+                    <p>Explore how Australia's coastline has changed over time. Toggle between different time periods
+                        to compare high tide boundaries, or use the animation feature to watch coastal changes unfold
+                        from 2015 to 2022.</p>
+                </div>
+
+                <button id="enterMapBtn" class="enter-btn">Enter Map</button>
+
+                <div class="splash-section">
+                    <h3>About This Dataset</h3>
+                    <p>This dataset provides high-resolution mapping of Australia's high tide coastline, derived from
+                        Sentinel-2 satellite imagery using the Normalised Difference Water Index. Created through
+                        collaboration between the Department of Primary Industries and Regional Development and
+                        Landgate.</p>
+                    <p><strong>Note:</strong> Six-monthly data is available, but this map only shows the first six months of each year.</p>
+                </div>
+
+                <div class="splash-section">
+                    <h3>Coverage</h3>
+                    <div class="splash-grid">
+                        <div class="splash-stat">
+                            <span class="stat-value">2015-2022</span>
+                            <span class="stat-label">Time Period</span>
+                        </div>
+                        <div class="splash-stat">
+                            <span class="stat-value">6 Monthly (H1)</span>
+                            <span class="stat-label">Intervals Shown</span>
+                        </div>
+                        <div class="splash-stat">
+                            <span class="stat-value">All Australia</span>
+                            <span class="stat-label">Geographic Extent</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="splash-footer">
+                <p class="attribution">Data provided under Creative Commons Attribution 4.0 License</p>
+                <p class="copyright">&copy; State of Western Australia, Department of Primary Industries and Regional
+                    Development</p>
+                <p class="dataset-link"><a
+                        href="https://catalogue.data.wa.gov.au/dataset/high-resolution-national-high-tide-coastline-history-dpird-094"
+                        target="_blank" rel="noopener">View Dataset Catalogue</a></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel header">
+        <h1>High resolution national high tide coastline history</h1>
+        <div class="attr">DPIRD-094 | Dept. Primary Industries & Regional Development</div>
+    </div>
+
+    <div class="panel controls">
+        <h3>Controls</h3>
+        <div class="animation-controls">
+            <button id="animateBtn">Play Animation</button>
+            <span id="animationYear"></span>
+        </div>
+        <div class="toggles" id="yearToggles"></div>
+        <div class="coords" id="cursorCoords">Lat: --, Lng: --</div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
