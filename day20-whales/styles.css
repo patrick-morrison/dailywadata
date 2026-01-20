@@ -1,0 +1,524 @@
+/**
+ * Day 20 - Whale Sightings Styles
+ * Western Australian Coast 2008-2011
+ */
+
+/* ============================================
+   CSS Variables & Base Styles
+   ============================================ */
+
+:root {
+    --color-bg: #f5f5f5;
+    --color-surface: rgba(255, 255, 255, 0.95);
+    --color-surface-glass: rgba(255, 255, 255, 0.9);
+    --color-text: #1a1a1a;
+    --color-text-muted: rgba(26, 26, 26, 0.6);
+    --color-accent: #2563eb;
+    --color-whale: #3b82f6;
+    --font-serif: 'Instrument Serif', Georgia, serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+    --shelf-height: 220px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    background: var(--color-bg);
+    color: var(--color-text);
+}
+
+/* ============================================
+   Map Container
+   ============================================ */
+
+#map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* ============================================
+   Overlay System
+   ============================================ */
+
+.overlay {
+    position: absolute;
+    z-index: 100;
+    pointer-events: none;
+}
+
+/* ============================================
+   Back Link
+   ============================================ */
+
+.back-link {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 101;
+    font-size: 0.75rem;
+    color: rgba(0, 0, 0, 0.5);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.back-link:hover {
+    color: var(--color-accent);
+}
+
+/* ============================================
+   Header & Title Card
+   ============================================ */
+
+.header {
+    top: 50px;
+    left: 20px;
+    right: 20px;
+}
+
+.title-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    display: inline-block;
+    pointer-events: auto;
+}
+
+.title-card h1 {
+    font-family: var(--font-serif);
+    font-size: 1.8rem;
+    font-weight: 400;
+    margin-bottom: 4px;
+    color: var(--color-accent);
+}
+
+.title-card .subtitle {
+    font-size: 0.75rem;
+    color: rgba(0, 0, 0, 0.5);
+    font-weight: 300;
+}
+
+.title-meta {
+    margin-top: 8px;
+}
+
+.attribution {
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.4);
+}
+
+/* ============================================
+   Info Panel
+   ============================================ */
+
+.info-panel {
+    position: absolute;
+    bottom: calc(var(--shelf-height) + 40px);
+    left: 20px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 16px;
+    background: rgba(26, 26, 26, 0.85);
+    backdrop-filter: blur(8px);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+}
+
+.info-date,
+.info-count {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+}
+
+.info-label {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.info-value {
+    font-size: 1rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.95);
+    line-height: 1;
+}
+
+/* ============================================
+   Popup
+   ============================================ */
+
+.popup {
+    position: absolute;
+    z-index: 150;
+    padding: 16px 20px;
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    max-width: 280px;
+    min-width: 200px;
+    pointer-events: auto;
+}
+
+.popup.hidden {
+    display: none;
+}
+
+.popup-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+}
+
+.popup-close:hover {
+    color: var(--color-text);
+}
+
+.popup-content {
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.popup-content .popup-date {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-bottom: 8px;
+}
+
+.popup-content .popup-species {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    margin-bottom: 6px;
+}
+
+.popup-content .popup-count {
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+}
+
+.popup-content .popup-location {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    font-style: italic;
+}
+
+/* ============================================
+   Bottom Shelf (Timeline)
+   ============================================ */
+
+.shelf {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    height: var(--shelf-height);
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    z-index: 200;
+    overflow: hidden;
+    pointer-events: auto;
+    transition: height 0.3s ease;
+}
+
+.shelf-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.shelf-title h3 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.shelf-subtitle {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+    display: block;
+}
+
+.shelf-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.collapse-btn {
+    width: 36px;
+    height: 36px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.collapse-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.collapse-btn svg {
+    transition: transform 0.3s ease;
+}
+
+.shelf.collapsed .collapse-btn svg {
+    transform: rotate(180deg);
+}
+
+.clear-btn,
+.play-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.clear-btn:hover,
+.play-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.play-btn.playing {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: white;
+}
+
+.play-btn svg {
+    display: none;
+}
+
+.play-btn .play-icon {
+    display: block;
+}
+
+.play-btn .pause-icon {
+    display: none;
+}
+
+.play-btn.playing .play-icon {
+    display: none;
+}
+
+.play-btn.playing .pause-icon {
+    display: block;
+}
+
+/* ============================================
+   Shelf Collapsed State
+   ============================================ */
+
+.shelf.collapsed {
+    height: auto;
+}
+
+.shelf.collapsed .shelf-content {
+    display: none;
+}
+
+.shelf.collapsed .shelf-subtitle {
+    display: none;
+}
+
+/* ============================================
+   Chart Area
+   ============================================ */
+
+.shelf-content {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 16px 12px 16px;
+    overflow: visible;
+    min-height: 0;
+}
+
+.chart-container {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+}
+
+#timeline-chart {
+    width: 100% !important;
+    height: 100% !important;
+    cursor: crosshair;
+    touch-action: none;
+}
+
+/* ============================================
+   MapLibre Overrides
+   ============================================ */
+
+.maplibregl-ctrl-bottom-left,
+.maplibregl-ctrl-bottom-right {
+    bottom: calc(var(--shelf-height) + 30px) !important;
+}
+
+.maplibregl-ctrl-attrib {
+    display: none !important;
+}
+
+.maplibregl-ctrl-attrib.maplibregl-compact {
+    display: block !important;
+    min-height: 20px;
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+}
+
+.maplibregl-ctrl-attrib-button {
+    display: block !important;
+}
+
+/* ============================================
+   Mobile Responsive
+   ============================================ */
+
+@media (max-width: 768px) {
+    :root {
+        --shelf-height: 200px;
+    }
+
+    .back-link {
+        top: 12px;
+        left: 12px;
+        font-size: 0.7rem;
+    }
+
+    .header {
+        top: 40px;
+        left: 12px;
+        right: 12px;
+    }
+
+    .title-card {
+        padding: 14px 18px;
+    }
+
+    .title-card h1 {
+        font-size: 1.2rem;
+    }
+
+    .title-card .subtitle {
+        font-size: 0.65rem;
+    }
+
+    .info-panel {
+        display: none;
+    }
+
+    .shelf {
+        bottom: 12px;
+        left: 12px;
+        right: 12px;
+    }
+
+    .popup {
+        left: 12px !important;
+        right: 12px !important;
+        top: auto !important;
+        bottom: calc(var(--shelf-height) + 30px) !important;
+        max-width: none;
+    }
+
+    .shelf-header {
+        padding: 10px 14px;
+    }
+
+    .shelf-title h3 {
+        font-size: 0.75rem;
+    }
+
+    .shelf-subtitle {
+        font-size: 0.65rem;
+    }
+
+    .shelf-content {
+        padding: 6px 12px 10px;
+    }
+
+    .collapse-btn {
+        display: flex;
+    }
+
+    .maplibregl-ctrl-bottom-left,
+    .maplibregl-ctrl-bottom-right {
+        bottom: calc(var(--shelf-height) + 20px) !important;
+    }
+}
+
+@media (max-width: 480px) {
+    :root {
+        --shelf-height: 180px;
+    }
+
+    .title-card {
+        padding: 10px 14px;
+    }
+
+    .title-card h1 {
+        font-size: 1rem;
+    }
+
+    .title-card .subtitle {
+        font-size: 0.6rem;
+    }
+
+    .title-meta {
+        display: none;
+    }
+
+    .shelf {
+        bottom: 8px;
+        left: 8px;
+        right: 8px;
+    }
+}
