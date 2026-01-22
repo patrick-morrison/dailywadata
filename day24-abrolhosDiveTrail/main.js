@@ -14,8 +14,8 @@ const CONFIG = {
         zoom: 10
     },
     GEOJSON_URL: 'Abrolhos_Is_Dive_Trail_Markers_DPIRD_086_WA_GDA94_Public.geojson',
-    CONTOURS_URL: 'Contours_WGS84.geojson',
-    BATHYMETRY_COG_URL: 'AbrolhosBathy_cog.tif',
+    CONTOURS_URL: 'https://cdn.arenleishman.com/Contours_WGS84.geojson',
+    BATHYMETRY_COG_URL: 'https://cdn.arenleishman.com/AbrolhosBathy_cog.tif',
     TRAIL_COLORS: {
         'Beacon Island Dive Trail': '#FF6B6B',
         'Turtle Bay Dive Trail': '#4ECDC4',
@@ -181,6 +181,147 @@ map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-rig
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
 
 // ============================================
+// Bathymetry Layer (CDN dependency)
+// ============================================
+
+async function addBathymetryLayer() {
+    const legendControl = document.querySelector('.layer-control[data-layer="bathymetry"]');
+
+    try {
+        // Test if resource is available with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+        const testResponse = await fetch(CONFIG.BATHYMETRY_COG_URL, {
+            method: 'HEAD',
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!testResponse.ok) {
+            throw new Error('Resource not available');
+        }
+
+        // Resource is available, add the layer
+        map.addSource('bathymetry-source', {
+            type: 'raster',
+            url: `cog://${CONFIG.BATHYMETRY_COG_URL}`,
+            tileSize: 256
+        });
+
+        map.addLayer({
+            id: 'bathymetry-layer',
+            type: 'raster',
+            source: 'bathymetry-source',
+            paint: {
+                'raster-opacity': state.layerOpacity.bathymetry,
+                'raster-resampling': 'linear'
+            },
+            layout: {
+                visibility: state.layerVisibility.bathymetry ? 'visible' : 'none'
+            }
+        }, 'dive-trails-layer'); // Insert below dive trails
+
+        // Layer added successfully, show the legend control
+        if (legendControl) {
+            legendControl.style.display = 'block';
+        }
+    } catch (error) {
+        // Failed to load, keep legend hidden and log warning
+        console.warn('Bathymetry layer unavailable - CDN resource not accessible', error);
+        state.layerVisibility.bathymetry = false;
+    }
+}
+
+// ============================================
+// Contours Layer (CDN dependency)
+// ============================================
+
+async function addContoursLayer() {
+    const legendControl = document.querySelector('.layer-control[data-layer="contours"]');
+
+    try {
+        // Try to load and add the layer with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+        const contoursResponse = await fetch(CONFIG.CONTOURS_URL, {
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!contoursResponse.ok) {
+            throw new Error('Resource not available');
+        }
+
+        const contoursData = await contoursResponse.json();
+
+        map.addSource('contours-source', {
+            type: 'geojson',
+            data: contoursData
+        });
+
+        // Add contour lines
+        map.addLayer({
+            id: 'contours-layer',
+            type: 'line',
+            source: 'contours-source',
+            paint: {
+                'line-color': CONFIG.CONTOUR_COLOR,
+                'line-width': [
+                    'case',
+                    ['==', ['%', ['get', 'ELEV'], 10], 0], // Every 10m
+                    2,
+                    1
+                ],
+                'line-opacity': 0.6
+            },
+            layout: {
+                visibility: state.layerVisibility.contours ? 'visible' : 'none'
+            },
+            minzoom: 11  // Only show when zoomed in
+        }, 'dive-trails-layer'); // Insert below dive trails
+
+        // Add contour labels
+        map.addLayer({
+            id: 'contours-labels',
+            type: 'symbol',
+            source: 'contours-source',
+            paint: {
+                'text-color': CONFIG.CONTOUR_COLOR,
+                'text-halo-color': '#ffffff',
+                'text-halo-width': 2,
+                'text-opacity': 0.9
+            },
+            layout: {
+                'text-field': ['concat', ['get', 'ELEV'], 'm'],
+                'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+                'text-size': 11,
+                'symbol-placement': 'line',
+                'symbol-spacing': 200,  // Distance between repeated labels along the line (in pixels)
+                'text-rotation-alignment': 'map',
+                'text-pitch-alignment': 'viewport',
+                'text-max-angle': 30,
+                'text-padding': 10,  // Reduced from 50 to allow more labels
+                visibility: state.layerVisibility.contours ? 'visible' : 'none'
+            },
+            minzoom: 12  // Only show labels when zoomed in more
+        }, 'dive-trails-layer');
+
+        // Layers added successfully, show the legend control
+        if (legendControl) {
+            legendControl.style.display = 'block';
+        }
+    } catch (error) {
+        // Failed to load, keep legend hidden and log warning
+        console.warn('Contours layer unavailable - CDN resource not accessible', error);
+        state.layerVisibility.contours = false;
+    }
+}
+
+// ============================================
 // Data Loading and Layer Setup
 // ============================================
 
@@ -317,81 +458,9 @@ map.on('load', async () => {
             }
         });
 
-        // Add bathymetry COG layer
-        map.addSource('bathymetry-source', {
-            type: 'raster',
-            url: `cog://${CONFIG.BATHYMETRY_COG_URL}`,
-            tileSize: 256
-        });
-
-        map.addLayer({
-            id: 'bathymetry-layer',
-            type: 'raster',
-            source: 'bathymetry-source',
-            paint: {
-                'raster-opacity': state.layerOpacity.bathymetry,
-                'raster-resampling': 'linear'
-            },
-            layout: {
-                visibility: state.layerVisibility.bathymetry ? 'visible' : 'none'
-            }
-        }, 'dive-trails-layer'); // Insert below dive trails
-
-        // Load and add contours
-        const contoursResponse = await fetch(CONFIG.CONTOURS_URL);
-        const contoursData = await contoursResponse.json();
-
-        map.addSource('contours-source', {
-            type: 'geojson',
-            data: contoursData
-        });
-
-        // Add contour lines
-        map.addLayer({
-            id: 'contours-layer',
-            type: 'line',
-            source: 'contours-source',
-            paint: {
-                'line-color': CONFIG.CONTOUR_COLOR,
-                'line-width': [
-                    'case',
-                    ['==', ['%', ['get', 'ELEV'], 10], 0], // Every 10m
-                    2,
-                    1
-                ],
-                'line-opacity': 0.6
-            },
-            layout: {
-                visibility: state.layerVisibility.contours ? 'visible' : 'none'
-            },
-            minzoom: 11  // Only show when zoomed in
-        }, 'dive-trails-layer'); // Insert below dive trails
-
-        // Add contour labels
-        map.addLayer({
-            id: 'contours-labels',
-            type: 'symbol',
-            source: 'contours-source',
-            paint: {
-                'text-color': CONFIG.CONTOUR_COLOR,
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 2,
-                'text-opacity': 0.9
-            },
-            layout: {
-                'text-field': ['concat', ['get', 'ELEV'], 'm'],
-                'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-                'text-size': 11,
-                'symbol-placement': 'line',
-                'symbol-spacing': 200,  // Distance between repeated labels along the line (in pixels)
-                'text-rotation-alignment': 'map',
-                'text-pitch-alignment': 'viewport',
-                'text-max-angle': 30,
-                'text-padding': 10,  // Reduced from 50 to allow more labels
-                visibility: state.layerVisibility.contours ? 'visible' : 'none'
-            },
-            minzoom: 12  // Only show labels when zoomed in more
-        }, 'dive-trails-layer');
+        // Add bathymetry and contours layers (only if CDN resources are available)
+        await addBathymetryLayer();
+        await addContoursLayer();
 
         // Hide loading overlay
         document.getElementById('loading').classList.add('hidden');
@@ -484,11 +553,18 @@ function initializeLayerControls() {
             const visibility = checkbox.checked ? 'visible' : 'none';
 
             if (layerId === 'contours') {
-                // Toggle both contour lines and labels
-                map.setLayoutProperty('contours-layer', 'visibility', visibility);
-                map.setLayoutProperty('contours-labels', 'visibility', visibility);
+                // Toggle both contour lines and labels (check if they exist)
+                if (map.getLayer('contours-layer')) {
+                    map.setLayoutProperty('contours-layer', 'visibility', visibility);
+                }
+                if (map.getLayer('contours-labels')) {
+                    map.setLayoutProperty('contours-labels', 'visibility', visibility);
+                }
             } else {
-                map.setLayoutProperty(`${layerId}-layer`, 'visibility', visibility);
+                // Check if layer exists before updating
+                if (map.getLayer(`${layerId}-layer`)) {
+                    map.setLayoutProperty(`${layerId}-layer`, 'visibility', visibility);
+                }
             }
         });
 
@@ -499,7 +575,8 @@ function initializeLayerControls() {
                 state.layerOpacity[layerId] = opacity;
                 opacityValue.textContent = `${opacitySlider.value}%`;
 
-                if (layerId === 'bathymetry') {
+                // Check if layer exists before updating
+                if (layerId === 'bathymetry' && map.getLayer('bathymetry-layer')) {
                     map.setPaintProperty('bathymetry-layer', 'raster-opacity', opacity);
                 }
             });
