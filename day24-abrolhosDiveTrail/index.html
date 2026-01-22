@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abrolhos Islands Dive Trails</title>
+    <meta name="description" content="Interactive map of the Abrolhos Islands dive trail markers">
+
+    <!-- External Dependencies -->
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.5.0/dist/index.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Loading State -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Loading dive trails...</div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Sidebar (Header + Legend combined on desktop) -->
+    <div class="overlay header">
+        <div class="title-card">
+            <h1>Abrolhos Islands Dive Trails</h1>
+            <div class="subtitle">Click segments to measure distance</div>
+            <a href="../index.html" class="back-link">← Back to calendar</a>
+            <div class="title-meta">
+                <span class="attribution">Aren Leishman 2026</span>
+                <a href="../sources.html" class="methods-link">Show methods notes →</a>
+            </div>
+        </div>
+
+        <!-- Legend / Controls (inside sidebar on desktop) -->
+        <div class="legend">
+            <div class="legend-card">
+                <!-- Measure Tool Toggle -->
+                <div class="measure-toggle">
+                    <button class="measure-btn" id="measure-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M2 12h4M18 12h4M12 2v4M12 18v4"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        <span>Measure</span>
+                    </button>
+                    <button class="clear-btn" id="clear-btn" style="display: none;">Clear</button>
+                </div>
+
+                <!-- Measure Results Panel -->
+                <div class="measure-panel" id="measure-panel" style="display: none;">
+                    <div class="measure-total">
+                        <span class="measure-label">Total Distance</span>
+                        <span class="measure-value" id="measure-total">0 m</span>
+                    </div>
+                    <div class="measure-items" id="measure-items"></div>
+                </div>
+
+                <div class="legend-title">Dive Trails</div>
+                <div class="legend-content">
+                    <div class="color-item" data-trail="Beacon Island Dive Trail">
+                        <span class="color-dot" style="background: #FF6B6B;"></span>Beacon Island
+                    </div>
+                    <div class="color-item" data-trail="Turtle Bay Dive Trail">
+                        <span class="color-dot" style="background: #4ECDC4;"></span>Turtle Bay
+                    </div>
+                    <div class="color-item" data-trail="Anemone Lump Dive Trail">
+                        <span class="color-dot" style="background: #FFE66D;"></span>Anemone Lump
+                    </div>
+                    <div class="color-item" data-trail="Coral Patches Dive Trail">
+                        <span class="color-dot" style="background: #95E1D3;"></span>Coral Patches
+                    </div>
+                    <div class="color-item" data-trail="Morley Island Dive Trail">
+                        <span class="color-dot" style="background: #F38181;"></span>Morley Island
+                    </div>
+                    <div class="color-item" data-trail="Rootail Coral Drive Trail">
+                        <span class="color-dot" style="background: #AA96DA;"></span>Rootail Coral
+                    </div>
+                    <div class="color-item" data-trail="Long Island Dive Trail">
+                        <span class="color-dot" style="background: #88D8B0;"></span>Long Island
+                    </div>
+                </div>
+
+                <div class="legend-title">Bathymetry</div>
+                <div class="legend-content">
+                    <!-- Bathymetry Raster Layer -->
+                    <div class="layer-control" data-layer="bathymetry">
+                        <div class="layer-header">
+                            <label class="layer-toggle">
+                                <input type="checkbox" checked>
+                                <span class="layer-name">Bathymetry</span>
+                            </label>
+                        </div>
+                        <div class="layer-description">High resolution seafloor depth</div>
+                        <div class="layer-opacity">
+                            <input type="range" min="0" max="100" value="50" class="opacity-slider">
+                            <span class="opacity-value">50%</span>
+                        </div>
+                    </div>
+
+                    <!-- Depth Contours Layer -->
+                    <div class="layer-control" data-layer="contours">
+                        <div class="layer-header">
+                            <label class="layer-toggle">
+                                <input type="checkbox" checked>
+                                <span class="layer-name">Depth Contours</span>
+                            </label>
+                        </div>
+                        <div class="layer-description">5m contour intervals with depth labels (zoom to view)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="main.js"></script>
+</body>
+
+</html>

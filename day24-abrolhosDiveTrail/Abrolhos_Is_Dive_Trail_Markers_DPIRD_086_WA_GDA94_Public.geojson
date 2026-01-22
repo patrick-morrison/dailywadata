@@ -1,0 +1,776 @@
+{
+	"type" : "FeatureCollection",
+	"name" : "Abrolhos_Is_Dive_Trail_Markers_DPIRD_086",
+	"features" : [
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.784416667, -28.475699999 ]
+			},
+			"properties" : {
+				"name" : "Beacon Island Dive Trail",
+				"marker" : "1",
+				"latitude_ddm" : "28° 28.542' S",
+				"longitude_ddm" : "113° 47.065' E",
+				"object_id" : 1
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.78425, -28.475216666 ]
+			},
+			"properties" : {
+				"name" : "Beacon Island Dive Trail",
+				"marker" : "2",
+				"latitude_ddm" : "28° 28.513' S",
+				"longitude_ddm" : "113° 47.055' E",
+				"object_id" : 2
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.784133333, -28.474533332 ]
+			},
+			"properties" : {
+				"name" : "Beacon Island Dive Trail",
+				"marker" : "3",
+				"latitude_ddm" : "28° 28.472' S",
+				"longitude_ddm" : "113° 47.048' E",
+				"object_id" : 3
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.78425, -28.474233332 ]
+			},
+			"properties" : {
+				"name" : "Beacon Island Dive Trail",
+				"marker" : "4",
+				"latitude_ddm" : "28° 28.454' S",
+				"longitude_ddm" : "113° 47.055' E",
+				"object_id" : 4
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.7842, -28.473733332 ]
+			},
+			"properties" : {
+				"name" : "Beacon Island Dive Trail",
+				"marker" : "5",
+				"latitude_ddm" : "28° 28.424' S",
+				"longitude_ddm" : "113° 47.052' E",
+				"object_id" : 5
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.784533333, -28.472916666 ]
+			},
+			"properties" : {
+				"name" : "Beacon Island Dive Trail",
+				"marker" : "6",
+				"latitude_ddm" : "28° 28.375' S",
+				"longitude_ddm" : "113° 47.072' E",
+				"object_id" : 6
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.784616667, -28.472583333 ]
+			},
+			"properties" : {
+				"name" : "Beacon Island Dive Trail",
+				"marker" : "7",
+				"latitude_ddm" : "28° 28.355' S",
+				"longitude_ddm" : "113° 47.077' E",
+				"object_id" : 7
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.7847, -28.471883332 ]
+			},
+			"properties" : {
+				"name" : "Beacon Island Dive Trail",
+				"marker" : "8",
+				"latitude_ddm" : "28° 28.313' S",
+				"longitude_ddm" : "113° 47.082' E",
+				"object_id" : 8
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.784916667, -28.471549999 ]
+			},
+			"properties" : {
+				"name" : "Beacon Island Dive Trail",
+				"marker" : "9",
+				"latitude_ddm" : "28° 28.293' S",
+				"longitude_ddm" : "113° 47.095' E",
+				"object_id" : 9
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.740066667, -28.430149999 ]
+			},
+			"properties" : {
+				"name" : "Turtle Bay Dive Trail",
+				"marker" : "1",
+				"latitude_ddm" : "28° 25.809' S",
+				"longitude_ddm" : "113° 44.404' E",
+				"object_id" : 10
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.739866667, -28.429649999 ]
+			},
+			"properties" : {
+				"name" : "Turtle Bay Dive Trail",
+				"marker" : "2",
+				"latitude_ddm" : "28° 25.779' S",
+				"longitude_ddm" : "113° 44.392' E",
+				"object_id" : 11
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.74005, -28.429266666 ]
+			},
+			"properties" : {
+				"name" : "Turtle Bay Dive Trail",
+				"marker" : "3",
+				"latitude_ddm" : "28° 25.756' S",
+				"longitude_ddm" : "113° 44.403' E",
+				"object_id" : 12
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.7403, -28.428983332 ]
+			},
+			"properties" : {
+				"name" : "Turtle Bay Dive Trail",
+				"marker" : "4",
+				"latitude_ddm" : "28° 25.739' S",
+				"longitude_ddm" : "113° 44.418' E",
+				"object_id" : 13
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.740416667, -28.428733332 ]
+			},
+			"properties" : {
+				"name" : "Turtle Bay Dive Trail",
+				"marker" : "5",
+				"latitude_ddm" : "28° 25.724' S",
+				"longitude_ddm" : "113° 44.425' E",
+				"object_id" : 14
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.740533333, -28.428549999 ]
+			},
+			"properties" : {
+				"name" : "Turtle Bay Dive Trail",
+				"marker" : "6",
+				"latitude_ddm" : "28° 25.713' S",
+				"longitude_ddm" : "113° 44.432' E",
+				"object_id" : 15
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.7408, -28.428233332 ]
+			},
+			"properties" : {
+				"name" : "Turtle Bay Dive Trail",
+				"marker" : "7",
+				"latitude_ddm" : "28° 25.694' S",
+				"longitude_ddm" : "113° 44.448' E",
+				"object_id" : 16
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.740566667, -28.428033332 ]
+			},
+			"properties" : {
+				"name" : "Turtle Bay Dive Trail",
+				"marker" : "8",
+				"latitude_ddm" : "28° 25.682' S",
+				"longitude_ddm" : "113° 44.434' E",
+				"object_id" : 17
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.74045, -28.427649999 ]
+			},
+			"properties" : {
+				"name" : "Turtle Bay Dive Trail",
+				"marker" : "9",
+				"latitude_ddm" : "28° 25.659' S",
+				"longitude_ddm" : "113° 44.427' E",
+				"object_id" : 18
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.740516667, -28.427433333 ]
+			},
+			"properties" : {
+				"name" : "Turtle Bay Dive Trail",
+				"marker" : "10",
+				"latitude_ddm" : "28° 25.646' S",
+				"longitude_ddm" : "113° 44.431' E",
+				"object_id" : 19
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.8432, -28.673766666 ]
+			},
+			"properties" : {
+				"name" : "Anemone Lump Dive Trail",
+				"marker" : "1",
+				"latitude_ddm" : "28° 40.426' S",
+				"longitude_ddm" : "113° 50.592' E",
+				"object_id" : 20
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.843766667, -28.673116666 ]
+			},
+			"properties" : {
+				"name" : "Anemone Lump Dive Trail",
+				"marker" : "2",
+				"latitude_ddm" : "28° 40.387' S",
+				"longitude_ddm" : "113° 50.626' E",
+				"object_id" : 21
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.843316667, -28.672999999 ]
+			},
+			"properties" : {
+				"name" : "Anemone Lump Dive Trail",
+				"marker" : "3",
+				"latitude_ddm" : "28° 40.380' S",
+				"longitude_ddm" : "113° 50.599' E",
+				"object_id" : 22
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.8439, -28.672466666 ]
+			},
+			"properties" : {
+				"name" : "Anemone Lump Dive Trail",
+				"marker" : "4",
+				"latitude_ddm" : "28° 40.348' S",
+				"longitude_ddm" : "113° 50.634' E",
+				"object_id" : 23
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.844, -28.672133332 ]
+			},
+			"properties" : {
+				"name" : "Anemone Lump Dive Trail",
+				"marker" : "5",
+				"latitude_ddm" : "28° 40.328' S",
+				"longitude_ddm" : "113° 50.640' E",
+				"object_id" : 24
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.84415, -28.671566667 ]
+			},
+			"properties" : {
+				"name" : "Anemone Lump Dive Trail",
+				"marker" : "6",
+				"latitude_ddm" : "28° 40.294' S",
+				"longitude_ddm" : "113° 50.649' E",
+				"object_id" : 25
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.84405, -28.671116666 ]
+			},
+			"properties" : {
+				"name" : "Anemone Lump Dive Trail",
+				"marker" : "7",
+				"latitude_ddm" : "28° 40.267' S",
+				"longitude_ddm" : "113° 50.643' E",
+				"object_id" : 26
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.843333333, -28.671149999 ]
+			},
+			"properties" : {
+				"name" : "Anemone Lump Dive Trail",
+				"marker" : "8",
+				"latitude_ddm" : "28° 40.269' S",
+				"longitude_ddm" : "113° 50.600' E",
+				"object_id" : 27
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.843166667, -28.671033332 ]
+			},
+			"properties" : {
+				"name" : "Anemone Lump Dive Trail",
+				"marker" : "9",
+				"latitude_ddm" : "28° 40.262' S",
+				"longitude_ddm" : "113° 50.590' E",
+				"object_id" : 28
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.842316667, -28.671166666 ]
+			},
+			"properties" : {
+				"name" : "Anemone Lump Dive Trail",
+				"marker" : "10",
+				"latitude_ddm" : "28° 40.270' S",
+				"longitude_ddm" : "113° 50.539' E",
+				"object_id" : 29
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 114.011666667, -28.853949999 ]
+			},
+			"properties" : {
+				"name" : "Coral Patches Dive Trail",
+				"marker" : "1",
+				"latitude_ddm" : "28° 51.237' S",
+				"longitude_ddm" : "114° 0.700' E",
+				"object_id" : 30
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 114.01135, -28.853599999 ]
+			},
+			"properties" : {
+				"name" : "Coral Patches Dive Trail",
+				"marker" : "2",
+				"latitude_ddm" : "28° 51.216' S",
+				"longitude_ddm" : "114° 0.681' E",
+				"object_id" : 31
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 114.011416667, -28.853466667 ]
+			},
+			"properties" : {
+				"name" : "Coral Patches Dive Trail",
+				"marker" : "3",
+				"latitude_ddm" : "28° 51.208' S",
+				"longitude_ddm" : "114° 0.685' E",
+				"object_id" : 32
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 114.011183333, -28.8533 ]
+			},
+			"properties" : {
+				"name" : "Coral Patches Dive Trail",
+				"marker" : "4",
+				"latitude_ddm" : "28° 51.198' S",
+				"longitude_ddm" : "114° 0.671' E",
+				"object_id" : 33
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 114.011683333, -28.853199999 ]
+			},
+			"properties" : {
+				"name" : "Coral Patches Dive Trail",
+				"marker" : "5",
+				"latitude_ddm" : "28° 51.192' S",
+				"longitude_ddm" : "114° 0.701' E",
+				"object_id" : 34
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 114.011983333, -28.853049999 ]
+			},
+			"properties" : {
+				"name" : "Coral Patches Dive Trail",
+				"marker" : "6",
+				"latitude_ddm" : "28° 51.183' S",
+				"longitude_ddm" : "114° 0.719' E",
+				"object_id" : 35
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 114.012366667, -28.852533333 ]
+			},
+			"properties" : {
+				"name" : "Coral Patches Dive Trail",
+				"marker" : "7",
+				"latitude_ddm" : "28° 51.152' S",
+				"longitude_ddm" : "114° 0.742' E",
+				"object_id" : 36
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 114.012633333, -28.852499999 ]
+			},
+			"properties" : {
+				"name" : "Coral Patches Dive Trail",
+				"marker" : "8",
+				"latitude_ddm" : "28° 51.150' S",
+				"longitude_ddm" : "114° 0.758' E",
+				"object_id" : 37
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 114.013266667, -28.853833332 ]
+			},
+			"properties" : {
+				"name" : "Coral Patches Dive Trail",
+				"marker" : "9",
+				"latitude_ddm" : "28° 51.230' S",
+				"longitude_ddm" : "114° 0.796' E",
+				"object_id" : 38
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 114.013083333, -28.854233332 ]
+			},
+			"properties" : {
+				"name" : "Coral Patches Dive Trail",
+				"marker" : "10",
+				"latitude_ddm" : "28° 51.254' S",
+				"longitude_ddm" : "114° 0.785' E",
+				"object_id" : 39
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.81075, -28.742116666 ]
+			},
+			"properties" : {
+				"name" : "Morley Island Dive Trail",
+				"marker" : "1",
+				"latitude_ddm" : "28° 44.527' S",
+				"longitude_ddm" : "113° 48.645' E",
+				"object_id" : 40
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.811333333, -28.742599999 ]
+			},
+			"properties" : {
+				"name" : "Morley Island Dive Trail",
+				"marker" : "2",
+				"latitude_ddm" : "28° 44.556' S",
+				"longitude_ddm" : "113° 48.680' E",
+				"object_id" : 41
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.8118, -28.742933332 ]
+			},
+			"properties" : {
+				"name" : "Morley Island Dive Trail",
+				"marker" : "3",
+				"latitude_ddm" : "28° 44.576' S",
+				"longitude_ddm" : "113° 48.708' E",
+				"object_id" : 42
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.8122, -28.743449999 ]
+			},
+			"properties" : {
+				"name" : "Morley Island Dive Trail",
+				"marker" : "4",
+				"latitude_ddm" : "28° 44.607' S",
+				"longitude_ddm" : "113° 48.732' E",
+				"object_id" : 43
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.812633333, -28.743933333 ]
+			},
+			"properties" : {
+				"name" : "Morley Island Dive Trail",
+				"marker" : "5",
+				"latitude_ddm" : "28° 44.636' S",
+				"longitude_ddm" : "113° 48.758' E",
+				"object_id" : 44
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.8296, -28.70335 ]
+			},
+			"properties" : {
+				"name" : "Rootail Coral Drive Trail",
+				"marker" : "1",
+				"latitude_ddm" : "28° 42.201' S",
+				"longitude_ddm" : "113° 49.776' E",
+				"object_id" : 45
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.8291, -28.703449999 ]
+			},
+			"properties" : {
+				"name" : "Rootail Coral Drive Trail",
+				"marker" : "2",
+				"latitude_ddm" : "28° 42.207' S",
+				"longitude_ddm" : "113° 49.746' E",
+				"object_id" : 46
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.82795, -28.703749999 ]
+			},
+			"properties" : {
+				"name" : "Rootail Coral Drive Trail",
+				"marker" : "3",
+				"latitude_ddm" : "28° 42.225' S",
+				"longitude_ddm" : "113° 49.677' E",
+				"object_id" : 47
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.827383333, -28.704066666 ]
+			},
+			"properties" : {
+				"name" : "Rootail Coral Drive Trail",
+				"marker" : "4",
+				"latitude_ddm" : "28° 42.244' S",
+				"longitude_ddm" : "113° 49.643' E",
+				"object_id" : 48
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.826616667, -28.704533332 ]
+			},
+			"properties" : {
+				"name" : "Rootail Coral Drive Trail",
+				"marker" : "5",
+				"latitude_ddm" : "28° 42.272' S",
+				"longitude_ddm" : "113° 49.597' E",
+				"object_id" : 49
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.772566667, -28.460049999 ]
+			},
+			"properties" : {
+				"name" : "Long Island Dive Trail",
+				"marker" : "1",
+				"latitude_ddm" : "28° 27.603' S",
+				"longitude_ddm" : "113° 46.354' E",
+				"object_id" : 50
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.772083333, -28.460133332 ]
+			},
+			"properties" : {
+				"name" : "Long Island Dive Trail",
+				"marker" : "2",
+				"latitude_ddm" : "28° 27.608' S",
+				"longitude_ddm" : "113° 46.325' E",
+				"object_id" : 51
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.772233333, -28.460416666 ]
+			},
+			"properties" : {
+				"name" : "Long Island Dive Trail",
+				"marker" : "3",
+				"latitude_ddm" : "28° 27.625' S",
+				"longitude_ddm" : "113° 46.334' E",
+				"object_id" : 52
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.772533333, -28.460549999 ]
+			},
+			"properties" : {
+				"name" : "Long Island Dive Trail",
+				"marker" : "4",
+				"latitude_ddm" : "28° 27.633' S",
+				"longitude_ddm" : "113° 46.352' E",
+				"object_id" : 53
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.772266667, -28.460233332 ]
+			},
+			"properties" : {
+				"name" : "Long Island Dive Trail",
+				"marker" : "5",
+				"latitude_ddm" : "28° 27.614' S",
+				"longitude_ddm" : "113° 46.336' E",
+				"object_id" : 54
+			}
+		},
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "Point",
+				"coordinates" : [ 113.772533333, -28.460366666 ]
+			},
+			"properties" : {
+				"name" : "Long Island Dive Trail",
+				"marker" : "6",
+				"latitude_ddm" : "28° 27.622' S",
+				"longitude_ddm" : "113° 46.352' E",
+				"object_id" : 55
+			}
+		}
+	]
+}
