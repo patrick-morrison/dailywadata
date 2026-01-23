@@ -1,0 +1,1 @@
+gdalwarp -t_srs EPSG:3857 AB2016_mean_lidar.bag AbrolhosBathy_cog.tif -of COG -b 1 -co COMPRESS=DEFLATE -co NBITS=16 -co PREDICTOR=3

@@ -292,9 +292,20 @@ body {
     flex-shrink: 0;
 }
 
+.measure-item-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .measure-item-distance {
     color: #0891b2;
     font-weight: 400;
+}
+
+.measure-item-depth {
+    color: rgba(0, 0, 0, 0.5);
+    font-size: 0.65rem;
 }
 
 /* ============================================
@@ -382,6 +393,26 @@ body {
     to {
         transform: rotate(360deg);
     }
+}
+
+/* Contours Loading Indicator */
+.contours-loading {
+    position: absolute;
+    bottom: 80px;
+    right: 20px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    display: none;
+    z-index: 100;
+    font-family: 'JetBrains Mono', monospace;
+    color: rgba(0, 0, 0, 0.7);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.contours-loading.active {
+    display: block;
 }
 
 /* ============================================

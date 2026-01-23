@@ -119,12 +119,19 @@
                                 <span class="layer-name">Depth Contours</span>
                             </label>
                         </div>
-                        <div class="layer-description">5m contour intervals with depth labels (zoom to view)</div>
+                        <div class="layer-description">Depth contours at zoom 15+ (5m intervals)</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Contours Loading Indicator -->
+    <div id="contours-loading" class="contours-loading">Generating contours...</div>
+
+    <!-- GeoTIFF & Contour Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-contour@4.0.2/dist/d3-contour.min.js"></script>
 
     <!-- Application Script -->
     <script src="main.js"></script>
