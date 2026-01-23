@@ -47,6 +47,7 @@
 
         <!-- Legend / Controls (inside sidebar on desktop) -->
         <div class="legend">
+            <button class="legend-toggle" id="legend-toggle">Legend</button>
             <div class="legend-card">
                 <!-- Measure Tool Toggle -->
                 <div class="measure-toggle">
@@ -97,7 +98,7 @@
                 <div class="legend-title">Bathymetry</div>
                 <div class="legend-content">
                     <!-- Bathymetry Raster Layer -->
-                    <div class="layer-control" data-layer="bathymetry" style="display: none;">
+                    <div class="layer-control" data-layer="bathymetry">
                         <div class="layer-header">
                             <label class="layer-toggle">
                                 <input type="checkbox" checked>
@@ -112,7 +113,7 @@
                     </div>
 
                     <!-- Depth Contours Layer -->
-                    <div class="layer-control" data-layer="contours" style="display: none;">
+                    <div class="layer-control" data-layer="contours">
                         <div class="layer-header">
                             <label class="layer-toggle">
                                 <input type="checkbox" checked>

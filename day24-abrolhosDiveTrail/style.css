@@ -137,6 +137,11 @@ body {
     flex-direction: column;
 }
 
+/* Hide toggle button on desktop */
+.legend-toggle {
+    display: none;
+}
+
 .legend-card {
     background: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(12px);
@@ -687,6 +692,49 @@ body {
         max-width: 100%;
         flex: none;
         z-index: 600;
+        pointer-events: none;
+    }
+
+    /* Legend toggle button - positioned absolutely above the card */
+    .legend-toggle {
+        display: block;
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-bottom: none;
+        border-radius: 12px 12px 0 0;
+        padding: 6px 16px;
+        font-size: 0.7rem;
+        font-family: 'JetBrains Mono', monospace;
+        color: rgba(0, 0, 0, 0.7);
+        cursor: pointer;
+        box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease;
+        z-index: 1;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        pointer-events: auto;
+        white-space: nowrap;
+    }
+
+    .legend-toggle:active {
+        background: rgba(8, 145, 178, 0.15);
+        color: #0891b2;
+        transform: translateY(1px);
+    }
+
+    .legend-toggle::before {
+        content: '▲ ';
+        font-size: 0.6rem;
+    }
+
+    .legend.collapsed .legend-toggle::before {
+        content: '▼ ';
     }
 
     .legend-card {
@@ -695,6 +743,16 @@ body {
         padding: 8px 16px 16px;
         max-height: 40vh;
         overflow-y: auto;
+        transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+    }
+
+    /* Legend collapsed state */
+    .legend.collapsed .legend-card {
+        max-height: 0;
+        opacity: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        overflow: hidden;
     }
 
     /* Legend - tighter spacing on mobile */
@@ -809,4 +867,45 @@ body {
     .layer-opacity {
         margin-top: 4px;
     }
+}
+
+/* ============================================
+   Context Menu (Right-Click Coordinate Copy)
+   ============================================ */
+
+.context-menu {
+    position: absolute;
+    z-index: 2000;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 6px 0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    min-width: 180px;
+    font-size: 0.8rem;
+    color: #1a1a1a;
+    pointer-events: auto;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.context-menu-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.context-menu-item:hover {
+    background: rgba(8, 145, 178, 0.1);
+    color: #0891b2;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 4px 0;
 }

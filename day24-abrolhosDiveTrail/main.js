@@ -139,6 +139,54 @@ function formatDistance(meters) {
 }
 
 /**
+ * Format coordinates in multiple formats
+ * @param {number} lng - Longitude
+ * @param {number} lat - Latitude
+ * @returns {Object} { gmaps: string, display: string }
+ */
+function formatCoordinates(lng, lat) {
+    // Decimal degrees (Google Maps format)
+    const gmaps = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+    // Decimal minutes (DMS format)
+    const latDeg = Math.floor(Math.abs(lat));
+    const latMin = ((Math.abs(lat) % 1) * 60).toFixed(3);
+    const latDir = lat >= 0 ? 'N' : 'S';
+
+    const lngDeg = Math.floor(Math.abs(lng));
+    const lngMin = ((Math.abs(lng) % 1) * 60).toFixed(3);
+    const lngDir = lng >= 0 ? 'E' : 'W';
+
+    const dm = `${latDeg}° ${latMin}' ${latDir}, ${lngDeg}° ${lngMin}' ${lngDir}`;
+
+    return { gmaps, display: dm };
+}
+
+/**
+ * Handle URL hash for shared coordinates
+ */
+function handleUrlHash() {
+    const hash = window.location.hash.substring(1); // Remove '#'
+    if (!hash) return;
+
+    const match = hash.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
+    if (match) {
+        const lat = parseFloat(match[1]);
+        const lng = parseFloat(match[2]);
+
+        // Validate coordinates are within reasonable bounds
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+            // Fly to location
+            map.flyTo({
+                center: [lng, lat],
+                zoom: 14,
+                duration: 2000
+            });
+        }
+    }
+}
+
+/**
  * Transform point markers to line segments
  * @param {Object} geojson - Original point GeoJSON
  * @returns {Object} GeoJSON FeatureCollection of line segments
@@ -209,8 +257,7 @@ const map = new maplibregl.Map({
                     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
                 ],
                 tileSize: 256,
-                maxzoom: 16,
-                attribution: 'Esri, Maxar, Earthstar Geographics'
+                maxzoom: 16
             }
         },
         layers: [
@@ -245,21 +292,6 @@ async function addBathymetryLayer() {
     const legendControl = document.querySelector('.layer-control[data-layer="bathymetry"]');
 
     try {
-        // Test if resource is available with timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-        const testResponse = await fetch(CONFIG.BATHYMETRY_COG_URL, {
-            method: 'HEAD',
-            signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!testResponse.ok) {
-            throw new Error('Resource not available');
-        }
-
         // Apply Turbo color ramp to bathymetry COG
         const cogUrl = CONFIG.BATHYMETRY_COG_URL;
         const minElev = -57.712;  // From gdalinfo
@@ -334,9 +366,8 @@ async function addBathymetryLayer() {
             legendControl.style.display = 'block';
         }
     } catch (error) {
-        // Failed to load, keep legend hidden and log warning
-        console.warn('Bathymetry layer unavailable - CDN resource not accessible', error);
-        state.layerVisibility.bathymetry = false;
+        // Failed to load - log error for debugging
+        console.error('Failed to add bathymetry layer:', error);
     }
 }
 
@@ -388,8 +419,7 @@ async function initializeContourGeneration() {
         map.on('moveend', debounce(generateContoursForViewport, 300));
 
     } catch (error) {
-        console.warn('Contour generation unavailable - elevation data not accessible', error);
-        state.layerVisibility.contours = false;
+        console.error('Failed to initialize contour generation:', error);
     }
 }
 
@@ -837,6 +867,9 @@ map.on('load', async () => {
         initializeMeasureTool();
         initializeClickHandlers();
         initializeMobileToggle();
+
+        // Handle URL hash for shared coordinates
+        handleUrlHash();
 
     } catch (error) {
         console.error('Error loading data:', error);
@@ -1364,7 +1397,10 @@ function showSegmentPopup(lngLat, feature) {
 
 function initializeMobileToggle() {
     const titleCard = document.querySelector('.title-card');
+    const legend = document.querySelector('.legend');
+    const legendToggle = document.getElementById('legend-toggle');
 
+    // Title card toggle
     titleCard.addEventListener('click', (e) => {
         if (window.innerWidth <= 768) {
             // Only toggle if clicking on the title itself, not links
@@ -1373,4 +1409,87 @@ function initializeMobileToggle() {
             }
         }
     });
+
+    // Legend toggle (mobile only)
+    if (legendToggle && legend) {
+        legendToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            legend.classList.toggle('collapsed');
+
+            // Save state to localStorage
+            const isCollapsed = legend.classList.contains('collapsed');
+            localStorage.setItem('legendCollapsed', isCollapsed ? 'true' : 'false');
+        });
+
+        // Restore saved state on mobile
+        if (window.innerWidth <= 768) {
+            const savedState = localStorage.getItem('legendCollapsed');
+            if (savedState === 'true') {
+                legend.classList.add('collapsed');
+            }
+        }
+    }
 }
+
+// ============================================
+// Context Menu for Coordinate Copying
+// ============================================
+
+map.on('contextmenu', (e) => {
+    // Remove any existing context menu
+    const existing = document.getElementById('context-menu');
+    if (existing) existing.remove();
+
+    const { lng, lat } = e.lngLat;
+    const coords = formatCoordinates(lng, lat);
+
+    // Create context menu
+    const menu = document.createElement('div');
+    menu.id = 'context-menu';
+    menu.className = 'context-menu';
+    menu.style.left = `${e.point.x}px`;
+    menu.style.top = `${e.point.y}px`;
+
+    menu.innerHTML = `
+        <div class="context-menu-item" id="copy-dd">
+            <span>Copy Decimal Degrees</span>
+            <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${coords.gmaps}</span>
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" id="copy-dm">
+            <span>Copy Decimal Minutes</span>
+            <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${coords.display}</span>
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" id="copy-link">
+            <span>Copy Link</span>
+        </div>
+    `;
+
+    document.body.appendChild(menu);
+
+    // Add click handlers
+    document.getElementById('copy-dd').addEventListener('click', () => {
+        navigator.clipboard.writeText(coords.gmaps);
+        menu.remove();
+    });
+
+    document.getElementById('copy-dm').addEventListener('click', () => {
+        navigator.clipboard.writeText(coords.display);
+        menu.remove();
+    });
+
+    document.getElementById('copy-link').addEventListener('click', () => {
+        const url = `${globalThis.location.origin}${globalThis.location.pathname}#${lat.toFixed(6)},${lng.toFixed(6)}`;
+        navigator.clipboard.writeText(url);
+        menu.remove();
+    });
+
+    // Close menu on click outside
+    const closeMenu = () => {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+    };
+    setTimeout(() => document.addEventListener('click', closeMenu), 100);
+});
