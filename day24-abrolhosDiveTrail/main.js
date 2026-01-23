@@ -292,6 +292,28 @@ async function addBathymetryLayer() {
             tileSize: 256
         });
 
+        map.addSource('hillshade-source', {
+            type: 'raster-dem',
+            url: `cog://${cogUrl}`,
+            tileSize: 256
+        });
+
+        map.addLayer({
+            id: 'hillshade-layer',
+            type: 'hillshade',
+            source: 'hillshade-source',
+            paint: {
+                'hillshade-illumination-direction': 45,
+                'hillshade-shadow-color': '#000000',
+                'hillshade-highlight-color': '#FFFFFF',
+                'hillshade-accent-color': '#000000',
+                'hillshade-exaggeration': 0.05
+            },
+            layout: {
+                visibility: state.layerVisibility.hillshade ? 'visible' : 'none'
+            },
+        }, 'dive-trails-layer'); // Insert below dive trails
+
         map.addLayer({
             id: 'bathymetry-layer',
             type: 'raster',
@@ -303,7 +325,9 @@ async function addBathymetryLayer() {
             layout: {
                 visibility: state.layerVisibility.bathymetry ? 'visible' : 'none'
             }
-        }, 'dive-trails-layer'); // Insert below dive trails
+        }, 'hillshade-layer'); // Insert below hillshade
+
+
 
         // Layer added successfully, show the legend control
         if (legendControl) {
@@ -902,10 +926,13 @@ function initializeLayerControls() {
                 if (map.getLayer('contours-labels')) {
                     map.setLayoutProperty('contours-labels', 'visibility', visibility);
                 }
-            } else {
+            } else if (layerId === 'bathymetry') {
                 // Check if layer exists before updating
-                if (map.getLayer(`${layerId}-layer`)) {
-                    map.setLayoutProperty(`${layerId}-layer`, 'visibility', visibility);
+                if (map.getLayer(`bathymetry-layer`)) {
+                    map.setLayoutProperty(`bathymetry-layer`, 'visibility', visibility);
+                }
+                if (map.getLayer(`hillshade-layer`)) {
+                    map.setLayoutProperty(`hillshade-layer`, 'visibility', visibility);
                 }
             }
         });
