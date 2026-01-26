@@ -953,6 +953,44 @@
                     </div>
                 </div>
             </div>
+            <div class="day-entry" id="day27">
+                <div class="day-header">
+                    <span class="day-num">27</span>
+                    <h3 class="day-name"><a href="day27-population/index.html">Population By LGA, 2001 - 2024</a>
+                    </h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">I wanted to visualise how population has changed across Local
+                            Government
+                            Areas (LGAs) in Australia over the past two decades.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text"><a
+                                href="https://www.abs.gov.au/statistics/people/population/regional-population/2023-244">Regional
+                                population</a> from the Department of
+                            Australian Bureau of Statistics. CC BY 2.5.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">The data was originally provided as a GeoPackage. This has been
+                            converted to a geoJSON for easier web integration. Unused data (such as deaths and births)
+                            was removed in an effort to minimise file size.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">The map functionality was added via OpenLayers. The project utilises
+                            the Mako colour scheme for population, Viridis for growth, and Inferno for density. These
+                            should all be colour blind friendly.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Jack Langoulant</div>
+                    </div>
+                </div>
+            </div>
 
             <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each
                 day is published.</p>
