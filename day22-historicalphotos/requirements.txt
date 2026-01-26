@@ -1,0 +1,5 @@
+ml-sharp
+spark-parser # if needed by splat-transform? No, splat-transform is a CLI tool usually installed separately or via pip?
+# Assuming colleague installs ml-sharp package which pulls in dependencies.
+numpy
+tqdm

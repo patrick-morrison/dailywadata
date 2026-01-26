@@ -1,0 +1,102 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #f0f2f5;
+    background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+    background-size: 40px 40px;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #111827;
+    margin: 0;
+    padding: 0;
+}
+
+#ui-overlay {
+    position: absolute;
+    top: 32px;
+    left: 32px;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    padding: 28px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    pointer-events: auto;
+    width: 300px;
+}
+
+h1 {
+    margin: 0 0 8px 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+p {
+    margin: 0 0 20px 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    opacity: 0.6;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+select {
+    background: #fff;
+    color: #1a1a1a;
+    border: 1px solid #ddd;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+select:hover {
+    border-color: #bbb;
+}
+
+#canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    overflow: hidden;
+    z-index: 1;
+}
+
+/* For AR mode we'll want full screen usually, but let's see */
+body.xr-active #canvas-container {
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    border-radius: 0;
+}
+
+#ar-button {
+    margin-top: 10px;
+    padding: 10px;
+    background: #000;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: none;
+    /* Shown by JS if available */
+}
+
+/* Three.js AR Button Styling override if needed */
+#ZRButton {
+    /* The ID might be different, commonly 'VRButton' or 'ARButton' depending on version */
+    z-index: 1000 !important;
+}
