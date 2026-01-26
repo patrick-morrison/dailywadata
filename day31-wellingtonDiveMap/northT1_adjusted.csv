@@ -1,0 +1,4 @@
+Section Name,TypeShot,Length(m),Depth IN(m),Depth OUT(m),Heading IN(dd),Heading OUT(dd),Pitch IN(dd),Pitch OUT(dd),Left(m),Right(m),Up(m),Down(m),Temperature(°C),Time,Marker,Y,X,Elevation
+B08,START,,,,,,,,,,,,,,,-33.39336842,115.98854680,-15.40
+B08,STD,8.83,15.38,17.07,151.5,150.9,-16.0,-4.8,0.0,0.0,0.0,0.0,23.3,26/01/23 - 20:18:53,,-33.39343545,115.98859462,-17.07
+B08,EOC,0.00,0.00,0.00,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,26/01/23 - 00:00:00,,,,
