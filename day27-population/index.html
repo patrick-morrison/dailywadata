@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Australian Population</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.2.1/ol.css">
+    <script src="https://cdn.jsdelivr.net/npm/ol@10.2.1/dist/ol.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
+</head>
+
+<body>
+    <div id="loader">
+        <div class="spinner"></div>
+        <p>Loading Australian Population Data...</p>
+    </div>
+
+    <div id="popup" class="ol-popup">
+        <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+        <div id="popup-content-name" style="font-weight: bold; font-size: 0.95rem; margin-bottom: 8px; color: #1e293b;">
+        </div>
+        <div id="popup-content-description" class="popup-grid">
+            <div class="stat-box">
+                <small class="stat-label">Population (<span id="pop-year-label">-</span>)</small>
+                <strong id="stat-pop" class="stat-value">0</strong>
+            </div>
+            <div id="growth-container" class="stat-box">
+                <small class="stat-label">Growth (vs <span id="prev-year-label">-</span>)</small>
+                <strong id="stat-growth" class="stat-value">0</strong>
+            </div>
+            <div class="stat-box">
+                <small class="stat-label">Density</small>
+                <strong class="stat-value"><span id="stat-density">0</span> <span class="unit">/km²</span></strong>
+            </div>
+            <div class="stat-box">
+                <small class="stat-label">Land Area</small>
+                <strong class="stat-value"><span id="stat-area">0</span> <span class="unit">km²</span></strong>
+            </div>
+        </div>
+    </div>
+
+    <a href="../index.html" class="back-link">← Back to calendar</a>
+
+    <div id="map"></div>
+
+    <div class="overlay header">
+        <div class="title-card">
+            <h1>Australian Population</h1>
+            <div class="subtitle">Source: Australian Bureau of Statistics</div>
+            <div class="title-meta">
+                <span class="attribution">Webpage by Jack Langoulant, 2026</span>
+                <a href="../sources.html" class="methods-link">Show methods notes →</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay settings-panel">
+        <div class="settings-card" id="settingsCard">
+            <div class="settings-header" id="mobileToggle">
+                <div class="header-left">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                        </path>
+                    </svg>
+                    <span>Map Controls</span>
+                </div>
+                <div class="header-right">
+                    <button id="hideSettingsBtn" class="hide-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m6 9 6 6 6-6" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div id="settingsContent">
+                <div class="control-group">
+                    <div class="control-label">
+                        <label>Year</label>
+                        <span id="yearValue" class="mono-value">2024</span>
+                    </div>
+                    <div class="slider-controls">
+                        <button id="playButton" class="play-btn">
+                            <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                                viewBox="0 0 24 24" fill="#1e40af">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            <svg id="pauseIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                                viewBox="0 0 24 24" fill="#1e40af">
+                                <rect x="6" y="4" width="4" height="16"></rect>
+                                <rect x="14" y="4" width="4" height="16"></rect>
+                            </svg>
+                        </button>
+                        <input type="range" min="2001" max="2024" value="2024" class="slider" id="myRange">
+                    </div>
+                </div>
+
+                <div class="control-label"><label>Region Focus</label></div>
+                <select id="stateSelect" class="mode-dropdown">
+                    <option value="all">All Australia</option>
+                    <option value="New South Wales">New South Wales</option>
+                    <option value="Victoria">Victoria</option>
+                    <option value="Queensland">Queensland</option>
+                    <option value="South Australia">South Australia</option>
+                    <option value="Western Australia">Western Australia</option>
+                    <option value="Tasmania">Tasmania</option>
+                    <option value="Northern Territory">Northern Territory</option>
+                    <option value="Australian Capital Territory">ACT</option>
+                </select>
+
+                <div class="control-group toggle-row" style="margin-top: 12px;">
+                    <div class="control-label"><label>View Mode</label></div>
+                    <select id="viewMode" class="mode-dropdown">
+                        <option value="pop">Population</option>
+                        <option value="growth">Annual Growth (%)</option>
+                        <option value="density">Population Density</option>
+                    </select>
+                    <div id="modeHint" class="meta-hint" style="margin-top: 6px;">Total estimated resident population
+                    </div>
+                </div>
+
+                <div class="legend-container">
+                    <div id="discreteLegend" class="discrete-legend"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+
+</html>
