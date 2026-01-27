@@ -953,6 +953,50 @@
                     </div>
                 </div>
             </div>
+
+            <div class="day-entry" id="day24">
+                <div class="day-header">
+                    <span class="day-num">24</span>
+                    <h3 class="day-name"><a href="day24-abrolhosDiveTrail/index.html">Abrolhos Dive Trail</a></h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">The Houtman Abrolhos Islands are a popular spot for SCUBA diving, and
+                            as such there are designated dive trails with marked locations. This map showcases each of
+                            these routes while also laying over DOT bathymetry data of the area so that the depths of
+                            each of the routes can be observed. This is aided by a planning tool that measures distance
+                            traveled and the depth at each point along the route, line segments for the dive trails can
+                            be clicked directly to add them to the plan.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Source</div>
+                        <div class="detail-text">Trail Markers: <a
+                                href="https://catalogue.data.wa.gov.au/dataset/abrolhos-islands-dive-trail-markers">Department
+                                of Primary Industries and Regional Development</a>. Bathymetry: <a
+                                href="https://dot-wa.maps.arcgis.com/apps/webappviewer/index.html?id=d58dd77d85654783b5fc8c775953c69b">Survey
+                                AB2016_mean_lidar, Department of Transport</a>. Basemap: Esri World
+                            Imagery. CC BY 4.0.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">Bathymetry: DOT LiDAR data converted to COG
+                            (EPSG:3857, DEFLATE, predictors, half-float) for web serving (1.4GB &rarr; 67MB).
+                            Trail Markers: utilized as-is from DataWA in GeoJSON format.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">HTML/CSS/JS webmap using MapLibre GL. The
+                            @geomatico/maplibre-cog-protocol library reads the Cloud Optimized GeoTIFF directly. D3
+                            Contours is used to generate contours on the client-side based on the zoomed-in area.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Aren Leishman</div>
+                    </div>
+                </div>
+            </div>
+
             <div class="day-entry" id="day27">
                 <div class="day-header">
                     <span class="day-num">27</span>

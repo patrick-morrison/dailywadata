@@ -32,8 +32,8 @@ body {
     font-family: 'Instrument Serif', Georgia, serif;
     background: var(--paper);
     background-image:
-        linear-gradient(180deg, rgba(74,124,148,0.05) 0%, rgba(74,124,148,0) 26%),
-        linear-gradient(120deg, rgba(45,106,79,0.03) 0%, rgba(45,106,79,0) 44%);
+        linear-gradient(180deg, rgba(74, 124, 148, 0.05) 0%, rgba(74, 124, 148, 0) 26%),
+        linear-gradient(120deg, rgba(45, 106, 79, 0.03) 0%, rgba(45, 106, 79, 0) 44%);
     color: var(--ink);
     min-height: 100vh;
     line-height: 1.6;
@@ -348,7 +348,8 @@ h1 em {
 }
 
 .day.placeholder .day-content {
-    display: none;
+    /* display: none; */
+    color: var(--placeholder);
 }
 
 .day.invasion-day {
@@ -374,7 +375,7 @@ h1 em {
 }
 
 .day.invasion-day .day-number {
-    color: rgba(255,255,255,0.2);
+    color: rgba(255, 255, 255, 0.2);
 }
 
 .day.invasion-day .day-content {
@@ -463,7 +464,7 @@ h1 em {
     }
 
     .calendar.list-view .day.invasion-day .day-number {
-        color: rgba(255,255,255,0.25);
+        color: rgba(255, 255, 255, 0.25);
     }
 
     .calendar.list-view .day.invasion-day::after {
@@ -504,19 +505,38 @@ footer {
    ======================================== */
 
 @media (max-width: 1100px) {
-    .day { padding: 0.75rem; }
-    .day-title { font-size: 1rem; }
-    .day-author { font-size: 0.5rem; }
+    .day {
+        padding: 0.75rem;
+    }
+
+    .day-title {
+        font-size: 1rem;
+    }
+
+    .day-author {
+        font-size: 0.5rem;
+    }
 }
 
 @media (max-width: 900px) {
-    .day-title { font-size: 0.9rem; }
-    .day-author { font-size: 0.45rem; }
+    .day-title {
+        font-size: 0.9rem;
+    }
+
+    .day-author {
+        font-size: 0.45rem;
+    }
 }
 
 @media (max-width: 768px) {
-    .container { padding: 1.5rem; }
-    header { padding: 3rem 0 2rem; margin-bottom: 2rem; }
+    .container {
+        padding: 1.5rem;
+    }
+
+    header {
+        padding: 3rem 0 2rem;
+        margin-bottom: 2rem;
+    }
 
     .calendar {
         display: flex;
@@ -529,7 +549,9 @@ footer {
         box-shadow: none;
     }
 
-    .weekday { display: none; }
+    .weekday {
+        display: none;
+    }
 
     .day {
         aspect-ratio: unset;
@@ -541,27 +563,68 @@ footer {
         border-bottom: 1px solid var(--line);
     }
 
-    .day::before { display: none; }
-    .day:hover { color: var(--accent); }
-    .day:hover .day-number { color: var(--accent); }
-    .day:hover .day-title { color: var(--accent); }
-    .day:hover .day-author { color: var(--accent); opacity: 0.8; }
-    .day:active { opacity: 0.6; }
+    .day::before {
+        display: none;
+    }
 
-    .day-number { font-size: 1.5rem; min-width: 2.5rem; }
-    .day-content { margin-top: 0; }
-    .day-title { font-size: 1.1rem; opacity: 1; }
-    .day-author { margin-top: 0.25rem; font-size: 0.7rem; }
+    .day:hover {
+        color: var(--accent);
+    }
 
-    .day.empty { display: none; }
-    .day.placeholder { opacity: 0.4; }
+    .day:hover .day-number {
+        color: var(--accent);
+    }
+
+    .day:hover .day-title {
+        color: var(--accent);
+    }
+
+    .day:hover .day-author {
+        color: var(--accent);
+        opacity: 0.8;
+    }
+
+    .day:active {
+        opacity: 0.6;
+    }
+
+    .day-number {
+        font-size: 1.5rem;
+        min-width: 2.5rem;
+    }
+
+    .day-content {
+        margin-top: 0;
+    }
+
+    .day-title {
+        font-size: 1.1rem;
+        opacity: 1;
+    }
+
+    .day-author {
+        margin-top: 0.25rem;
+        font-size: 0.7rem;
+    }
+
+    .day.empty {
+        display: none;
+    }
+
+    .day.placeholder {
+        opacity: 0.4;
+    }
 
     .day.invasion-day {
         background: linear-gradient(to bottom, var(--flag-black) 50%, var(--flag-red) 50%);
         opacity: 0.9;
         position: relative;
     }
-    .day.invasion-day .day-number { color: rgba(255,255,255,0.25); }
+
+    .day.invasion-day .day-number {
+        color: rgba(255, 255, 255, 0.25);
+    }
+
     .day.invasion-day::after {
         content: '';
         position: absolute;
@@ -574,17 +637,32 @@ footer {
         border-radius: 50%;
         pointer-events: none;
     }
+
     .day.invasion-day .day-content {
         display: none;
     }
 }
 
 @media (min-width: 1400px) {
-    .container { padding: 3rem 4rem; }
-    header { padding: 4rem 0 3rem; }
-    .day { padding: 1.25rem; }
-    .day-title { font-size: 1.4rem; }
-    .day-author { font-size: 0.6rem; }
+    .container {
+        padding: 3rem 4rem;
+    }
+
+    header {
+        padding: 4rem 0 3rem;
+    }
+
+    .day {
+        padding: 1.25rem;
+    }
+
+    .day-title {
+        font-size: 1.4rem;
+    }
+
+    .day-author {
+        font-size: 0.6rem;
+    }
 }
 
 /* Calendar/List animation */
@@ -593,6 +671,7 @@ footer {
         opacity: 0;
         transform: translateY(18px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
