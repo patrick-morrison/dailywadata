@@ -64,9 +64,6 @@ function init() {
         domOverlay: { root: document.body }
     });
 
-    // ... (rest of AR Button setup)
-
-    // ...
 
     function onControllerSelect(event) {
         const controller = event.target;
@@ -308,18 +305,15 @@ async function loadSplat(url) {
     }
 }
 
-function onXRSelect(event) {
-    const handedness = event.inputSource.handedness;
-    if (handedness === 'left') {
-        navigateImages(-1);
-    } else if (handedness === 'right') {
-        navigateImages(1);
-    }
-}
+
 
 function navigateImages(direction) {
+    console.log("Navigating images:", direction); // DEBUG
     const select = document.getElementById('image-select');
-    if (!select || select.options.length === 0) return;
+    if (!select || select.options.length === 0) {
+        console.warn("No select element or options found!"); // DEBUG
+        return;
+    }
 
     let newIndex = select.selectedIndex + direction;
 
