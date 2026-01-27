@@ -8,8 +8,8 @@
     <meta name="description" content="Interactive dive map of Wellington Dam with bathymetry visualization and survey line overlays">
 
     <!-- External Dependencies -->
-    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/maplibre-gl@5.16.0/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@5.16.0/dist/maplibre-gl.css" rel="stylesheet">
     <script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.5.0/dist/index.js"></script>
 
     <!-- Fonts -->
@@ -70,6 +70,24 @@
                     <div class="measure-items" id="measure-items"></div>
                 </div>
 
+                <!-- Water Level Control -->
+                <div class="legend-title">Water Level</div>
+                <div class="legend-content">
+                    <div class="water-level-control">
+                        <div class="water-level-slider-row">
+                            <input type="range" id="water-level-slider" min="40" max="185" step="1" value="84">
+                            <span class="water-level-value" id="water-level-value">84 GL</span>
+                        </div>
+                        <label class="water-level-lock">
+                            <input type="checkbox" id="water-level-lock" checked>
+                            <span>Use current level (<span id="current-level-label">84.35 GL</span>)</span>
+                        </label>
+                    </div>
+                    <div class="water-level-note" id="water-level-note">
+                        Water level: ~157m AHD (84.35 GL)
+                    </div>
+                </div>
+
                 <!-- Depth Gradient Legend -->
                 <div class="legend-title">Depth</div>
                 <div class="legend-content">
@@ -80,9 +98,6 @@
                             <span>15m</span>
                             <span>30m</span>
                         </div>
-                    </div>
-                    <div class="water-level-note" id="water-level-note">
-                        Water level: ~157m AHD (84.35 GL)
                     </div>
                 </div>
 
@@ -150,6 +165,9 @@
     <!-- GeoTIFF & Contour Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/d3-contour@4.0.2/dist/d3-contour.min.js"></script>
+
+    <!-- Custom Hillshade Layer -->
+    <script src="multiply-hillshade-layer.js"></script>
 
     <!-- Application Script -->
     <script src="main.js"></script>

@@ -206,11 +206,96 @@ body {
     display: block;
 }
 
+/* Water Level Control */
+.water-level-control {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.water-level-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.water-level-slider-row input[type="range"] {
+    flex: 1;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: linear-gradient(to right, #0891b2, #06b6d4);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+
+.water-level-slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border: 2px solid #0891b2;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s ease;
+}
+
+.water-level-slider-row input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+}
+
+.water-level-slider-row input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: white;
+    border: 2px solid #0891b2;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.water-level-slider-row input[type="range"]:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.water-level-slider-row input[type="range"]:disabled::-webkit-slider-thumb {
+    cursor: not-allowed;
+}
+
+.water-level-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: #0891b2;
+    min-width: 50px;
+    text-align: right;
+    font-weight: 500;
+}
+
+.water-level-lock {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+}
+
+.water-level-lock input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: #0891b2;
+    cursor: pointer;
+}
+
 .water-level-note {
     font-size: 0.65rem;
     color: rgba(0, 0, 0, 0.5);
     text-align: center;
-    margin-top: 8px;
+    margin-top: 4px;
     padding-top: 8px;
     border-top: 1px dashed rgba(0, 0, 0, 0.1);
 }
