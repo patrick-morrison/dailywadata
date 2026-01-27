@@ -4,20 +4,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SHARP AR Window Viewer</title>
+    <title>Historical Photos in VR</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
     <div id="ui-overlay">
-        <h1>SHARP AR Window</h1>
-        <p>A photorealistic 3D window generated from a single image using SHARP.</p>
+        <a href="../index.html" class="back-link">← Back to calendar</a>
+        <h1>Historical Photos in VR</h1>
+        <p>Images from the State Library of Western Australia. Processed by Patrick Morrison using Apple ML-Sharp. Best
+            experienced in a VR headset. <a href="../sources.html">See sources</a>.</p>
         <div class="control-group">
             <select id="image-select">
-                <option value="">Select an image</option>
             </select>
-            <button id="ar-button">Enter AR Mode</button>
-            <p id="status-text" style="margin-top: 10px; margin-bottom: 0;">Select an image to start.</p>
+            <p id="status-text" class="status-hidden">Select an image to start.</p>
         </div>
     </div>
     <div id="canvas-container"></div>

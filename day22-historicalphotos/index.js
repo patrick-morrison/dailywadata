@@ -42,7 +42,43 @@ function init() {
         optionalFeatures: ['dom-overlay', 'local-floor'],
         domOverlay: { root: document.body }
     });
-    document.body.appendChild(arButton);
+
+    // Wrap in container for better styling control
+    const arContainer = document.createElement('div');
+    arContainer.id = 'ar-button-container';
+    arContainer.appendChild(arButton);
+    document.body.appendChild(arContainer);
+
+    // Custom message for unsupported devices
+    if ('xr' in navigator) {
+        navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+            if (!supported) {
+                setupWebXRLink(arButton);
+            }
+        });
+    } else {
+        setupWebXRLink(arButton);
+    }
+
+    function setupWebXRLink(button) {
+        button.textContent = 'Please use VR Headset';
+        button.style.display = 'block';
+        button.style.opacity = '1.0';
+        button.style.cursor = 'default';
+        button.disabled = false;
+        button.title = "Learn about WebXR";
+
+        // Remove existing listeners by cloning (simple way to clear ARButton events)
+        const newButton = button.cloneNode(true);
+        button.parentNode.replaceChild(newButton, button);
+
+        // Strictly remove link behavior
+        newButton.removeAttribute('href');
+        newButton.onclick = (e) => {
+            e.preventDefault();
+            return false;
+        };
+    }
 
     // Handle AR Session Start/End for scaling/positioning
     renderer.xr.addEventListener('sessionstart', () => {
@@ -150,10 +186,18 @@ function populateFileList() {
         '73e62709f924fc6f9bcf50fe03c297109e3f8fba.sog'
     ];
 
-    files.forEach(file => {
+    const fileMap = {
+        '314779PD-Fountain-at-the-centre-of-the-Galleria-shopping-centre-Morley-December-1994.sog': 'Fountain at Galleria Morley - 1994 - 314779PD',
+        '371964PD-The-lobby-and-the-Candy-Bar-at-Greater-Union-cinemas-at-the-Galleria-Morley-6-October-1998--2.sog': 'Greater Union Lobby - 1998 - 371964PD',
+        '34c3f7e17af1866883c8ee86154c0a4a32f2b193-16x9-x0y84w1506h847.sog': 'Subiaco at Night - 1980 - PD0183', // Inferred from user request
+        '0998a351f324ac04274450514652acfe9d60a7a8.sog': 'Historical Street View - Image 1',
+        '73e62709f924fc6f9bcf50fe03c297109e3f8fba.sog': 'Historical Building - Image 2'
+    };
+
+    files.forEach((file, index) => {
         const option = document.createElement('option');
         option.value = `./splats/${file}`;
-        option.textContent = file;
+        option.textContent = fileMap[file] || `Image ${index + 1}`;
         if (file.startsWith('34c3f')) {
             option.selected = true;
         }
@@ -199,7 +243,7 @@ async function loadSplat(url) {
         // Wait for the splat to be fully loaded and initialized before showing it
         await splat.initialized;
 
-        statusText.textContent = "Loaded. Left-click drag to pan (parallax).";
+        // statusText.textContent = "Loaded. Left-click drag to pan (parallax).";
 
         // Reset view and animate in
         // Start further back to show parallax effect
