@@ -116,7 +116,6 @@ const state = {
         bathymetry: true,
         contours: true,
         entries: true,
-        features: true,
         structures: true
     },
     measureMode: false,
@@ -1797,7 +1796,7 @@ function initializeLayerControls() {
                 if (checkbox.checked) {
                     generateContoursForViewport();
                 }
-            } else if (['entries', 'features', 'structures'].includes(layerId)) {
+            } else if (['entries', 'structures'].includes(layerId)) {
                 const sourceId = `overlay-${layerId}`;
                 if (map.getLayer(`${sourceId}-circles`)) {
                     map.setLayoutProperty(`${sourceId}-circles`, 'visibility', visibility);
@@ -2059,8 +2058,7 @@ function initializeWaterLevelControls() {
 
 const OVERLAY_LAYERS = [
     { id: 'entries',    file: 'Entries.geojson',    color: '#e74c3c', label: 'Entries' },
-    { id: 'features',   file: 'Features.geojson',   color: '#f39c12', label: 'Features' },
-    { id: 'structures', file: 'Structures.geojson', color: '#3498db', label: 'Structures' }
+    { id: 'structures', file: 'Structures.geojson', color: '#f39c12', label: 'Structures' }
 ];
 
 async function loadOverlayLayers() {
