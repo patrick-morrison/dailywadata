@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historical Photos in VR</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<style>
+    /* Simple Loading Spinner */
+    #loading-spinner {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 50px;
+        height: 50px;
+        border: 5px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: #000;
+        /* Dark spinner for contrast */
+        animation: spin 1s ease-in-out infinite;
+        z-index: 10000;
+        /* On top of everything */
+        display: none;
+        /* Hidden by default */
+        pointer-events: none;
+    }
+
+    @keyframes spin {
+        to {
+            transform: translate(-50%, -50%) rotate(360deg);
+        }
+    }
+</style>
+
+<body>
+    <div id="loading-spinner"></div>
+    <div id="ui-overlay">
+        <a href="../index.html" class="back-link">← Back to calendar</a>
+        <h1>Historical Photos in VR</h1>
+        <p>Images from the State Library of Western Australia. Processed by Patrick Morrison using Apple ML-Sharp. Best
+            experienced in a VR headset. <a href="../sources.html">See sources</a>.</p>
+        <div class="control-group">
+            <select id="image-select">
+            </select>
+            <p id="status-text" class="status-hidden">Select an image to start.</p>
+        </div>
+    </div>
+    <div id="canvas-container"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/",
+            "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/0.1.10/spark.module.js"
+        }
+    }
+    </script>
+    <script type="module" src="index.js"></script>
+</body>
+
+</html>
