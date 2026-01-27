@@ -440,7 +440,7 @@ async function populateFileList() {
             try {
                 const testFile = externalFiles[0];
                 const testSogFilename = testFile.filename.replace('.jpg', '.sog').replace('.png', '.sog');
-                const testUrl = `http://cdn.arenleishman.com/patrick-splats/${testSogFilename}`;
+                const testUrl = `https://cdn.arenleishman.com/patrick-splats/${testSogFilename}`;
 
                 const response = await fetch(testUrl, { method: 'HEAD' });
                 cdnAvailable = response.ok;
@@ -465,7 +465,7 @@ async function populateFileList() {
             // Use CDN for external, local path for internal
             const baseUrl = item.stored === 'internal'
                 ? './splats/'
-                : 'http://cdn.arenleishman.com/patrick-splats/';
+                : 'https://cdn.arenleishman.com/patrick-splats/';
 
             option.value = baseUrl + sogFilename;
             option.textContent = item.caption;
