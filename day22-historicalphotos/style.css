@@ -15,9 +15,7 @@
 body {
     margin: 0;
     overflow: hidden;
-    background-color: #f0f2f5;
-    background-image: radial-gradient(#d1d5db 1px, transparent 1px);
-    background-size: 40px 40px;
+    background-color: #000;
     font-family: 'JetBrains Mono', monospace;
     color: var(--ink);
     padding: 0;
@@ -190,11 +188,11 @@ body.xr-active #canvas-container {
 /* Mobile adjustments */
 @media (max-width: 600px) {
     #ui-overlay {
-        top: auto;
-        bottom: 24px;
+        top: 20px;
+        bottom: auto;
         left: 50%;
         transform: translateX(-50%);
-        width: calc(100% - 24px);
+        width: calc(100% - 40px);
         /* Almost full width */
         max-width: none;
         padding: 16px;

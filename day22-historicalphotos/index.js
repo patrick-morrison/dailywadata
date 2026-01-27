@@ -63,6 +63,9 @@ function createCaptionBox() {
     // Tilted up steep to face user
     captionMesh.rotation.x = -Math.PI / 3; // -60 degrees
 
+    // Hide by default - only show in AR sessions
+    captionMesh.visible = false;
+
     scene.add(captionMesh);
 
     // Initial draw
@@ -286,6 +289,9 @@ function init() {
         // Hide UI overlay if needed, but we have dom-overlay enabled.
         document.getElementById('ui-overlay').style.display = 'none';
 
+        // Show caption in AR
+        if (captionMesh) captionMesh.visible = true;
+
         // Listen for controller inputs (Left=Prev, Right=Next)
         // inputSource.handedness: 'left' or 'right'
         // 'select' event corresponds to Trigger/Pinch release. 'selectstart' for press.
@@ -301,6 +307,9 @@ function init() {
         splatGroup.position.set(0, 0, 0);
         statusText.textContent = "Exited AR Mode";
         document.getElementById('ui-overlay').style.display = 'block';
+
+        // Hide caption when exiting AR
+        if (captionMesh) captionMesh.visible = false;
     });
 
     // 2. Setup Camera for "Window" effect
