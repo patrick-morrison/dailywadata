@@ -149,6 +149,12 @@ const state = {
     // Drag state for free-form measure points
     draggingPointIndex: null,
     _suppressClick: false,
+
+    // Contour drag state
+    draggingContourSegment: null,    // { segmentIndex, pointAIndex, pointBIndex }
+    contourDragGrid: null,           // { grid, width, height, bbox } — cached grid for A*
+    contourDragGridLoading: false,   // Whether async grid load is in progress
+    contourPreviewCoords: null,      // Preview path coordinates during drag
 };
 
 /**
@@ -1202,6 +1208,250 @@ async function generateHighResContours(bounds, waterLevel, interval, cacheKey) {
 }
 
 // ============================================
+// A* Contour Pathfinding
+// ============================================
+
+/**
+ * MinHeap (binary heap) for A* open set.
+ * Sorts by f-score, with h-score as tie-breaker.
+ */
+class MinHeap {
+    constructor() {
+        this.heap = [];
+    }
+
+    push(node) {
+        this.heap.push(node);
+        this._bubbleUp(this.heap.length - 1);
+    }
+
+    pop() {
+        if (this.heap.length === 0) return null;
+        const min = this.heap[0];
+        const last = this.heap.pop();
+        if (this.heap.length > 0) {
+            this.heap[0] = last;
+            this._bubbleDown(0);
+        }
+        return min;
+    }
+
+    isEmpty() {
+        return this.heap.length === 0;
+    }
+
+    _compare(a, b) {
+        if (a.f !== b.f) return a.f < b.f;
+        return a.h < b.h;
+    }
+
+    _bubbleUp(index) {
+        while (index > 0) {
+            const parentIndex = Math.floor((index - 1) / 2);
+            if (!this._compare(this.heap[index], this.heap[parentIndex])) break;
+            [this.heap[parentIndex], this.heap[index]] = [this.heap[index], this.heap[parentIndex]];
+            index = parentIndex;
+        }
+    }
+
+    _bubbleDown(index) {
+        while (true) {
+            let left = 2 * index + 1;
+            let right = 2 * index + 2;
+            let smallest = index;
+            if (left < this.heap.length && this._compare(this.heap[left], this.heap[smallest])) {
+                smallest = left;
+            }
+            if (right < this.heap.length && this._compare(this.heap[right], this.heap[smallest])) {
+                smallest = right;
+            }
+            if (smallest === index) break;
+            [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
+            index = smallest;
+        }
+    }
+}
+
+/**
+ * Ramer-Douglas-Peucker path simplification.
+ * @param {Array} path - Array of [lng, lat] coordinates
+ * @param {number} epsilon - Tolerance in degrees (~0.00005 ≈ 5m)
+ * @returns {Array} Simplified path
+ */
+function simplifyPathRDP(path, epsilon = 0.00005) {
+    if (path.length <= 2) return path;
+
+    let maxDist = 0;
+    let maxIndex = 0;
+    const start = path[0];
+    const end = path[path.length - 1];
+
+    for (let i = 1; i < path.length - 1; i++) {
+        const dist = _pointToLineDistance(path[i], start, end);
+        if (dist > maxDist) {
+            maxDist = dist;
+            maxIndex = i;
+        }
+    }
+
+    if (maxDist > epsilon) {
+        const left = simplifyPathRDP(path.slice(0, maxIndex + 1), epsilon);
+        const right = simplifyPathRDP(path.slice(maxIndex), epsilon);
+        return left.slice(0, -1).concat(right);
+    }
+
+    return [start, end];
+}
+
+function _pointToLineDistance(point, lineStart, lineEnd) {
+    const [px, py] = point;
+    const [x1, y1] = lineStart;
+    const [x2, y2] = lineEnd;
+
+    const C = x2 - x1;
+    const D = y2 - y1;
+    const lenSq = C * C + D * D;
+    let param = lenSq !== 0 ? ((px - x1) * C + (py - y1) * D) / lenSq : -1;
+
+    let xx, yy;
+    if (param < 0) { xx = x1; yy = y1; }
+    else if (param > 1) { xx = x2; yy = y2; }
+    else { xx = x1 + param * C; yy = y1 + param * D; }
+
+    const dx = px - xx;
+    const dy = py - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+/**
+ * A* contour pathfinding on a Float32 elevation grid.
+ * Finds a path between two points that stays close to a target elevation.
+ *
+ * @param {Float32Array} grid - Elevation values (AHD), row-major
+ * @param {number} width - Grid width in pixels
+ * @param {number} height - Grid height in pixels
+ * @param {Array} bbox - [minX, minY, maxX, maxY] in EPSG:3857
+ * @param {number} startLng - Start longitude (WGS84)
+ * @param {number} startLat - Start latitude (WGS84)
+ * @param {number} endLng - End longitude (WGS84)
+ * @param {number} endLat - End latitude (WGS84)
+ * @param {number} targetElevation - Target AHD elevation to follow
+ * @param {number} tolerance - Max elevation deviation in meters (default 0.5)
+ * @returns {Array|null} Array of [lng, lat] coordinates, or null if no path
+ */
+function findContourPath(grid, width, height, bbox, startLng, startLat, endLng, endLat, targetElevation, tolerance = 0.5) {
+    const totalPixels = width * height;
+
+    // Convert lng/lat to grid coordinates via Web Mercator
+    const toGrid = (lng, lat) => {
+        const [mx, my] = lngLatToWebMercator(lng, lat);
+        const x = Math.floor((mx - bbox[0]) / (bbox[2] - bbox[0]) * width);
+        const y = Math.floor((bbox[3] - my) / (bbox[3] - bbox[1]) * height);
+        return [x, y];
+    };
+
+    const fromGrid = (x, y) => {
+        const mx = bbox[0] + (x / width) * (bbox[2] - bbox[0]);
+        const my = bbox[3] - (y / height) * (bbox[3] - bbox[1]);
+        return webMercatorToLngLat(mx, my);
+    };
+
+    const [startX, startY] = toGrid(startLng, startLat);
+    const [endX, endY] = toGrid(endLng, endLat);
+
+    // Bounds checking
+    if (startX < 0 || startX >= width || startY < 0 || startY >= height ||
+        endX < 0 || endX >= width || endY < 0 || endY >= height) {
+        return null;
+    }
+
+    // Straight-line distance for iteration limit
+    const straightDist = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
+    const maxIterations = Math.min(50000, Math.max(5000, Math.ceil(straightDist * 100)));
+
+    // TypedArrays for O(1) access, no GC
+    const visited = new Uint8Array(totalPixels);
+    const gScores = new Float32Array(totalPixels);
+    gScores.fill(Infinity);
+
+    const startIdx = startY * width + startX;
+    gScores[startIdx] = 0;
+
+    const minHeap = new MinHeap();
+    const startH = Math.sqrt((startX - endX) ** 2 + (startY - endY) ** 2);
+    minHeap.push({ x: startX, y: startY, idx: startIdx, g: 0, h: startH, f: startH, parent: null });
+
+    let iterations = 0;
+
+    // 8-directional neighbor offsets
+    const neighborOffsets = [
+        { dx: -1, dy: -1, cost: 1.414 }, { dx: 0, dy: -1, cost: 1 }, { dx: 1, dy: -1, cost: 1.414 },
+        { dx: -1, dy: 0, cost: 1 },                                    { dx: 1, dy: 0, cost: 1 },
+        { dx: -1, dy: 1, cost: 1.414 },  { dx: 0, dy: 1, cost: 1 },  { dx: 1, dy: 1, cost: 1.414 }
+    ];
+
+    while (!minHeap.isEmpty() && iterations++ < maxIterations) {
+        const current = minHeap.pop();
+
+        if (visited[current.idx] === 1) continue;
+        visited[current.idx] = 1;
+
+        // Goal reached? (within 2 grid cells)
+        if (Math.abs(current.x - endX) <= 2 && Math.abs(current.y - endY) <= 2) {
+            const path = [];
+            let node = current;
+            while (node) {
+                path.unshift(fromGrid(node.x, node.y));
+                node = node.parent;
+            }
+            path[0] = [startLng, startLat];
+            path[path.length - 1] = [endLng, endLat];
+            return simplifyPathRDP(path);
+        }
+
+        for (let i = 0; i < 8; i++) {
+            const { dx, dy, cost } = neighborOffsets[i];
+            const nx = current.x + dx;
+            const ny = current.y + dy;
+
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+
+            const nIdx = ny * width + nx;
+            if (visited[nIdx] === 1) continue;
+
+            const elevation = grid[nIdx];
+            if (!Number.isFinite(elevation)) continue;
+
+            const diff = Math.abs(elevation - targetElevation);
+            if (diff > tolerance) continue;
+
+            // Depth penalty: encourage staying exactly on contour
+            const depthPenalty = (diff / tolerance) * 2.0;
+
+            // Directness penalty: small cost for moves away from goal
+            const goalDx = endX - current.x;
+            const goalDy = endY - current.y;
+            const goalDist = Math.sqrt(goalDx * goalDx + goalDy * goalDy);
+            let directnessPenalty = 0;
+            if (goalDist > 0) {
+                const dot = (dx * goalDx + dy * goalDy) / (Math.sqrt(dx * dx + dy * dy) * goalDist);
+                directnessPenalty = (1 - dot) * 0.25;
+            }
+
+            const g = current.g + cost + depthPenalty + directnessPenalty;
+
+            if (g < gScores[nIdx]) {
+                gScores[nIdx] = g;
+                const h = Math.sqrt((nx - endX) ** 2 + (ny - endY) ** 2);
+                minHeap.push({ x: nx, y: ny, idx: nIdx, g, h, f: g + h, parent: current });
+            }
+        }
+    }
+
+    return null; // No path found
+}
+
+// ============================================
 // Measure Tool
 // ============================================
 
@@ -1266,13 +1516,41 @@ function initializeMeasureTool() {
         }
     });
 
+    // Invisible wider hit-target for line drag detection
+    map.addLayer({
+        id: 'measure-line-hit',
+        type: 'line',
+        source: 'measure-line',
+        paint: {
+            'line-color': 'transparent',
+            'line-width': 16
+        }
+    });
+
+    // Contour preview layer (shown during contour drag)
+    map.addSource('measure-contour-preview', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+    });
+
+    map.addLayer({
+        id: 'measure-contour-preview-layer',
+        type: 'line',
+        source: 'measure-contour-preview',
+        paint: {
+            'line-color': '#06b6d4',
+            'line-width': 3,
+            'line-opacity': 0.8
+        }
+    });
+
     map.addLayer({
         id: 'measure-points-layer',
         type: 'circle',
         source: 'measure-points',
         paint: {
-            'circle-radius': 6,
-            'circle-color': '#0891b2',
+            'circle-radius': ['case', ['get', 'isContourAnchor'], 4, 6],
+            'circle-color': ['case', ['get', 'isContourAnchor'], '#06b6d4', '#0891b2'],
             'circle-stroke-color': '#ffffff',
             'circle-stroke-width': 2
         }
@@ -1286,6 +1564,9 @@ function clearMeasurements() {
     state.lastMeasureVertexKey = null;
     state.draggingPointIndex = null;
     state._suppressClick = false;
+    state.draggingContourSegment = null;
+    state.contourDragGrid = null;
+    state.contourPreviewCoords = null;
 
     document.getElementById('measure-panel').style.display = 'none';
     document.getElementById('measure-total').textContent = '0 m';
@@ -1294,6 +1575,14 @@ function clearMeasurements() {
     map.getSource('measure-line').setData({ type: 'FeatureCollection', features: [] });
     map.getSource('measure-points').setData({ type: 'FeatureCollection', features: [] });
     map.getSource('survey-vertex-highlight').setData({ type: 'FeatureCollection', features: [] });
+    map.getSource('measure-contour-preview').setData({ type: 'FeatureCollection', features: [] });
+
+    // Clear elevation profile
+    const profileEl = document.getElementById('measure-profile');
+    if (profileEl) {
+        profileEl.classList.remove('visible');
+        profileEl.innerHTML = '';
+    }
 }
 
 /**
@@ -1400,6 +1689,7 @@ function updateMeasurePanel(segmentDistance, segmentBearing) {
         </span>
     `;
     measureItems.appendChild(itemEl);
+    updateElevationProfile();
 }
 
 /**
@@ -1430,9 +1720,13 @@ function rebuildMeasurePanel() {
             const curr = state.measurePoints[i];
             const seg = state.measureSegments[i - 1];
 
-            // Determine if this is a graph-routed segment (vertex→vertex via graph)
-            const isGraphRouted = prev.isVertex && curr.isVertex && seg.coords.length > 2;
-            if (isGraphRouted) {
+            // Determine segment display type
+            if (seg.contourAHD !== undefined) {
+                // Contour segment: show depth label
+                const contourDepth = getActiveWaterLevel() - seg.contourAHD;
+                bearingHtml = `<span class="measure-item-bearing">${contourDepth.toFixed(1)}m contour</span>`;
+            } else if (prev.isVertex && curr.isVertex && seg.coords.length > 2) {
+                // Graph-routed segment
                 bearingHtml = `<span class="measure-item-bearing">line</span>`;
             } else {
                 const b = bearing([prev.lng, prev.lat], [curr.lng, curr.lat]);
@@ -1455,6 +1749,7 @@ function rebuildMeasurePanel() {
         `;
         measureItems.appendChild(itemEl);
     }
+    updateElevationProfile();
 }
 
 /**
@@ -1483,7 +1778,7 @@ function updateMeasureVisualization() {
             type: 'Point',
             coordinates: [point.lng, point.lat]
         },
-        properties: { index, isVertex: point.isVertex }
+        properties: { index, isVertex: point.isVertex, isContourAnchor: !!point.isContourAnchor }
     }));
 
     map.getSource('measure-points').setData({
@@ -1517,6 +1812,132 @@ function updateMeasureVisualization() {
     } else {
         map.getSource('measure-line').setData({ type: 'FeatureCollection', features: [] });
     }
+}
+
+// ============================================
+// Elevation Profile
+// ============================================
+
+/**
+ * Build and display an SVG elevation profile in the measure panel.
+ * Shows depth below water surface along the measured route.
+ */
+function updateElevationProfile() {
+    const container = document.getElementById('measure-profile');
+    if (!container) return;
+
+    if (state.measureSegments.length === 0 || !state.bathymetryLayer) {
+        container.classList.remove('visible');
+        container.innerHTML = '';
+        return;
+    }
+
+    const waterLevel = getActiveWaterLevel();
+
+    // Sample elevation along all segments
+    const samples = []; // { dist, depth }
+    let cumulativeDist = 0;
+
+    for (const seg of state.measureSegments) {
+        const coords = seg.coords;
+        for (let i = 0; i < coords.length; i++) {
+            // For straight-line 2-point segments, interpolate additional samples
+            if (i < coords.length - 1) {
+                const [lng1, lat1] = coords[i];
+                const [lng2, lat2] = coords[i + 1];
+                const segDist = haversineDistance([lng1, lat1], [lng2, lat2]);
+                const numSamples = Math.max(1, Math.ceil(segDist / 2)); // ~2m spacing
+
+                for (let s = 0; s < numSamples; s++) {
+                    const t = s / numSamples;
+                    const lng = lng1 + (lng2 - lng1) * t;
+                    const lat = lat1 + (lat2 - lat1) * t;
+                    const elev = state.bathymetryLayer.getElevationAtLngLat(lng, lat);
+                    const depth = elev !== null ? Math.max(0, waterLevel - elev) : 0;
+
+                    if (s === 0 && samples.length > 0) continue; // skip duplicate junction point
+                    samples.push({ dist: cumulativeDist + segDist * t, depth });
+                }
+                cumulativeDist += segDist;
+            }
+        }
+    }
+
+    // Add final point
+    const lastCoord = state.measureSegments[state.measureSegments.length - 1].coords;
+    const [fLng, fLat] = lastCoord[lastCoord.length - 1];
+    const fElev = state.bathymetryLayer.getElevationAtLngLat(fLng, fLat);
+    const fDepth = fElev !== null ? Math.max(0, waterLevel - fElev) : 0;
+    samples.push({ dist: cumulativeDist, depth: fDepth });
+
+    if (samples.length < 2) {
+        container.classList.remove('visible');
+        container.innerHTML = '';
+        return;
+    }
+
+    // Compute ranges
+    const totalDist = samples[samples.length - 1].dist;
+    let maxDepth = 0;
+    for (const s of samples) {
+        if (s.depth > maxDepth) maxDepth = s.depth;
+    }
+    maxDepth = Math.max(maxDepth, 1); // Minimum 1m scale
+
+    // SVG dimensions
+    const svgW = 260;
+    const svgH = 80;
+    const margin = { top: 4, right: 8, bottom: 16, left: 28 };
+    const plotW = svgW - margin.left - margin.right;
+    const plotH = svgH - margin.top - margin.bottom;
+
+    // Scale functions
+    const xScale = (d) => margin.left + (d / totalDist) * plotW;
+    const yScale = (d) => margin.top + (d / maxDepth) * plotH;
+
+    // Build path
+    let pathD = `M ${xScale(samples[0].dist)} ${yScale(samples[0].depth)}`;
+    for (let i = 1; i < samples.length; i++) {
+        pathD += ` L ${xScale(samples[i].dist)} ${yScale(samples[i].depth)}`;
+    }
+
+    // Closed fill path
+    const fillD = pathD +
+        ` L ${xScale(totalDist)} ${yScale(0)}` +
+        ` L ${xScale(0)} ${yScale(0)} Z`;
+
+    // Y-axis labels
+    const yLabels = [];
+    const yStep = maxDepth <= 5 ? 1 : maxDepth <= 15 ? 5 : 10;
+    for (let d = 0; d <= maxDepth; d += yStep) {
+        yLabels.push(d);
+    }
+
+    // X-axis labels
+    const xLabels = [];
+    const xStep = totalDist <= 50 ? 10 : totalDist <= 200 ? 50 : totalDist <= 500 ? 100 : 200;
+    for (let d = 0; d <= totalDist; d += xStep) {
+        xLabels.push(d);
+    }
+
+    const svg = `<svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">
+        <!-- Surface line -->
+        <line class="profile-surface" x1="${margin.left}" y1="${yScale(0)}" x2="${xScale(totalDist)}" y2="${yScale(0)}"/>
+        <!-- Depth fill -->
+        <path class="profile-fill" d="${fillD}"/>
+        <!-- Y-axis labels -->
+        ${yLabels.map(d => `
+            <line class="profile-axis" x1="${margin.left}" y1="${yScale(d)}" x2="${xScale(totalDist)}" y2="${yScale(d)}"/>
+            <text class="profile-label" x="${margin.left - 3}" y="${yScale(d) + 3}" text-anchor="end">${d}m</text>
+        `).join('')}
+        <!-- X-axis labels -->
+        ${xLabels.map(d => `
+            <text class="profile-label" x="${xScale(d)}" y="${svgH - 2}" text-anchor="middle">${d >= 1000 ? (d / 1000).toFixed(1) + 'k' : d}m</text>
+        `).join('')}
+    </svg>`;
+
+    container.innerHTML = svg;
+    container.classList.add('visible');
 }
 
 // ============================================
@@ -1652,6 +2073,76 @@ function hideDepthProbePopup() {
 }
 
 // ============================================
+// Contour Grid Loading (for A* drag)
+// ============================================
+
+/**
+ * Async load contour source at native resolution for the bounding box
+ * covering two endpoints + padding. Stores result in state.contourDragGrid.
+ */
+async function loadContourGridForDrag(ptA, ptB) {
+    if (!state.contourTiff || !state.contourBbox) return;
+
+    state.contourDragGridLoading = true;
+
+    try {
+        // Compute bounding box in Web Mercator with padding
+        const [axM, ayM] = lngLatToWebMercator(ptA.lng, ptA.lat);
+        const [bxM, byM] = lngLatToWebMercator(ptB.lng, ptB.lat);
+
+        const minX = Math.min(axM, bxM);
+        const maxX = Math.max(axM, bxM);
+        const minY = Math.min(ayM, byM);
+        const maxY = Math.max(ayM, byM);
+
+        // Add 100m padding in Mercator
+        const pad = 100;
+        const [srcMinX, srcMinY, srcMaxX, srcMaxY] = state.contourBbox;
+        const bbox = [
+            Math.max(minX - pad, srcMinX),
+            Math.max(minY - pad, srcMinY),
+            Math.min(maxX + pad, srcMaxX),
+            Math.min(maxY + pad, srcMaxY)
+        ];
+
+        if (bbox[0] >= bbox[2] || bbox[1] >= bbox[3]) {
+            state.contourDragGridLoading = false;
+            return;
+        }
+
+        // Read at native resolution (~1m/pixel from the contour source)
+        const rasters = await state.contourTiff.readRasters({
+            bbox,
+            resX: 1.0,
+            resY: 1.0
+        });
+
+        const rawGrid = rasters[0];
+        const width = rasters.width;
+        const height = rasters.height;
+
+        // Clean NoData → NaN
+        const grid = new Float32Array(rawGrid.length);
+        const noDataValue = state.contourNoData;
+        for (let i = 0; i < rawGrid.length; i++) {
+            const val = rawGrid[i];
+            if (val === noDataValue || val >= 1e5 || !Number.isFinite(val)) {
+                grid[i] = Number.NaN;
+            } else {
+                grid[i] = val;
+            }
+        }
+
+        state.contourDragGrid = { grid, width, height, bbox };
+        console.log(`Contour drag grid loaded: ${width}x${height} (${(rawGrid.length * 4 / 1024).toFixed(0)}KB)`);
+    } catch (error) {
+        console.error('Failed to load contour drag grid:', error);
+    } finally {
+        state.contourDragGridLoading = false;
+    }
+}
+
+// ============================================
 // Click Handlers
 // ============================================
 
@@ -1732,6 +2223,199 @@ function initializeClickHandlers() {
         setTimeout(() => { state._suppressClick = false; }, 0);
     });
 
+    // --- Contour drag: mousedown on measure line segment ---
+    map.on('mousedown', 'measure-line-hit', (e) => {
+        if (!state.measureMode) return;
+        if (state.measureSegments.length === 0) return;
+        if (state.draggingPointIndex !== null) return;
+
+        // Find which segment was clicked by checking distance to each segment line
+        const clickLng = e.lngLat.lng;
+        const clickLat = e.lngLat.lat;
+        let bestSegIdx = -1;
+        let bestDist = Infinity;
+
+        for (let si = 0; si < state.measureSegments.length; si++) {
+            const seg = state.measureSegments[si];
+            if (seg.contourAHD !== undefined) continue; // already a contour segment
+            const coords = seg.coords;
+            for (let ci = 0; ci < coords.length - 1; ci++) {
+                const [ax, ay] = coords[ci];
+                const [bx, by] = coords[ci + 1];
+                const d = _pointToLineDistance([clickLng, clickLat], [ax, ay], [bx, by]);
+                if (d < bestDist) {
+                    bestDist = d;
+                    bestSegIdx = si;
+                }
+            }
+        }
+
+        // Threshold: ~0.0001 degrees (~10m)
+        if (bestSegIdx < 0 || bestDist > 0.0001) return;
+
+        const pointAIndex = bestSegIdx;
+        const pointBIndex = bestSegIdx + 1;
+        const ptA = state.measurePoints[pointAIndex];
+        const ptB = state.measurePoints[pointBIndex];
+
+        // Require at least one free (non-vertex) endpoint
+        if (ptA.isVertex && ptB.isVertex) return;
+
+        e.preventDefault();
+        state.draggingContourSegment = { segmentIndex: bestSegIdx, pointAIndex, pointBIndex };
+        state._suppressClick = true;
+        state.contourDragGrid = null;
+        state.contourPreviewCoords = null;
+        map.dragPan.disable();
+        map.getCanvas().style.cursor = 'crosshair';
+
+        // Async: load contour grid for bounding box of the two endpoints + padding
+        loadContourGridForDrag(ptA, ptB);
+    });
+
+    // mousemove: extend to handle contour drag preview
+    map.on('mousemove', (e) => {
+        if (state.draggingContourSegment === null) return;
+
+        const mouseElev = state.bathymetryLayer
+            ? state.bathymetryLayer.getElevationAtLngLat(e.lngLat.lng, e.lngLat.lat)
+            : null;
+
+        if (mouseElev === null) return;
+
+        const waterLevel = getActiveWaterLevel();
+        if (mouseElev > waterLevel) return; // above water
+
+        const targetElevation = mouseElev;
+
+        if (state.contourDragGrid) {
+            const { grid, width, height, bbox } = state.contourDragGrid;
+            const { pointAIndex, pointBIndex } = state.draggingContourSegment;
+            const ptA = state.measurePoints[pointAIndex];
+            const ptB = state.measurePoints[pointBIndex];
+
+            const contourPath = findContourPath(
+                grid, width, height, bbox,
+                ptA.lng, ptA.lat, ptB.lng, ptB.lat,
+                targetElevation, 0.5
+            );
+
+            if (contourPath && contourPath.length >= 2) {
+                state.contourPreviewCoords = contourPath;
+                state._contourPreviewElevation = targetElevation;
+
+                // Show preview: approach + contour + depart
+                const features = [];
+
+                // Approach line: ptA → contour start
+                const contourStart = contourPath[0];
+                const contourEnd = contourPath[contourPath.length - 1];
+
+                features.push({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: [[ptA.lng, ptA.lat], contourStart] },
+                    properties: { type: 'approach' }
+                });
+
+                // Contour path
+                features.push({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: contourPath },
+                    properties: { type: 'contour' }
+                });
+
+                // Depart line: contour end → ptB
+                features.push({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: [contourEnd, [ptB.lng, ptB.lat]] },
+                    properties: { type: 'depart' }
+                });
+
+                map.getSource('measure-contour-preview').setData({
+                    type: 'FeatureCollection',
+                    features
+                });
+            } else {
+                // No path found — clear preview
+                map.getSource('measure-contour-preview').setData({ type: 'FeatureCollection', features: [] });
+                state.contourPreviewCoords = null;
+            }
+        }
+    });
+
+    // mouseup: finalize contour on release
+    globalThis.addEventListener('mouseup', () => {
+        if (state.draggingContourSegment === null) return;
+
+        const { segmentIndex, pointAIndex, pointBIndex } = state.draggingContourSegment;
+
+        if (state.contourPreviewCoords && state.contourPreviewCoords.length >= 2) {
+            const contourPath = state.contourPreviewCoords;
+            const targetElevation = state._contourPreviewElevation;
+            const contourStart = contourPath[0];
+            const contourEnd = contourPath[contourPath.length - 1];
+            const ptA = state.measurePoints[pointAIndex];
+            const ptB = state.measurePoints[pointBIndex];
+
+            // Create approach segment
+            const approachCoords = [[ptA.lng, ptA.lat], contourStart];
+            const approachDist = haversineDistance(approachCoords[0], approachCoords[1]);
+
+            // Create contour segment
+            let contourDist = 0;
+            for (let i = 0; i < contourPath.length - 1; i++) {
+                contourDist += haversineDistance(contourPath[i], contourPath[i + 1]);
+            }
+
+            // Create depart segment
+            const departCoords = [contourEnd, [ptB.lng, ptB.lat]];
+            const departDist = haversineDistance(departCoords[0], departCoords[1]);
+
+            // Create contour anchor points
+            const anchorA = {
+                lng: contourStart[0], lat: contourStart[1],
+                isVertex: false, vertexKey: null, isContourAnchor: true
+            };
+            const anchorB = {
+                lng: contourEnd[0], lat: contourEnd[1],
+                isVertex: false, vertexKey: null, isContourAnchor: true
+            };
+
+            // Splice: replace 1 segment with 3
+            state.measureSegments.splice(segmentIndex, 1,
+                { coords: approachCoords, distance: approachDist },
+                { coords: contourPath, distance: contourDist, contourAHD: targetElevation },
+                { coords: departCoords, distance: departDist }
+            );
+
+            // Insert 2 anchor points after pointA (at pointBIndex position)
+            state.measurePoints.splice(pointBIndex, 0, anchorA, anchorB);
+
+            // Recalculate total distance
+            state.measureTotalDistance = state.measureSegments.reduce((sum, s) => sum + s.distance, 0);
+        }
+
+        // Clear state
+        state.draggingContourSegment = null;
+        state.contourDragGrid = null;
+        state.contourPreviewCoords = null;
+        delete state._contourPreviewElevation;
+        map.dragPan.enable();
+        if (state.measureMode) {
+            map.getCanvas().style.cursor = 'crosshair';
+        }
+
+        // Clear preview
+        map.getSource('measure-contour-preview').setData({ type: 'FeatureCollection', features: [] });
+
+        // Rebuild everything
+        updateMeasureVisualization();
+        rebuildMeasurePanel();
+        updateElevationProfile();
+
+        setTimeout(() => { state._suppressClick = false; }, 0);
+    });
+
     // --- Cursor feedback ---
 
     // Vertices in measure mode
@@ -1757,6 +2441,19 @@ function initializeClickHandlers() {
 
     map.on('mouseleave', 'measure-points-layer', () => {
         if (state.measureMode && state.draggingPointIndex === null) {
+            map.getCanvas().style.cursor = 'crosshair';
+        }
+    });
+
+    // Measure line segments: ns-resize cursor for contour drag
+    map.on('mouseenter', 'measure-line-hit', () => {
+        if (state.measureMode && state.draggingPointIndex === null && state.draggingContourSegment === null) {
+            map.getCanvas().style.cursor = 'ns-resize';
+        }
+    });
+
+    map.on('mouseleave', 'measure-line-hit', () => {
+        if (state.measureMode && state.draggingPointIndex === null && state.draggingContourSegment === null) {
             map.getCanvas().style.cursor = 'crosshair';
         }
     });
@@ -2007,6 +2704,9 @@ function onWaterLevelChange() {
     if (state.contourLowRes && state.layerVisibility.contours) {
         generateContoursForViewport();
     }
+
+    // Update elevation profile (depths change with water level)
+    updateElevationProfile();
 }
 
 /**
