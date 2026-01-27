@@ -124,9 +124,16 @@ export async function initializeContourGeneration(map, state, config, generateCo
 
         state.contourNoData = noDataValue;
         state.contourBbox = bbox;
+        state.contourNativeWidth = nativeWidth;
+        state.contourNativeHeight = nativeHeight;
+        // Native pixel size in CRS units (EPSG:3857 meters)
+        state.contourPixelSizeX = (bbox[2] - bbox[0]) / nativeWidth;
+        state.contourPixelSizeY = (bbox[3] - bbox[1]) / nativeHeight;
 
-        const lowWidth = Math.round(nativeWidth / 4);
-        const lowHeight = Math.round(nativeHeight / 4);
+        // Use 8x overview for display grid (~512px short side, equivalent to
+        // old native quality but derived from higher-res smoothed source)
+        const lowWidth = Math.round(nativeWidth / 8);
+        const lowHeight = Math.round(nativeHeight / 8);
         const rasters = await tiff.readRasters({ width: lowWidth, height: lowHeight });
         const rawGrid = rasters[0];
 
@@ -408,8 +415,10 @@ export async function generateHighResContours(map, state, config, bounds, waterL
 
         const bbox = [bboxMinX, bboxMinY, bboxMaxX, bboxMaxY];
 
-        const resX = 2.0;
-        const resY = 2.0;
+        // Use 8x overview resolution for display reads — keeps contour display
+        // on overview data while native/2x/4x are reserved for routing
+        const resX = state.contourPixelSizeX * 8;
+        const resY = state.contourPixelSizeY * 8;
 
         const rasters = await state.contourTiff.readRasters({
             bbox,

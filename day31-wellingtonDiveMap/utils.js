@@ -551,3 +551,33 @@ export function simplifyPathRDP(path, epsilon = 0.00005) {
 
     return [start, end];
 }
+
+/**
+ * Chaikin corner-cutting smoothing. Each iteration replaces every interior
+ * segment with two points at 25% and 75% along it, producing a progressively
+ * smoother curve that stays close to the original polyline. Endpoints are
+ * preserved exactly.
+ *
+ * @param {Array} path - Array of [lng, lat] coordinates
+ * @param {number} [iterations=2] - Number of smoothing passes
+ * @returns {Array} Smoothed path
+ */
+export function smoothPathChaikin(path, iterations = 2) {
+    if (path.length <= 2) return path;
+
+    let pts = path;
+    for (let iter = 0; iter < iterations; iter++) {
+        const next = [pts[0]];
+        for (let i = 0; i < pts.length - 1; i++) {
+            const [ax, ay] = pts[i];
+            const [bx, by] = pts[i + 1];
+            next.push(
+                [ax * 0.75 + bx * 0.25, ay * 0.75 + by * 0.25],
+                [ax * 0.25 + bx * 0.75, ay * 0.25 + by * 0.75]
+            );
+        }
+        next.push(pts[pts.length - 1]);
+        pts = next;
+    }
+    return pts;
+}

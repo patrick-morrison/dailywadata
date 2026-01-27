@@ -17,7 +17,7 @@ gdal.UseExceptions()
 # ── Configuration ──────────────────────────────────────────────────────────────
 INPUT_COG = "merged_bathy_cog.tif"
 OUTPUT_COG = "contour_source.tif"
-SHORT_AXIS = 1024          # Target short axis in pixels
+SHORT_AXIS = 4096          # Target short axis in pixels
 NODATA_IN = 1_000_000.0    # Source NoData value
 NODATA_OUT = -9999.0        # Output NoData value
 
@@ -155,12 +155,13 @@ def main():
     out_ds = None
     src_ds = None
 
-    # Build overview pyramids (factors 2 and 4)
-    # Factor 4 → ~512×1191 (used for zoom 14-15 cached grid)
-    # Factor 2 → ~1024×2382 (intermediate)
-    print("Building overview pyramids (factors 2, 4)...")
+    # Build overview pyramids
+    # Factor 8  → display low-res cached grid (equivalent to old native quality)
+    # Factor 16 → lightweight fallback
+    # Factor 2/4 → reserved for contour routing (A* pathfinding)
+    print("Building overview pyramids (factors 2, 4, 8, 16)...")
     ds = gdal.Open(OUTPUT_COG, gdalconst.GA_Update)
-    ds.BuildOverviews("AVERAGE", [2, 4])
+    ds.BuildOverviews("AVERAGE", [2, 4, 8, 16])
     ds.FlushCache()
     ds = None
     print("  Overviews built successfully")

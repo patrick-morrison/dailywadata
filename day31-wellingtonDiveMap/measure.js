@@ -17,6 +17,7 @@ import {
     findShortestPath,
     MinHeap,
     simplifyPathRDP,
+    smoothPathChaikin,
     _pointToLineDistance
 } from './utils.js';
 
@@ -88,7 +89,7 @@ export function initializeMeasureTool(map, state) {
         type: 'line',
         source: 'measure-line',
         paint: {
-            'line-color': '#0891b2',
+            'line-color': '#FF00FF',
             'line-width': 3,
             'line-dasharray': [2, 2]
         }
@@ -116,7 +117,7 @@ export function initializeMeasureTool(map, state) {
         type: 'line',
         source: 'measure-contour-preview',
         paint: {
-            'line-color': '#06b6d4',
+            'line-color': '#FF44FF',
             'line-width': 3,
             'line-opacity': 0.8
         }
@@ -128,7 +129,7 @@ export function initializeMeasureTool(map, state) {
         source: 'measure-points',
         paint: {
             'circle-radius': ['case', ['get', 'isContourAnchor'], 4, 6],
-            'circle-color': ['case', ['get', 'isContourAnchor'], '#06b6d4', '#0891b2'],
+            'circle-color': ['case', ['get', 'isContourAnchor'], '#FF44FF', '#FF00FF'],
             'circle-stroke-color': '#ffffff',
             'circle-stroke-width': 2
         }
@@ -313,7 +314,7 @@ export function updateMeasurePanel(state, segmentDistance, segmentBearing) {
     itemEl.className = 'measure-item';
     itemEl.innerHTML = `
         <span class="measure-item-name">
-            <span class="measure-item-dot" style="background: #0891b2;"></span>
+            <span class="measure-item-dot" style="background: #FF00FF;"></span>
             ${displayName}
         </span>
         <span class="measure-item-info">
@@ -376,7 +377,7 @@ export function rebuildMeasurePanel(state, config) {
         itemEl.className = 'measure-item';
         itemEl.innerHTML = `
             <span class="measure-item-name">
-                <span class="measure-item-dot" style="background: #0891b2;"></span>
+                <span class="measure-item-dot" style="background: #FF00FF;"></span>
                 ${displayName}
             </span>
             <span class="measure-item-info">
@@ -740,8 +741,47 @@ function hideDepthProbePopup(map, state) {
 // ============================================
 
 /**
+ * Find the nearest grid cell to (cx, cy) whose elevation is within
+ * tolerance of targetElevation. Searches in expanding Chebyshev rings.
+ *
+ * @returns {number[]|null} [x, y] grid coordinates, or null if not found
+ */
+function findNearestOnContour(grid, width, height, cx, cy, targetElevation, tolerance, maxRadius) {
+    cx = Math.max(0, Math.min(width - 1, cx));
+    cy = Math.max(0, Math.min(height - 1, cy));
+
+    const check = (x, y) => {
+        if (x < 0 || x >= width || y < 0 || y >= height) return false;
+        const e = grid[y * width + x];
+        return Number.isFinite(e) && Math.abs(e - targetElevation) <= tolerance;
+    };
+
+    if (check(cx, cy)) return [cx, cy];
+
+    for (let r = 1; r <= maxRadius; r++) {
+        // Top and bottom rows of ring
+        for (let dx = -r; dx <= r; dx++) {
+            if (check(cx + dx, cy - r)) return [cx + dx, cy - r];
+            if (check(cx + dx, cy + r)) return [cx + dx, cy + r];
+        }
+        // Left and right columns (excluding corners already checked)
+        for (let dy = -r + 1; dy < r; dy++) {
+            if (check(cx - r, cy + dy)) return [cx - r, cy + dy];
+            if (check(cx + r, cy + dy)) return [cx + r, cy + dy];
+        }
+    }
+
+    return null;
+}
+
+/**
  * A* contour pathfinding on a Float32 elevation grid.
- * Finds a path between two points that stays close to a target elevation.
+ *
+ * Snaps start/end to the nearest on-contour cells, then finds a path
+ * between them that stays within tolerance of the target elevation.
+ * The returned path starts and ends at the snapped on-contour positions
+ * (not the input lngLat), so the caller should draw approach/depart
+ * segments from the fixed measure points to the path endpoints.
  *
  * @param {Float32Array} grid - Elevation values (AHD), row-major
  * @param {number} width - Grid width in pixels
@@ -771,16 +811,27 @@ export function findContourPath(grid, width, height, bbox, startLng, startLat, e
         return webMercatorToLngLat(mx, my);
     };
 
-    const [startX, startY] = toGrid(startLng, startLat);
-    const [endX, endY] = toGrid(endLng, endLat);
+    const [rawStartX, rawStartY] = toGrid(startLng, startLat);
+    const [rawEndX, rawEndY] = toGrid(endLng, endLat);
 
-    if (startX < 0 || startX >= width || startY < 0 || startY >= height ||
-        endX < 0 || endX >= width || endY < 0 || endY >= height) {
-        return null;
+    // Snap to nearest on-contour cells — approach/depart segments bridge
+    // any gap between the fixed measure points and the contour
+    const maxSnap = Math.max(width, height);
+    const start = findNearestOnContour(grid, width, height, rawStartX, rawStartY, targetElevation, tolerance, maxSnap);
+    const end = findNearestOnContour(grid, width, height, rawEndX, rawEndY, targetElevation, tolerance, maxSnap);
+
+    if (!start || !end) return null;
+
+    const [startX, startY] = start;
+    const [endX, endY] = end;
+
+    if (startX === endX && startY === endY) {
+        const pt = fromGrid(startX, startY);
+        return [pt, [...pt]];
     }
 
     const straightDist = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
-    const maxIterations = Math.min(50000, Math.max(5000, Math.ceil(straightDist * 100)));
+    const maxIterations = Math.min(80000, Math.max(10000, Math.ceil(straightDist * 150)));
 
     const visited = new Uint8Array(totalPixels);
     const gScores = new Float32Array(totalPixels);
@@ -814,9 +865,7 @@ export function findContourPath(grid, width, height, bbox, startLng, startLat, e
                 path.unshift(fromGrid(node.x, node.y));
                 node = node.parent;
             }
-            path[0] = [startLng, startLat];
-            path[path.length - 1] = [endLng, endLat];
-            return simplifyPathRDP(path);
+            return smoothPathChaikin(simplifyPathRDP(path));
         }
 
         for (let i = 0; i < 8; i++) {
@@ -835,7 +884,8 @@ export function findContourPath(grid, width, height, bbox, startLng, startLat, e
             const diff = Math.abs(elevation - targetElevation);
             if (diff > tolerance) continue;
 
-            const depthPenalty = (diff / tolerance) * 2.0;
+            const normalizedDiff = diff / tolerance;
+            const depthPenalty = normalizedDiff * normalizedDiff * 8.0;
 
             const goalDx = endX - current.x;
             const goalDy = endY - current.y;
@@ -891,7 +941,10 @@ export async function loadContourGridForDrag(state, ptA, ptB) {
         const minY = Math.min(ayM, byM);
         const maxY = Math.max(ayM, byM);
 
-        const pad = 100;
+        // Generous padding so the A* can find contours that curve away from
+        // the direct line between endpoints
+        const span = Math.sqrt((maxX - minX) ** 2 + (maxY - minY) ** 2);
+        const pad = Math.max(300, span * 1.0);
         const [srcMinX, srcMinY, srcMaxX, srcMaxY] = state.contourBbox;
         const bbox = [
             Math.max(minX - pad, srcMinX),
@@ -905,10 +958,15 @@ export async function loadContourGridForDrag(state, ptA, ptB) {
             return;
         }
 
+        // Use 2x overview resolution for routing — higher res than display
+        // (which uses 8x) but accessed efficiently via bbox reads
+        const resX = state.contourPixelSizeX ? state.contourPixelSizeX * 2 : 0.5;
+        const resY = state.contourPixelSizeY ? state.contourPixelSizeY * 2 : 0.5;
+
         const rasters = await state.contourTiff.readRasters({
             bbox,
-            resX: 1.0,
-            resY: 1.0
+            resX,
+            resY
         });
 
         const rawGrid = rasters[0];
@@ -992,11 +1050,18 @@ export function initializeClickHandlers(map, state, config, callbacks) {
         pt.lng = e.lngLat.lng;
         pt.lat = e.lngLat.lat;
 
+        // Dragging invalidates contour anchor status
+        if (pt.isContourAnchor) {
+            pt.isContourAnchor = false;
+        }
+
         if (i > 0) {
             const prev = state.measurePoints[i - 1];
             const seg = state.measureSegments[i - 1];
             seg.coords = [[prev.lng, prev.lat], [pt.lng, pt.lat]];
             seg.distance = haversineDistance([prev.lng, prev.lat], [pt.lng, pt.lat]);
+            // Contour path is invalidated — now a straight line
+            delete seg.contourAHD;
         }
 
         if (i < state.measurePoints.length - 1) {
@@ -1004,6 +1069,7 @@ export function initializeClickHandlers(map, state, config, callbacks) {
             const seg = state.measureSegments[i];
             seg.coords = [[pt.lng, pt.lat], [next.lng, next.lat]];
             seg.distance = haversineDistance([pt.lng, pt.lat], [next.lng, next.lat]);
+            delete seg.contourAHD;
         }
 
         state.measureTotalDistance = state.measureSegments.reduce((sum, s) => sum + s.distance, 0);
@@ -1033,7 +1099,6 @@ export function initializeClickHandlers(map, state, config, callbacks) {
 
         for (let si = 0; si < state.measureSegments.length; si++) {
             const seg = state.measureSegments[si];
-            if (seg.contourAHD !== undefined) continue;
             const coords = seg.coords;
             for (let ci = 0; ci < coords.length - 1; ci++) {
                 const [ax, ay] = coords[ci];
@@ -1090,7 +1155,7 @@ export function initializeClickHandlers(map, state, config, callbacks) {
             const contourPath = findContourPath(
                 grid, width, height, bbox,
                 ptA.lng, ptA.lat, ptB.lng, ptB.lat,
-                targetElevation, 0.5
+                targetElevation
             );
 
             if (contourPath && contourPath.length >= 2) {

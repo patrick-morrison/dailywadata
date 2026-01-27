@@ -50,7 +50,7 @@ const CONFIG = {
     // Bathymetry COG files
     BATHY_COG: 'merged_bathy_cog.tif',
     HILLSHADE_COG: 'hillshade_cog.tif',
-    // Pre-processed contour source: 2048x4764 base with overview pyramids, pre-smoothed
+    // Pre-processed contour source: 4096px short side with 2/4/8/16x overview pyramids, pre-smoothed
     CONTOUR_COG: 'contour_source.tif',
 
     // Water level configuration (from calibrated volume model)
