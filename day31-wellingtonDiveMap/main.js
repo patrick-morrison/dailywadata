@@ -97,7 +97,7 @@ const CONFIG = {
     // Contour configuration
     CONTOUR_COLOR: '#000000',
     CONTOUR_INTERVALS: {
-        16: 1    // Zoom 16+: 2m intervals
+        14: 1    // Zoom 16+: 2m intervals
     },
     // Contours for depth below water surface (negative of AHD minus water level)
     // Generate contours at AHD levels that correspond to 5m, 10m, 15m... depth
@@ -311,6 +311,83 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+/**
+ * Apply gaussian blur to elevation grid for smoother contours
+ * Preserves NaN values (NoData) and doesn't blur across them
+ */
+function smoothElevationGrid(grid, width, height, radius) {
+    const result = new Float32Array(grid.length);
+
+    // Gaussian kernel weights for the given radius
+    const kernel = [];
+    const sigma = radius / 2;
+    let sum = 0;
+    for (let i = -radius; i <= radius; i++) {
+        const weight = Math.exp(-(i * i) / (2 * sigma * sigma));
+        kernel.push(weight);
+        sum += weight;
+    }
+    // Normalize kernel
+    for (let i = 0; i < kernel.length; i++) {
+        kernel[i] /= sum;
+    }
+
+    // Horizontal pass
+    const temp = new Float32Array(grid.length);
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = y * width + x;
+            if (Number.isNaN(grid[idx])) {
+                temp[idx] = Number.NaN;
+                continue;
+            }
+
+            let value = 0;
+            let weightSum = 0;
+            for (let k = -radius; k <= radius; k++) {
+                const nx = x + k;
+                if (nx >= 0 && nx < width) {
+                    const nidx = y * width + nx;
+                    if (!Number.isNaN(grid[nidx])) {
+                        const weight = kernel[k + radius];
+                        value += grid[nidx] * weight;
+                        weightSum += weight;
+                    }
+                }
+            }
+            temp[idx] = weightSum > 0 ? value / weightSum : grid[idx];
+        }
+    }
+
+    // Vertical pass
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = y * width + x;
+            if (Number.isNaN(temp[idx])) {
+                result[idx] = Number.NaN;
+                continue;
+            }
+
+            let value = 0;
+            let weightSum = 0;
+            for (let k = -radius; k <= radius; k++) {
+                const ny = y + k;
+                if (ny >= 0 && ny < height) {
+                    const nidx = ny * width + x;
+                    if (!Number.isNaN(temp[nidx])) {
+                        const weight = kernel[k + radius];
+                        value += temp[nidx] * weight;
+                        weightSum += weight;
+                    }
+                }
+            }
+            result[idx] = weightSum > 0 ? value / weightSum : temp[idx];
+        }
+    }
+
+    return result;
 }
 
 // ============================================
@@ -608,7 +685,7 @@ async function initializeContourGeneration() {
                 'line-color': CONFIG.CONTOUR_COLOR,
                 'line-width': [
                     'case',
-                    ['==', ['%', ['get', 'depth'], 10], 0],
+                    ['==', ['%', ['get', 'depth'], 5], 0],
                     2,
                     1
                 ],
@@ -635,12 +712,16 @@ async function initializeContourGeneration() {
                 'text-field': ['concat', ['get', 'depth'], 'm'],
                 'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
                 'text-size': 11,
-                'symbol-placement': 'line',
-                'symbol-spacing': 200,
+                'symbol-placement': 'line-center',  // One label per line segment
                 'text-rotation-alignment': 'map',
                 'text-pitch-alignment': 'viewport',
-                'text-max-angle': 30,
-                'text-padding': 10,
+                'text-max-angle': 45,
+                'text-padding': 1,
+                // Prioritize labels at multiples of 5m (lower sort key = higher priority)
+                'symbol-sort-key': ['case',
+                    ['==', ['%', ['get', 'depth'], 5], 0], 0,  // Multiples of 5: highest priority
+                    1  // Others: lower priority
+                ],
                 visibility: state.layerVisibility.contours ? 'visible' : 'none'
             },
             minzoom: Math.min(...Object.keys(CONFIG.CONTOUR_INTERVALS).map(Number))
@@ -722,7 +803,7 @@ async function generateContoursForViewport() {
 
         // Determine resolution
         const isMobile = globalThis.innerWidth <= 768;
-        const baseResolution = isMobile ? 256 : 512;
+        const baseResolution = isMobile ? 256 : 256;
         const targetPixels = Math.min(
             baseResolution * Math.pow(2, Math.max(0, zoom - 15)),
             isMobile ? 1024 : 2048
@@ -747,7 +828,22 @@ async function generateContoursForViewport() {
             resampleMethod: 'linear'
         });
 
-        const elevationGrid = data[0];
+        const rawElevation = data[0];
+
+        // Replace NoData values with NaN so d3.contours ignores them
+        const cleanedGrid = new Float32Array(rawElevation.length);
+        for (let i = 0; i < rawElevation.length; i++) {
+            const val = rawElevation[i];
+            // NoData: fillValue (-9999), actual nodata (1000000), or invalid
+            if (val === -9999 || val >= 1e5 || !Number.isFinite(val)) {
+                cleanedGrid[i] = Number.NaN;
+            } else {
+                cleanedGrid[i] = val;
+            }
+        }
+
+        // Apply gaussian blur to smooth the elevation data for cleaner contours
+        const elevationGrid = smoothElevationGrid(cleanedGrid, width, height, 2);
 
         // Calculate actual extent in Web Mercator
         const actualMinX = imageBbox[0] + (windowLeft / imageWidth) * (imageBbox[2] - imageBbox[0]);
