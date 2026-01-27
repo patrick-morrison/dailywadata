@@ -11,12 +11,15 @@
  * @param {string} options.id - Layer ID
  * @param {string} options.cogUrl - URL to hillshade COG file
  * @param {number} options.opacity - Layer opacity (0-1), default 1.0
+ * @param {boolean} options.deferLoading - If true, don't start COG loading in onAdd;
+ *   call startLoading() explicitly after the map is visible.
  * @returns {CustomLayerInterface}
  */
 function createMultiplyHillshadeLayer(options) {
     const layerId = options.id || 'multiply-hillshade';
     const cogUrl = options.cogUrl;
     let opacity = options.opacity !== undefined ? options.opacity : 1.0;
+    const deferLoading = options.deferLoading || false;
 
     // WebGL resources
     let program = null;
@@ -25,6 +28,7 @@ function createMultiplyHillshadeLayer(options) {
     let texture = null;
     let imageLoaded = false;
     let mapRef = null;
+    let glRef = null;
 
     // Image bounds as [west, south, east, north] in lng/lat (WGS84)
     let boundsLngLat = null;
@@ -117,161 +121,150 @@ function createMultiplyHillshadeLayer(options) {
     }
 
     /**
-     * Load the hillshade COG and create texture
+     * Read rasters at a given resolution and create/replace the WebGL texture.
+     * Returns the GeoTIFF image reference for reuse.
+     */
+    async function readAndCreateTexture(gl, tiff, noDataValue, samplesPerPixel, width, height, label) {
+        console.time(`⏱️ hillshade: readRasters (${label})`);
+        const rasters = await tiff.readRasters({ width, height });
+        console.timeEnd(`⏱️ hillshade: readRasters (${label})`);
+
+        const data = rasters[0];
+        const alphaBand = samplesPerPixel >= 2 ? rasters[samplesPerPixel - 1] : null;
+
+        const checkNoData = (val, alpha) => {
+            if (alpha !== null && alpha === 0) return true;
+            if (!Number.isFinite(val)) return true;
+            if (noDataValue !== null && val === noDataValue) return true;
+            if (noDataValue === null && val === 0) return true;
+            return false;
+        };
+
+        console.time(`⏱️ hillshade: processPixels (${label})`);
+        const isNoData = new Uint8Array(data.length);
+        let pixelData;
+
+        if (data instanceof Uint8Array) {
+            pixelData = data;
+            for (let i = 0; i < data.length; i++) {
+                isNoData[i] = checkNoData(data[i], alphaBand ? alphaBand[i] : null) ? 1 : 0;
+            }
+        } else if (data instanceof Float32Array || data instanceof Float64Array) {
+            pixelData = new Uint8Array(data.length);
+            let min = Infinity, max = -Infinity;
+            for (let i = 0; i < data.length; i++) {
+                isNoData[i] = checkNoData(data[i], alphaBand ? alphaBand[i] : null) ? 1 : 0;
+                if (!isNoData[i]) {
+                    if (data[i] < min) min = data[i];
+                    if (data[i] > max) max = data[i];
+                }
+            }
+            const range = max - min || 1;
+            for (let i = 0; i < data.length; i++) {
+                pixelData[i] = isNoData[i] ? 0 : Math.round(((data[i] - min) / range) * 255);
+            }
+        } else {
+            pixelData = new Uint8Array(data.length);
+            for (let i = 0; i < data.length; i++) {
+                isNoData[i] = checkNoData(data[i], alphaBand ? alphaBand[i] : null) ? 1 : 0;
+                pixelData[i] = Math.min(255, Math.max(0, data[i]));
+            }
+        }
+
+        const rgbaData = new Uint8Array(width * height * 4);
+        for (let i = 0; i < pixelData.length; i++) {
+            const val = pixelData[i];
+            rgbaData[i * 4] = val;
+            rgbaData[i * 4 + 1] = val;
+            rgbaData[i * 4 + 2] = val;
+            rgbaData[i * 4 + 3] = isNoData[i] ? 0 : 255;
+        }
+        console.timeEnd(`⏱️ hillshade: processPixels (${label})`);
+
+        // Create or replace the WebGL texture
+        if (texture) {
+            gl.deleteTexture(texture);
+        }
+        texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgbaData);
+
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        console.log(`Hillshade texture created (${label}): ${width}×${height}`);
+    }
+
+    /**
+     * Load the hillshade COG with progressive quality:
+     * 1. First pass: low-res (~2048px) for instant display
+     * 2. Second pass: full native resolution for crisp detail
      */
     async function loadHillshadeImage(gl) {
         try {
             console.log('Loading hillshade COG:', cogUrl);
-
+            console.time('⏱️ hillshade: GeoTIFF.fromUrl');
             const tiff = await GeoTIFF.fromUrl(cogUrl, {
-                allowFullFile: true,
+                allowFullFile: false,
                 cacheSize: 100
             });
+            console.timeEnd('⏱️ hillshade: GeoTIFF.fromUrl');
 
+            console.time('⏱️ hillshade: getImage');
             const image = await tiff.getImage();
-            const imageBounds = image.getBoundingBox(); // [minX, minY, maxX, maxY] in EPSG:3857
+            console.timeEnd('⏱️ hillshade: getImage');
+            const imageBounds = image.getBoundingBox();
 
             // Convert to lng/lat for precision
             const sw = webMercatorToLngLat(imageBounds[0], imageBounds[1]);
             const ne = webMercatorToLngLat(imageBounds[2], imageBounds[3]);
-            boundsLngLat = [sw[0], sw[1], ne[0], ne[1]]; // [west, south, east, north]
+            boundsLngLat = [sw[0], sw[1], ne[0], ne[1]];
 
-            // Get NoData value from image metadata
             const fileDirectory = image.getFileDirectory();
             const gdalNoData = fileDirectory.GDAL_NODATA;
             const noDataValue = gdalNoData !== undefined ? parseFloat(gdalNoData) : null;
-
-            // Check number of bands - might have an alpha channel
             const samplesPerPixel = image.getSamplesPerPixel();
 
+            const nativeWidth = image.getWidth();
+            const nativeHeight = image.getHeight();
+
             console.log('Hillshade bounds (lng/lat):', boundsLngLat);
-            console.log('NoData value:', noDataValue);
-            console.log('Samples per pixel:', samplesPerPixel);
+            console.log('NoData value:', noDataValue, '| Samples per pixel:', samplesPerPixel);
 
-            // Read the full image data
-            const width = image.getWidth();
-            const height = image.getHeight();
+            // --- Pass 1: Low-res for quick display ---
+            const MAX_DIM_LOW = 2048;
+            const scaleLow = Math.min(1, MAX_DIM_LOW / Math.max(nativeWidth, nativeHeight));
+            const lowWidth = Math.round(nativeWidth * scaleLow);
+            const lowHeight = Math.round(nativeHeight * scaleLow);
 
-            console.log(`Hillshade dimensions: ${width}x${height}`);
-
-            const rasters = await image.readRasters({
-                width: width,
-                height: height
-            });
-
-            // Get the first band (grayscale hillshade)
-            const data = rasters[0];
-            // Check for alpha band (2nd band for grayscale+alpha, or 4th for RGBA)
-            const alphaBand = samplesPerPixel >= 2 ? rasters[samplesPerPixel - 1] : null;
-
-            console.log('Has alpha band:', alphaBand !== null);
-
-            // Track which pixels are NoData
-            const isNoData = new Array(data.length);
-
-            // Helper to check if a value is NoData
-            const checkNoData = (val, alpha) => {
-                // If we have an alpha band, use it
-                if (alpha !== null && alpha === 0) return true;
-                if (!Number.isFinite(val)) return true;
-                if (noDataValue !== null && val === noDataValue) return true;
-                // For hillshades without explicit noData, treat 0 as noData
-                // (pure black is almost never valid hillshade data)
-                if (noDataValue === null && val === 0) return true;
-                return false;
-            };
-
-            // Determine data type and normalize to 0-255
-            let pixelData;
-            if (data instanceof Uint8Array) {
-                pixelData = data;
-                for (let i = 0; i < data.length; i++) {
-                    const alpha = alphaBand ? alphaBand[i] : null;
-                    isNoData[i] = checkNoData(data[i], alpha);
-                }
-            } else if (data instanceof Float32Array || data instanceof Float64Array) {
-                // Normalize float data to 0-255
-                pixelData = new Uint8Array(data.length);
-                let min = Infinity, max = -Infinity;
-                for (let i = 0; i < data.length; i++) {
-                    const alpha = alphaBand ? alphaBand[i] : null;
-                    isNoData[i] = checkNoData(data[i], alpha);
-                    if (!isNoData[i]) {
-                        min = Math.min(min, data[i]);
-                        max = Math.max(max, data[i]);
-                    }
-                }
-                const range = max - min || 1;
-                for (let i = 0; i < data.length; i++) {
-                    if (isNoData[i]) {
-                        pixelData[i] = 0;
-                    } else {
-                        pixelData[i] = Math.round(((data[i] - min) / range) * 255);
-                    }
-                }
-            } else {
-                // Handle other integer types (Int16, Int32, etc.)
-                pixelData = new Uint8Array(data.length);
-                for (let i = 0; i < data.length; i++) {
-                    const alpha = alphaBand ? alphaBand[i] : null;
-                    isNoData[i] = checkNoData(data[i], alpha);
-                    pixelData[i] = Math.min(255, Math.max(0, data[i]));
-                }
-            }
-
-            // Create RGBA texture data (grayscale with alpha)
-            // NoData pixels get alpha = 0, valid pixels get alpha = 255
-            const rgbaData = new Uint8Array(width * height * 4);
-            for (let i = 0; i < pixelData.length; i++) {
-                const val = pixelData[i];
-                rgbaData[i * 4] = val;     // R
-                rgbaData[i * 4 + 1] = val; // G
-                rgbaData[i * 4 + 2] = val; // B
-                rgbaData[i * 4 + 3] = isNoData[i] ? 0 : 255; // A: 0 for NoData, 255 for valid
-            }
-
-            // Create WebGL texture
-            texture = gl.createTexture();
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.texImage2D(
-                gl.TEXTURE_2D,
-                0,
-                gl.RGBA,
-                width,
-                height,
-                0,
-                gl.RGBA,
-                gl.UNSIGNED_BYTE,
-                rgbaData
-            );
-
-            // Set texture parameters
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-
-            // Create buffers (will be updated each frame with fresh coordinates)
+            // Create buffers on first load
             vertexBuffer = gl.createBuffer();
             texCoordBuffer = gl.createBuffer();
-
-            // Set up static texture coordinates
             const texCoords = new Float32Array([
-                // Triangle 1
-                0, 0,  // top-left
-                1, 0,  // top-right
-                0, 1,  // bottom-left
-                // Triangle 2
-                1, 0,  // top-right
-                1, 1,  // bottom-right
-                0, 1   // bottom-left
+                0, 0,  1, 0,  0, 1,
+                1, 0,  1, 1,  0, 1
             ]);
-
             gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
             gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
 
+            console.log(`Hillshade native: ${nativeWidth}×${nativeHeight}`);
+
+            await readAndCreateTexture(gl, tiff, noDataValue, samplesPerPixel, lowWidth, lowHeight, 'low-res');
             imageLoaded = true;
-            console.log('Hillshade texture loaded successfully');
+
+            // Trigger repaint so the low-res version appears immediately
+            if (mapRef) mapRef.triggerRepaint();
+
+            // --- Pass 2: Full native resolution ---
+            // Yield to browser first so the low-res frame renders
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            await readAndCreateTexture(gl, tiff, noDataValue, samplesPerPixel, nativeWidth, nativeHeight, 'full-res');
+
+            // Trigger repaint to swap in the high-res texture
+            if (mapRef) mapRef.triggerRepaint();
 
         } catch (error) {
             console.error('Failed to load hillshade COG:', error);
@@ -325,6 +318,7 @@ function createMultiplyHillshadeLayer(options) {
          */
         onAdd(map, gl) {
             mapRef = map;
+            glRef = gl;
 
             // Create shader program
             program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
@@ -341,10 +335,22 @@ function createMultiplyHillshadeLayer(options) {
             program.uHillshade = gl.getUniformLocation(program, 'u_hillshade');
             program.uOpacity = gl.getUniformLocation(program, 'u_opacity');
 
-            // Load the hillshade image asynchronously
-            loadHillshadeImage(gl).then(() => {
-                map.triggerRepaint();
-            });
+            // Load immediately unless deferred
+            if (!deferLoading) {
+                loadHillshadeImage(gl).then(() => {
+                    map.triggerRepaint();
+                });
+            }
+        },
+
+        /**
+         * Explicitly start loading the hillshade COG.
+         * Call this after the map is visible when deferLoading=true.
+         */
+        startLoading() {
+            if (glRef && mapRef && !imageLoaded) {
+                loadHillshadeImage(glRef);
+            }
         },
 
         /**
@@ -356,6 +362,7 @@ function createMultiplyHillshadeLayer(options) {
             if (texCoordBuffer) gl.deleteBuffer(texCoordBuffer);
             if (texture) gl.deleteTexture(texture);
             mapRef = null;
+            glRef = null;
         },
 
         /**

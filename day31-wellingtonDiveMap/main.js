@@ -59,6 +59,8 @@ const CONFIG = {
     // Bathymetry COG files
     BATHY_COG: 'merged_bathy_cog.tif',
     HILLSHADE_COG: 'hillshade_cog.tif',
+    // Pre-processed contour source: 2048×4764 base with overview pyramids, pre-smoothed
+    CONTOUR_COG: 'contour_source.tif',
 
     // Water level configuration (from calibrated volume model)
     // Update CURRENT_STORAGE_GL to recalculate water level automatically
@@ -120,8 +122,11 @@ const state = {
     activePopup: null,
     surveyData: {},      // Survey line GeoJSON data by filename
     contoursCache: new Map(),
-    isGeneratingContours: false,
-    geoTiffImage: null,  // Bathymetry GeoTIFF reference for contour generation
+    contourLowRes: null,  // Pre-loaded {grid, width, height, bbox} from contour_source.tif overview
+    contourTiff: null,    // GeoTIFF object ref for high-res viewport reads
+    contourNoData: -9999, // NoData value from contour source
+    contourBbox: null,    // Full extent bbox [minX, minY, maxX, maxY] EPSG:3857
+    contourGenToken: 0,   // Counter for cancelling stale async reads
     hillshadeLayer: null, // Custom WebGL hillshade layer reference
 
     // Water level control state
@@ -313,86 +318,11 @@ function debounce(func, wait) {
     };
 }
 
-/**
- * Apply gaussian blur to elevation grid for smoother contours
- * Preserves NaN values (NoData) and doesn't blur across them
- */
-function smoothElevationGrid(grid, width, height, radius) {
-    const result = new Float32Array(grid.length);
-
-    // Gaussian kernel weights for the given radius
-    const kernel = [];
-    const sigma = radius / 2;
-    let sum = 0;
-    for (let i = -radius; i <= radius; i++) {
-        const weight = Math.exp(-(i * i) / (2 * sigma * sigma));
-        kernel.push(weight);
-        sum += weight;
-    }
-    // Normalize kernel
-    for (let i = 0; i < kernel.length; i++) {
-        kernel[i] /= sum;
-    }
-
-    // Horizontal pass
-    const temp = new Float32Array(grid.length);
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            const idx = y * width + x;
-            if (Number.isNaN(grid[idx])) {
-                temp[idx] = Number.NaN;
-                continue;
-            }
-
-            let value = 0;
-            let weightSum = 0;
-            for (let k = -radius; k <= radius; k++) {
-                const nx = x + k;
-                if (nx >= 0 && nx < width) {
-                    const nidx = y * width + nx;
-                    if (!Number.isNaN(grid[nidx])) {
-                        const weight = kernel[k + radius];
-                        value += grid[nidx] * weight;
-                        weightSum += weight;
-                    }
-                }
-            }
-            temp[idx] = weightSum > 0 ? value / weightSum : grid[idx];
-        }
-    }
-
-    // Vertical pass
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            const idx = y * width + x;
-            if (Number.isNaN(temp[idx])) {
-                result[idx] = Number.NaN;
-                continue;
-            }
-
-            let value = 0;
-            let weightSum = 0;
-            for (let k = -radius; k <= radius; k++) {
-                const ny = y + k;
-                if (ny >= 0 && ny < height) {
-                    const nidx = ny * width + x;
-                    if (!Number.isNaN(temp[nidx])) {
-                        const weight = kernel[k + radius];
-                        value += temp[nidx] * weight;
-                        weightSum += weight;
-                    }
-                }
-            }
-            result[idx] = weightSum > 0 ? value / weightSum : temp[idx];
-        }
-    }
-
-    return result;
-}
-
 // ============================================
 // Map Initialization
 // ============================================
+
+console.time('⏱️ SCRIPT START → map load event');
 
 // Register COG protocol for bathymetry raster
 maplibregl.addProtocol('cog', MaplibreCOGProtocol.cogProtocol);
@@ -490,7 +420,12 @@ function setupBathymetryColorFunction() {
     });
 }
 
-async function addBathymetryLayers() {
+/**
+ * Register bathymetry source/layer and hillshade layer on the map.
+ * The hillshade layer is added but its heavy COG loading is deferred
+ * until startHillshadeLoading() is called so it doesn't block rendering.
+ */
+function addBathymetryLayers() {
     // Set up color function (will read water level dynamically)
     setupBathymetryColorFunction();
 
@@ -515,12 +450,14 @@ async function addBathymetryLayers() {
             }
         });
 
-        // Add custom WebGL hillshade layer with multiply blend mode
-        // This renders on top of bathymetry and darkens shadowed areas
+        // Add custom WebGL hillshade layer with multiply blend mode.
+        // The layer is registered now but deferLoading=true prevents the
+        // heavy COG read from starting until we explicitly trigger it.
         state.hillshadeLayer = createMultiplyHillshadeLayer({
             id: 'hillshade-layer',
             cogUrl: CONFIG.HILLSHADE_COG,
             opacity: 1.0
+            //deferLoading: true
         });
 
         map.addLayer(state.hillshadeLayer);
@@ -661,87 +598,207 @@ async function loadSurveyLines() {
 // Contour Generation
 // ============================================
 
+/**
+ * Set up contour source/layers on the map (synchronous, fast).
+ * Must be called after survey lines are added so we can insert before them.
+ */
+function setupContourLayers() {
+    // Add empty contours source
+    map.addSource('contours-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+    });
+
+    // Add contour line layer
+    map.addLayer({
+        id: 'contours-layer',
+        type: 'line',
+        source: 'contours-source',
+        paint: {
+            'line-color': CONFIG.CONTOUR_COLOR,
+            'line-width': [
+                'case',
+                ['==', ['%', ['get', 'depth'], 5], 0],
+                2,
+                1
+            ],
+            'line-opacity': 0.6
+        },
+        layout: {
+            visibility: state.layerVisibility.contours ? 'visible' : 'none'
+        },
+        minzoom: Math.min(...Object.keys(CONFIG.CONTOUR_INTERVALS).map(Number))
+    }, 'survey-lines-layer');
+
+    // Add contour labels
+    map.addLayer({
+        id: 'contours-labels',
+        type: 'symbol',
+        source: 'contours-source',
+        paint: {
+            'text-color': CONFIG.CONTOUR_COLOR,
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 2,
+            'text-opacity': 0.9
+        },
+        layout: {
+            'text-field': ['concat', ['get', 'depth'], 'm'],
+            'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+            'text-size': 11,
+            'symbol-placement': 'line-center',
+            'text-rotation-alignment': 'map',
+            'text-pitch-alignment': 'viewport',
+            'text-max-angle': 45,
+            'text-padding': 1,
+            'symbol-sort-key': ['case',
+                ['==', ['%', ['get', 'depth'], 5], 0], 0,
+                1
+            ],
+            visibility: state.layerVisibility.contours ? 'visible' : 'none'
+        },
+        minzoom: Math.min(...Object.keys(CONFIG.CONTOUR_INTERVALS).map(Number))
+    }, 'survey-lines-layer');
+
+    // Regenerate contours on map movement (after debounce)
+    map.on('moveend', debounce(generateContoursForViewport, 300));
+}
+
+/**
+ * Load the pre-processed contour source (small, pre-smoothed) and read the
+ * entire grid into memory once. This replaces the expensive per-viewport
+ * readRasters from the full bathymetry COG.
+ * Designed to run in the background — does NOT block loading overlay.
+ */
 async function initializeContourGeneration() {
     try {
-        const tiff = await GeoTIFF.fromUrl(CONFIG.BATHY_COG, {
-            allowFullFile: false,
+        console.time('⏱️ contour: load contour source');
+        const tiff = await GeoTIFF.fromUrl(CONFIG.CONTOUR_COG, {
+            allowFullFile: false,  // File is now ~2-4MB with overviews, use range requests
             cacheSize: 100
         });
 
-        state.geoTiffImage = await tiff.getImage();
+        // Store tiff reference for high-zoom viewport reads
+        state.contourTiff = tiff;
 
-        // Add empty contours source
-        map.addSource('contours-source', {
-            type: 'geojson',
-            data: { type: 'FeatureCollection', features: [] }
-        });
+        const image = await tiff.getImage();
+        const nativeWidth = image.getWidth();
+        const nativeHeight = image.getHeight();
+        const bbox = image.getBoundingBox(); // [minX, minY, maxX, maxY] EPSG:3857
+        const noData = image.getFileDirectory().GDAL_NODATA;
+        const noDataValue = noData !== undefined ? parseFloat(noData) : -9999;
 
-        // Add contour line layer
-        map.addLayer({
-            id: 'contours-layer',
-            type: 'line',
-            source: 'contours-source',
-            paint: {
-                'line-color': CONFIG.CONTOUR_COLOR,
-                'line-width': [
-                    'case',
-                    ['==', ['%', ['get', 'depth'], 5], 0],
-                    2,
-                    1
-                ],
-                'line-opacity': 0.6
-            },
-            layout: {
-                visibility: state.layerVisibility.contours ? 'visible' : 'none'
-            },
-            minzoom: Math.min(...Object.keys(CONFIG.CONTOUR_INTERVALS).map(Number))
-        }, 'survey-lines-layer');
+        state.contourNoData = noDataValue;
+        state.contourBbox = bbox;
 
-        // Add contour labels
-        map.addLayer({
-            id: 'contours-labels',
-            type: 'symbol',
-            source: 'contours-source',
-            paint: {
-                'text-color': CONFIG.CONTOUR_COLOR,
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 2,
-                'text-opacity': 0.9
-            },
-            layout: {
-                'text-field': ['concat', ['get', 'depth'], 'm'],
-                'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-                'text-size': 11,
-                'symbol-placement': 'line-center',  // One label per line segment
-                'text-rotation-alignment': 'map',
-                'text-pitch-alignment': 'viewport',
-                'text-max-angle': 45,
-                'text-padding': 1,
-                // Prioritize labels at multiples of 5m (lower sort key = higher priority)
-                'symbol-sort-key': ['case',
-                    ['==', ['%', ['get', 'depth'], 5], 0], 0,  // Multiples of 5: highest priority
-                    1  // Others: lower priority
-                ],
-                visibility: state.layerVisibility.contours ? 'visible' : 'none'
-            },
-            minzoom: Math.min(...Object.keys(CONFIG.CONTOUR_INTERVALS).map(Number))
-        }, 'survey-lines-layer');
+        // Read smallest overview into memory (~512×1191) for fast sync contours at low zoom
+        // tiff.readRasters auto-selects the best overview for the requested size
+        const lowWidth = Math.round(nativeWidth / 4);
+        const lowHeight = Math.round(nativeHeight / 4);
+        const rasters = await tiff.readRasters({ width: lowWidth, height: lowHeight });
+        const rawGrid = rasters[0];
 
-        // Generate initial contours
-        if (map.getZoom() >= Math.min(...Object.keys(CONFIG.CONTOUR_INTERVALS).map(Number))) {
-            await generateContoursForViewport();
+        // Clean NoData → NaN
+        const grid = new Float32Array(rawGrid.length);
+        for (let i = 0; i < rawGrid.length; i++) {
+            const val = rawGrid[i];
+            if (val === noDataValue || val >= 1e5 || !Number.isFinite(val)) {
+                grid[i] = Number.NaN;
+            } else {
+                grid[i] = val;
+            }
         }
 
-        // Regenerate on map movement
-        map.on('moveend', debounce(generateContoursForViewport, 300));
+        // Store low-res overview for sync contour generation
+        state.contourLowRes = { grid, width: lowWidth, height: lowHeight, bbox };
+        console.timeEnd('⏱️ contour: load contour source');
+        console.log(`Contour source loaded: native ${nativeWidth}×${nativeHeight}, low-res ${lowWidth}×${lowHeight}, ${(rawGrid.length * 4 / 1024).toFixed(0)}KB`);
+
+        // Generate initial contours now that the data is ready
+        if (map.getZoom() >= Math.min(...Object.keys(CONFIG.CONTOUR_INTERVALS).map(Number))) {
+            console.time('⏱️ contour: generateContoursForViewport (initial)');
+            generateContoursForViewport();
+            console.timeEnd('⏱️ contour: generateContoursForViewport (initial)');
+        }
 
     } catch (error) {
         console.error('Failed to initialize contour generation:', error);
     }
 }
 
-async function generateContoursForViewport() {
-    if (state.isGeneratingContours || !state.geoTiffImage) return;
+/**
+ * Web Mercator to WGS84 conversion
+ */
+function webMercatorToLngLat(x, y) {
+    const lng = (x / 20037508.34) * 180;
+    let lat = (y / 20037508.34) * 180;
+    lat = (180 / Math.PI) * (2 * Math.atan(Math.exp((lat * Math.PI) / 180)) - Math.PI / 2);
+    return [lng, lat];
+}
+
+/**
+ * WGS84 to Web Mercator conversion
+ */
+function lngLatToWebMercator(lng, lat) {
+    const x = (lng / 180) * 20037508.34;
+    const y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180);
+    return [x, (y / 180) * 20037508.34];
+}
+
+/**
+ * Generate contour GeoJSON from a grid + bbox
+ */
+function generateContourGeoJSON(grid, width, height, bbox, waterLevel, interval) {
+    const maxContourDepth = Math.round(waterLevel - CONFIG.MIN_ELEVATION_AHD);
+    const thresholds = [];
+    for (let depth = interval; depth <= maxContourDepth; depth += interval) {
+        const ahdLevel = waterLevel - depth;
+        if (ahdLevel >= CONFIG.MIN_ELEVATION_AHD) {
+            thresholds.push(ahdLevel);
+        }
+    }
+
+    const contourGenerator = d3.contours()
+        .size([width, height])
+        .thresholds(thresholds)
+        .smooth(true);
+
+    const contourMultiPolygons = contourGenerator(grid);
+    const features = [];
+
+    for (const multiPolygon of contourMultiPolygons) {
+        if (multiPolygon.coordinates.length === 0) continue;
+
+        const ahdLevel = multiPolygon.value;
+        const depth = Math.round(waterLevel - ahdLevel);
+        if (depth <= 0) continue;
+
+        for (const polygon of multiPolygon.coordinates) {
+            for (const ring of polygon) {
+                if (ring.length < 10) continue;
+
+                const geoCoords = ring.map(([x, y]) => {
+                    const mercatorX = bbox[0] + (x / width) * (bbox[2] - bbox[0]);
+                    const mercatorY = bbox[3] - (y / height) * (bbox[3] - bbox[1]);
+                    return webMercatorToLngLat(mercatorX, mercatorY);
+                });
+
+                features.push({
+                    type: 'Feature',
+                    properties: { depth, ahdLevel, interval },
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: geoCoords
+                    }
+                });
+            }
+        }
+    }
+
+    return { type: 'FeatureCollection', features };
+}
+
+function generateContoursForViewport() {
+    if (!state.contourLowRes) return;
     if (!state.layerVisibility.contours) return;
 
     const zoom = Math.floor(map.getZoom());
@@ -759,207 +816,137 @@ async function generateContoursForViewport() {
         }
     }
 
-    // Check cache
-    const cacheKey = `${zoom}-${interval}-${bounds.toString()}`;
+    const waterLevel = getActiveWaterLevel();
+    const tier = zoom >= 16 ? 'hi' : 'lo';
+    const cacheKey = `${tier}-${zoom}-${interval}-${waterLevel.toFixed(1)}-${bounds.toString()}`;
+
     if (state.contoursCache.has(cacheKey)) {
         map.getSource('contours-source').setData(state.contoursCache.get(cacheKey));
         return;
     }
 
-    state.isGeneratingContours = true;
-    document.getElementById('contours-loading')?.classList.add('active');
+    if (zoom < 16) {
+        // Synchronous: use cached low-res grid
+        console.time('⏱️ contour: generate (low-res)');
+        try {
+            const { grid, width, height, bbox } = state.contourLowRes;
+            const geojson = generateContourGeoJSON(grid, width, height, bbox, waterLevel, interval);
+
+            if (map.getSource('contours-source')) {
+                map.getSource('contours-source').setData(geojson);
+            }
+
+            if (state.contoursCache.size > 20) {
+                const firstKey = state.contoursCache.keys().next().value;
+                state.contoursCache.delete(firstKey);
+            }
+            state.contoursCache.set(cacheKey, geojson);
+        } catch (error) {
+            console.error('Failed to generate contours (low-res):', error);
+        }
+        console.timeEnd('⏱️ contour: generate (low-res)');
+    } else {
+        // First show low-res contours immediately, then async fetch hi-res
+        try {
+            const { grid, width, height, bbox } = state.contourLowRes;
+            const loGeojson = generateContourGeoJSON(grid, width, height, bbox, waterLevel, interval);
+            if (map.getSource('contours-source')) {
+                map.getSource('contours-source').setData(loGeojson);
+            }
+        } catch (e) {
+            // Non-critical, hi-res will replace
+        }
+
+        // Async high-res viewport read
+        generateHighResContours(bounds, waterLevel, interval, cacheKey);
+    }
+}
+
+/**
+ * Async high-resolution contour generation for zoom >= 16.
+ * Reads only the viewport extent from the COG at appropriate resolution.
+ */
+async function generateHighResContours(bounds, waterLevel, interval, cacheKey) {
+    if (!state.contourTiff || !state.contourBbox) return;
+
+    const token = ++state.contourGenToken;
 
     try {
-        const imageBbox = state.geoTiffImage.getBoundingBox();
-        const imageWidth = state.geoTiffImage.getWidth();
-        const imageHeight = state.geoTiffImage.getHeight();
+        console.time('⏱️ contour: generate (hi-res)');
 
-        // WGS84 to Web Mercator
-        const lngLatToWebMercator = (lng, lat) => {
-            const x = (lng * 20037508.34) / 180;
-            let y = Math.log(Math.tan(((90 + lat) * Math.PI) / 360)) / (Math.PI / 180);
-            y = (y * 20037508.34) / 180;
-            return [x, y];
-        };
+        // Convert map viewport bounds from WGS84 → EPSG:3857
+        const sw = lngLatToWebMercator(bounds.getWest(), bounds.getSouth());
+        const ne = lngLatToWebMercator(bounds.getEast(), bounds.getNorth());
 
-        const [minX, minY] = lngLatToWebMercator(bounds.getWest(), bounds.getSouth());
-        const [maxX, maxY] = lngLatToWebMercator(bounds.getEast(), bounds.getNorth());
+        // Clamp to contour source extent
+        const [srcMinX, srcMinY, srcMaxX, srcMaxY] = state.contourBbox;
+        const bboxMinX = Math.max(sw[0], srcMinX);
+        const bboxMinY = Math.max(sw[1], srcMinY);
+        const bboxMaxX = Math.min(ne[0], srcMaxX);
+        const bboxMaxY = Math.min(ne[1], srcMaxY);
 
-        const bufferX = (maxX - minX) * 0.5;
-        const bufferY = (maxY - minY) * 0.5;
-
-        // Calculate pixel window
-        const left = Math.floor(((minX - bufferX - imageBbox[0]) / (imageBbox[2] - imageBbox[0])) * imageWidth);
-        const right = Math.ceil(((maxX + bufferX - imageBbox[0]) / (imageBbox[2] - imageBbox[0])) * imageWidth);
-        const top = Math.floor(((imageBbox[3] - (maxY + bufferY)) / (imageBbox[3] - imageBbox[1])) * imageHeight);
-        const bottom = Math.ceil(((imageBbox[3] - (minY - bufferY)) / (imageBbox[3] - imageBbox[1])) * imageHeight);
-
-        const windowLeft = Math.max(0, left);
-        const windowTop = Math.max(0, top);
-        const windowRight = Math.min(imageWidth, right);
-        const windowBottom = Math.min(imageHeight, bottom);
-        const windowWidth = windowRight - windowLeft;
-        const windowHeight = windowBottom - windowTop;
-
-        // Determine resolution
-        const isMobile = globalThis.innerWidth <= 768;
-        const baseResolution = isMobile ? 256 : 256;
-        const targetPixels = Math.min(
-            baseResolution * Math.pow(2, Math.max(0, zoom - 15)),
-            isMobile ? 1024 : 2048
-        );
-
-        const aspectRatio = windowWidth / windowHeight;
-        let width, height;
-        if (aspectRatio > 1) {
-            width = targetPixels;
-            height = Math.floor(targetPixels / aspectRatio);
-        } else {
-            height = targetPixels;
-            width = Math.floor(targetPixels * aspectRatio);
+        // Skip if viewport doesn't overlap the source
+        if (bboxMinX >= bboxMaxX || bboxMinY >= bboxMaxY) {
+            console.timeEnd('⏱️ contour: generate (hi-res)');
+            return;
         }
 
-        // Read elevation data
-        const data = await state.geoTiffImage.readRasters({
-            window: [windowLeft, windowTop, windowRight, windowBottom],
-            width,
-            height,
-            fillValue: -9999,
-            resampleMethod: 'linear'
+        const bbox = [bboxMinX, bboxMinY, bboxMaxX, bboxMaxY];
+
+        // Calculate resolution: ~1 pixel per 2m for detailed contours
+        const resX = 2.0;  // 2 metres per pixel
+        const resY = 2.0;
+
+        const rasters = await state.contourTiff.readRasters({
+            bbox,
+            resX,
+            resY
         });
 
-        const rawElevation = data[0];
+        // Check if this read is stale
+        if (token !== state.contourGenToken) {
+            console.timeEnd('⏱️ contour: generate (hi-res)');
+            return;
+        }
 
-        // Replace NoData values with NaN so d3.contours ignores them
-        const cleanedGrid = new Float32Array(rawElevation.length);
-        for (let i = 0; i < rawElevation.length; i++) {
-            const val = rawElevation[i];
-            // NoData: fillValue (-9999), actual nodata (1000000), or invalid
-            if (val === -9999 || val >= 1e5 || !Number.isFinite(val)) {
-                cleanedGrid[i] = Number.NaN;
+        const rawGrid = rasters[0];
+        const width = rasters.width;
+        const height = rasters.height;
+
+        // Clean NoData → NaN
+        const grid = new Float32Array(rawGrid.length);
+        const noDataValue = state.contourNoData;
+        for (let i = 0; i < rawGrid.length; i++) {
+            const val = rawGrid[i];
+            if (val === noDataValue || val >= 1e5 || !Number.isFinite(val)) {
+                grid[i] = Number.NaN;
             } else {
-                cleanedGrid[i] = val;
+                grid[i] = val;
             }
         }
 
-        // Apply gaussian blur to smooth the elevation data for cleaner contours
-        const elevationGrid = smoothElevationGrid(cleanedGrid, width, height, 2);
-
-        // Calculate actual extent in Web Mercator
-        const actualMinX = imageBbox[0] + (windowLeft / imageWidth) * (imageBbox[2] - imageBbox[0]);
-        const actualMaxX = imageBbox[0] + (windowRight / imageWidth) * (imageBbox[2] - imageBbox[0]);
-        const actualMaxY = imageBbox[3] - (windowTop / imageHeight) * (imageBbox[3] - imageBbox[1]);
-        const actualMinY = imageBbox[3] - (windowBottom / imageHeight) * (imageBbox[3] - imageBbox[1]);
-
-        // Generate depth contour thresholds (converted to AHD elevations)
-        // Contours at depths: 5m, 10m, 15m, 20m, 25m, 30m
-        // AHD = water_level - depth
-        const waterLevel = getActiveWaterLevel();
-        const maxContourDepth = Math.round(waterLevel - CONFIG.MIN_ELEVATION_AHD);
-        const thresholds = [];
-        for (let depth = interval; depth <= maxContourDepth; depth += interval) {
-            const ahdLevel = waterLevel - depth;
-            if (ahdLevel >= CONFIG.MIN_ELEVATION_AHD) {
-                thresholds.push(ahdLevel);
-            }
+        // Check stale again after processing
+        if (token !== state.contourGenToken) {
+            console.timeEnd('⏱️ contour: generate (hi-res)');
+            return;
         }
 
-        // Generate contours
-        const contourGenerator = d3.contours()
-            .size([width, height])
-            .thresholds(thresholds)
-            .smooth(true);
-
-        const contourMultiPolygons = contourGenerator(elevationGrid);
-
-        // Web Mercator to WGS84
-        const webMercatorToLngLat = (x, y) => {
-            const lng = (x / 20037508.34) * 180;
-            let lat = (y / 20037508.34) * 180;
-            lat = (180 / Math.PI) * (2 * Math.atan(Math.exp((lat * Math.PI) / 180)) - Math.PI / 2);
-            return [lng, lat];
-        };
-
-        // Convert to GeoJSON features
-        const features = [];
-        const viewportMinX = lngLatToWebMercator(bounds.getWest(), bounds.getSouth())[0];
-        const viewportMaxX = lngLatToWebMercator(bounds.getEast(), bounds.getNorth())[0];
-        const viewportMinY = lngLatToWebMercator(bounds.getWest(), bounds.getSouth())[1];
-        const viewportMaxY = lngLatToWebMercator(bounds.getEast(), bounds.getNorth())[1];
-
-        for (const multiPolygon of contourMultiPolygons) {
-            if (multiPolygon.coordinates.length === 0) continue;
-
-            const ahdLevel = multiPolygon.value;
-            const depth = Math.round(waterLevel - ahdLevel);
-
-            // Skip invalid depths
-            if (depth <= 0) continue;
-
-            for (const polygon of multiPolygon.coordinates) {
-                for (const ring of polygon) {
-                    // Skip very small rings (noise)
-                    if (ring.length < 10) continue;
-
-                    // Transform to geographic coordinates
-                    const geoCoords = ring.map(([x, y]) => {
-                        const mercatorX = actualMinX + (x / width) * (actualMaxX - actualMinX);
-                        const mercatorY = actualMaxY - (y / height) * (actualMaxY - actualMinY);
-                        return webMercatorToLngLat(mercatorX, mercatorY);
-                    });
-
-                    // Filter contours entirely outside viewport
-                    const margin = (viewportMaxX - viewportMinX) * 0.01;
-                    let hasInteriorPoint = false;
-
-                    for (const [lng, lat] of geoCoords) {
-                        const [mx, my] = lngLatToWebMercator(lng, lat);
-                        if (mx > viewportMinX + margin && mx < viewportMaxX - margin &&
-                            my > viewportMinY + margin && my < viewportMaxY - margin) {
-                            hasInteriorPoint = true;
-                            break;
-                        }
-                    }
-
-                    if (!hasInteriorPoint) continue;
-
-                    features.push({
-                        type: 'Feature',
-                        properties: {
-                            depth: depth,
-                            ahdLevel: ahdLevel,
-                            interval
-                        },
-                        geometry: {
-                            type: 'LineString',
-                            coordinates: geoCoords
-                        }
-                    });
-                }
-            }
-        }
-
-        const geojson = {
-            type: 'FeatureCollection',
-            features
-        };
+        const geojson = generateContourGeoJSON(grid, width, height, bbox, waterLevel, interval);
 
         if (map.getSource('contours-source')) {
             map.getSource('contours-source').setData(geojson);
         }
 
-        // Cache
+        // Cache with limit
         if (state.contoursCache.size > 20) {
             const firstKey = state.contoursCache.keys().next().value;
             state.contoursCache.delete(firstKey);
         }
         state.contoursCache.set(cacheKey, geojson);
 
+        console.timeEnd('⏱️ contour: generate (hi-res)');
     } catch (error) {
-        console.error('Failed to generate contours:', error);
-    } finally {
-        state.isGeneratingContours = false;
-        document.getElementById('contours-loading')?.classList.remove('active');
+        console.error('Failed to generate contours (hi-res):', error);
     }
 }
 
@@ -1435,7 +1422,7 @@ function onWaterLevelChange() {
     refreshBathymetryTiles();
 
     // Regenerate contours for current view
-    if (state.geoTiffImage && state.layerVisibility.contours) {
+    if (state.contourLowRes && state.layerVisibility.contours) {
         generateContoursForViewport();
     }
 }
@@ -1488,24 +1475,22 @@ function initializeWaterLevelControls() {
 // ============================================
 
 map.on('load', async () => {
+    console.timeEnd('⏱️ SCRIPT START → map load event');
+    console.time('⏱️ TOTAL MAP INITIALIZATION');
     try {
         // Initialize water level controls first
         initializeWaterLevelControls();
-
-        // Initialize depth gradient legend
         initializeDepthGradient();
-
-        // Update water level display
         updateWaterLevelDisplay();
 
-        // Add bathymetry layers
-        await addBathymetryLayers();
+        // Add bathymetry + hillshade layers (synchronous — just registers sources/layers)
+        addBathymetryLayers();
 
-        // Load survey lines
+        // Load survey lines (small CSV fetches)
         await loadSurveyLines();
 
-        // Initialize contour generation
-        await initializeContourGeneration();
+        // Set up contour source/layers (synchronous, needs survey lines first for z-order)
+        setupContourLayers();
 
         // Initialize UI handlers
         initializeMeasureTool();
@@ -1514,8 +1499,27 @@ map.on('load', async () => {
         initializeLegendToggles();
         initializeMobileToggle();
 
-        // Hide loading overlay
+        // Hide loading overlay immediately — map is interactive now
         document.getElementById('loading').classList.add('hidden');
+        console.timeEnd('⏱️ TOTAL MAP INITIALIZATION');
+
+        // Force a render frame so MapLibre draws the bathymetry tiles
+        map.triggerRepaint();
+
+        // Use requestAnimationFrame to yield to the browser before starting
+        // heavy background work — this ensures the map actually paints first.
+        requestAnimationFrame(() => {
+            // Start hillshade COG loading in background
+            if (state.hillshadeLayer && state.hillshadeLayer.startLoading) {
+                state.hillshadeLayer.startLoading();
+            }
+
+            // Start contour COG loading + initial generation in background
+            console.time('⏱️ initializeContourGeneration (background)');
+            initializeContourGeneration().then(() => {
+                console.timeEnd('⏱️ initializeContourGeneration (background)');
+            });
+        });
 
     } catch (error) {
         console.error('Error loading map:', error);
