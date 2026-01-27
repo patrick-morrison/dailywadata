@@ -18,12 +18,16 @@ renderer.xr.setReferenceSpaceType('local'); // Explicitly request local space fo
 // Initialize SparkRenderer to configure global splat settings
 // SparkRenderer must be added to the scene to function correctly
 const spark = new SparkRenderer({ renderer, maxStdDev: Math.sqrt(5) });
+// Dilate splats to fill gaps ("black splotches") caused by lower point count
+spark.splatScale = 5.0;
 scene.add(spark);
 
 let controls;
 let currentSplat = null;
 let splatGroup = new THREE.Group();
 let animationFrameId = null; // Track animation to allow cancellation
+let placementPending = false;
+let currentLoadId = 0; // Fixes ReferenceError by initializing before use
 scene.add(splatGroup);
 
 init();
@@ -36,12 +40,51 @@ function init() {
     renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
     canvasContainer.appendChild(renderer.domElement);
 
-    // Setup AR Button
+    // 4. Setup XR Controllers for Input
+    const controller1 = renderer.xr.getController(0);
+    controller1.addEventListener('select', onControllerSelect);
+    controller1.addEventListener('connected', function (event) {
+        this.userData.handedness = event.data.handedness;
+        console.log("Controller 0 connected:", this.userData.handedness);
+    });
+    scene.add(controller1);
+
+    const controller2 = renderer.xr.getController(1);
+    controller2.addEventListener('select', onControllerSelect);
+    controller2.addEventListener('connected', function (event) {
+        this.userData.handedness = event.data.handedness;
+        console.log("Controller 1 connected:", this.userData.handedness);
+    });
+    scene.add(controller2);
+
+    // 5. Setup AR Button
     const arButton = ARButton.createButton(renderer, {
         requiredFeatures: ['hit-test'],
         optionalFeatures: ['dom-overlay', 'local-floor'],
         domOverlay: { root: document.body }
     });
+
+    // ... (rest of AR Button setup)
+
+    // ...
+
+    function onControllerSelect(event) {
+        const controller = event.target;
+        const handedness = controller.userData.handedness;
+
+        console.log("Select event on controller:", handedness);
+
+        if (handedness === 'left') {
+            navigateImages(-1);
+        } else if (handedness === 'right') {
+            navigateImages(1);
+        } else {
+            // Fallback or unknown
+            console.warn("Unknown handedness for select event");
+            // Maybe default to next?
+            navigateImages(1);
+        }
+    }
 
     // Wrap in container for better styling control
     const arContainer = document.createElement('div');
@@ -97,15 +140,21 @@ function init() {
         // We'll put it at eye level (approx) if using local-floor, or just in front if local.
         // Let's assume standard 'local' or 'viewer' relative start.
         // Position it floating in front of user
-        // User requested "start me half a metre closer"
-        // Previous: -0.3. +0.5 = 0.2.
-        splatGroup.position.set(0, 0, 0.2);
-        splatGroup.rotation.set(0, 0, 0); // Ensure it's facing camera? 
-        // Note: Splat is already rotated Math.PI in X in loadSplat logic... wait.
+        // User requested "start me half a metre closer" -> +0.5 shift (from -0.3 to 0.2)
+        // Now requested "2m closer" -> +2.0 shift (from 0.2 to 2.2)
+        // Position it floating in front of user
+        // Reverting to simple fixed placement relative to usage start (local space)
+        splatGroup.position.set(0, 0, 1.2);
+        splatGroup.rotation.set(0, 0, 0);
 
         statusText.textContent = "AR Mode Active";
         // Hide UI overlay if needed, but we have dom-overlay enabled.
         document.getElementById('ui-overlay').style.display = 'none';
+
+        // Listen for controller inputs (Left=Prev, Right=Next)
+        // inputSource.handedness: 'left' or 'right'
+        // 'select' event corresponds to Trigger/Pinch release. 'selectstart' for press.
+        // Using 'select' for singular action.
     });
 
     renderer.xr.addEventListener('sessionend', () => {
@@ -178,31 +227,23 @@ function onResize() {
 }
 
 function populateFileList() {
-    const files = [
-        '0998a351f324ac04274450514652acfe9d60a7a8.sog',
-        '314779PD-Fountain-at-the-centre-of-the-Galleria-shopping-centre-Morley-December-1994.sog',
-        '34c3f7e17af1866883c8ee86154c0a4a32f2b193-16x9-x0y84w1506h847.sog',
-        '371964PD-The-lobby-and-the-Candy-Bar-at-Greater-Union-cinemas-at-the-Galleria-Morley-6-October-1998--2.sog',
-        '73e62709f924fc6f9bcf50fe03c297109e3f8fba.sog'
-    ];
+    const totalImages = 128; // We have 128 images now
 
-    const fileMap = {
-        '314779PD-Fountain-at-the-centre-of-the-Galleria-shopping-centre-Morley-December-1994.sog': 'Fountain at Galleria Morley - 1994 - 314779PD',
-        '371964PD-The-lobby-and-the-Candy-Bar-at-Greater-Union-cinemas-at-the-Galleria-Morley-6-October-1998--2.sog': 'Greater Union Lobby - 1998 - 371964PD',
-        '34c3f7e17af1866883c8ee86154c0a4a32f2b193-16x9-x0y84w1506h847.sog': 'Subiaco at Night - 1980 - PD0183', // Inferred from user request
-        '0998a351f324ac04274450514652acfe9d60a7a8.sog': 'Historical Street View - Image 1',
-        '73e62709f924fc6f9bcf50fe03c297109e3f8fba.sog': 'Historical Building - Image 2'
-    };
+    // Clear existing options if any (though usually empty on init)
+    imageSelect.innerHTML = '';
 
-    files.forEach((file, index) => {
+    for (let i = 1; i <= totalImages; i++) {
+        const fileName = `${i}.sog`;
         const option = document.createElement('option');
-        option.value = `./splats/${file}`;
-        option.textContent = fileMap[file] || `Image ${index + 1}`;
-        if (file.startsWith('34c3f')) {
+        option.value = `./splats/${fileName}`;
+        option.textContent = `Image ${i}`;
+
+        // Select the first one by default
+        if (i === 1) {
             option.selected = true;
         }
         imageSelect.appendChild(option);
-    });
+    }
 
     imageSelect.addEventListener('change', (e) => {
         if (e.target.value) {
@@ -218,10 +259,13 @@ function populateFileList() {
     }
 }
 
-async function loadSplat(url) {
-    statusText.textContent = `Loading ${url.split('/').pop()} (Optimized: 750k)...`;
 
-    // Cleanup previous
+
+async function loadSplat(url) {
+    const loadId = ++currentLoadId;
+    statusText.textContent = `Loading ${url.split('/').pop()} ...`;
+
+    // Cleanup immediately
     if (currentSplat) {
         splatGroup.remove(currentSplat);
         if (currentSplat.dispose) currentSplat.dispose();
@@ -232,34 +276,59 @@ async function loadSplat(url) {
         // Create new SplatMesh
         const splat = new SplatMesh({ url: url });
 
-        // SparkJS loads progressively. Add to our group.
+        // Wait for initialize
+        await splat.initialized;
+
+        // Check if another load started while we waited
+        if (loadId !== currentLoadId) {
+            // Stale load, discard
+            if (splat.dispose) splat.dispose();
+            return;
+        }
+
+        // Add to group
         splatGroup.add(splat);
         currentSplat = splat;
 
-        // Correct Orientation: SHARP outputs OpenCV-style (Y-down). Three.js is Y-up.
-        // Rotation around X by 180 degrees usually fixes inverted visuals.
+        // Orientation fix (SHARP often Y-down, Three Y-up => X rot 180)
         splat.rotation.x = Math.PI;
 
-        // Wait for the splat to be fully loaded and initialized before showing it
-        await splat.initialized;
-
-        // statusText.textContent = "Loaded. Left-click drag to pan (parallax).";
-
         // Reset view and animate in
-        // Start further back to show parallax effect
-        // Reset view and animate in
-        // Target is set deep (-5) so we can zoom "into" the scene
         camera.position.set(0, 0, 0.3);
         controls.target.set(0, 0, -5);
         controls.update();
 
-        // Smooth "roll in" animation
-        animateCameraTo(0, 0, 0.07, 500); // Snappy 0.5s roll-in to 0.07
+        animateCameraTo(0, 0, 0.07, 500);
 
     } catch (err) {
-        console.error("Error loading splat:", err);
-        statusText.textContent = "Error loading. Check console.";
+        if (loadId === currentLoadId) {
+            console.error("Error loading splat:", err);
+            statusText.textContent = "Error loading. Check console.";
+        }
     }
+}
+
+function onXRSelect(event) {
+    const handedness = event.inputSource.handedness;
+    if (handedness === 'left') {
+        navigateImages(-1);
+    } else if (handedness === 'right') {
+        navigateImages(1);
+    }
+}
+
+function navigateImages(direction) {
+    const select = document.getElementById('image-select');
+    if (!select || select.options.length === 0) return;
+
+    let newIndex = select.selectedIndex + direction;
+
+    // Wrap around
+    if (newIndex < 0) newIndex = select.options.length - 1;
+    if (newIndex >= select.options.length) newIndex = 0;
+
+    select.selectedIndex = newIndex;
+    loadSplat(select.value);
 }
 
 function animateCameraTo(x, y, z, duration) {

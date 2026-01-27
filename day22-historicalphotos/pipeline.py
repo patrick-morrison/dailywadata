@@ -94,13 +94,14 @@ if __name__ == "__main__":
     parser.add_argument("input", help="Path to single image or directory of images")
     parser.add_argument("output", help="Directory to save final optimized PLYs")
     parser.add_argument("--count", type=int, default=750000, help="Target splat count (default: 750k)")
+    parser.add_argument("--opacity", type=float, default=0.1, help="Minimum opacity threshold (default: 0.1)")
     
     args = parser.parse_args()
     
     inp = Path(args.input)
     
     if inp.is_file():
-        run_pipeline(inp, args.output, target_count=args.count)
+        run_pipeline(inp, args.output, target_count=args.count, opacity=args.opacity)
         
     elif inp.is_dir():
         # Find all images
@@ -112,7 +113,7 @@ if __name__ == "__main__":
         else:
             print(f"Found {len(images)} images to process.")
             for img in images:
-                run_pipeline(img, args.output, target_count=args.count)
+                run_pipeline(img, args.output, target_count=args.count, opacity=args.opacity)
                 
     else:
         print(f"Input {inp} does not exist.")
