@@ -128,7 +128,8 @@ const state = {
     contourBbox: null,    // Full extent bbox [minX, minY, maxX, maxY] EPSG:3857
     contourGenToken: 0,   // Counter for cancelling stale async reads
     lastContourGeoJSON: null, // Last generated GeoJSON for debug download
-    hillshadeLayer: null, // Custom WebGL hillshade layer reference
+    bathymetryLayer: null,  // Custom WebGL bathymetry layer reference
+    hillshadeLayer: null,   // Custom WebGL hillshade layer reference
 
     // Water level control state
     useCurrentLevel: true,           // Whether to use Water Corp current level
@@ -325,9 +326,6 @@ function debounce(func, wait) {
 
 console.time('⏱️ SCRIPT START → map load event');
 
-// Register COG protocol for bathymetry raster
-maplibregl.addProtocol('cog', MaplibreCOGProtocol.cogProtocol);
-
 const map = new maplibregl.Map({
     container: 'map',
     style: {
@@ -393,74 +391,30 @@ function initializeDepthGradient() {
 // ============================================
 
 /**
- * Set up color function for bathymetry layer
- * Uses dynamic water level from state
- */
-function setupBathymetryColorFunction() {
-    MaplibreCOGProtocol.setColorFunction(CONFIG.BATHY_COG, (pixel, color, metadata) => {
-        const elevation = pixel[0];
-        const waterLevel = getActiveWaterLevel();
-        const [minDepth, maxDepth] = getActiveDepthRange();
-
-        // Handle NoData values
-        if (elevation === metadata.noData || elevation >= 1e5 || !Number.isFinite(elevation)) {
-            color.set([0, 0, 0, 0]);
-            return;
-        }
-
-        // Don't render areas above water level (not submerged)
-        if (elevation > waterLevel) {
-            color.set([0, 0, 0, 0]);
-            return;
-        }
-
-        // Calculate depth and get color
-        const depth = waterLevel - elevation;
-        const [r, g, b] = getTurboColorForDepth(depth, minDepth, maxDepth);
-        color.set([r, g, b, 255]);
-    });
-}
-
-/**
- * Register bathymetry source/layer and hillshade layer on the map.
- * The hillshade layer is added but its heavy COG loading is deferred
- * until startHillshadeLoading() is called so it doesn't block rendering.
+ * Register bathymetry and hillshade as custom WebGL layers.
+ * Bathymetry loads the full COG (~6 MB) in one request, then reads from
+ * the in-memory cache on each viewport change — no per-tile range requests.
  */
 function addBathymetryLayers() {
-    // Set up color function (will read water level dynamically)
-    setupBathymetryColorFunction();
-
     try {
-        // Add bathymetry source and layer
-        map.addSource('bathymetry-source', {
-            type: 'raster',
-            url: `cog://${CONFIG.BATHY_COG}`,
-            tileSize: 256
-        });
-
-        map.addLayer({
+        // Custom WebGL bathymetry layer — fetches entire COG once
+        state.bathymetryLayer = createBathymetryLayer({
             id: 'bathymetry-layer',
-            type: 'raster',
-            source: 'bathymetry-source',
-            paint: {
-                'raster-opacity': 1.0,
-                'raster-resampling': 'nearest'
-            },
-            layout: {
-                visibility: state.layerVisibility.bathymetry ? 'visible' : 'none'
-            }
+            cogUrl: CONFIG.BATHY_COG,
+            opacity: 1.0,
+            getWaterLevel: getActiveWaterLevel,
+            getDepthRange: getActiveDepthRange,
+            noDataThreshold: 1e5,
+            colormap: TURBO_COLORMAP
         });
+        map.addLayer(state.bathymetryLayer);
 
-        // Add custom WebGL hillshade layer with multiply blend mode.
-        // The layer is registered now but deferLoading=true prevents the
-        // heavy COG read from starting until we explicitly trigger it.
+        // Custom WebGL hillshade layer with multiply blend mode
         state.hillshadeLayer = createMultiplyHillshadeLayer({
             id: 'hillshade-layer',
             cogUrl: CONFIG.HILLSHADE_COG,
             opacity: 1.0
-            //deferLoading: true
         });
-
         map.addLayer(state.hillshadeLayer);
 
         console.log('Bathymetry layers added successfully');
@@ -1267,14 +1221,14 @@ function initializeLayerControls() {
             const visibility = checkbox.checked ? 'visible' : 'none';
 
             if (layerId === 'bathymetry') {
-                if (map.getLayer('bathymetry-layer')) {
-                    map.setLayoutProperty('bathymetry-layer', 'visibility', visibility);
+                // Both bathymetry and hillshade are custom WebGL layers — use opacity
+                if (state.bathymetryLayer) {
+                    state.bathymetryLayer.setOpacity(checkbox.checked ? 1.0 : 0.0);
                 }
-                // Custom hillshade layer - use opacity for visibility control
                 if (state.hillshadeLayer) {
                     state.hillshadeLayer.setOpacity(checkbox.checked ? 1.0 : 0.0);
-                    map.triggerRepaint();
                 }
+                map.triggerRepaint();
             } else if (layerId === 'contours') {
                 if (map.getLayer('contours-layer')) {
                     map.setLayoutProperty('contours-layer', 'visibility', visibility);
@@ -1462,41 +1416,13 @@ function updateWaterLevelDisplay() {
 }
 
 /**
- * Refresh bathymetry tiles after water level change
+ * Refresh bathymetry after water level change.
+ * Re-colors the cached elevation data — no COG re-read needed.
  */
 function refreshBathymetryTiles() {
-    // Force reload by removing and re-adding the source
-    // This is needed because the COG protocol caches colored tiles
-    const source = map.getSource('bathymetry-source');
-    if (source) {
-        const visibility = map.getLayoutProperty('bathymetry-layer', 'visibility');
-
-        // Remove layer and source
-        map.removeLayer('bathymetry-layer');
-        map.removeSource('bathymetry-source');
-
-        // Re-add source and layer
-        map.addSource('bathymetry-source', {
-            type: 'raster',
-            url: `cog://${CONFIG.BATHY_COG}`,
-            tileSize: 256
-        });
-
-        map.addLayer({
-            id: 'bathymetry-layer',
-            type: 'raster',
-            source: 'bathymetry-source',
-            paint: {
-                'raster-opacity': 1.0,
-                'raster-resampling': 'nearest'
-            },
-            layout: {
-                visibility: visibility
-            }
-        }, 'hillshade-layer'); // Insert before hillshade
+    if (state.bathymetryLayer && state.bathymetryLayer.recolor) {
+        state.bathymetryLayer.recolor();
     }
-
-    map.triggerRepaint();
 
     // Clear contour cache since depths have changed
     state.contoursCache.clear();
@@ -1599,13 +1525,9 @@ map.on('load', async () => {
 
         // Use requestAnimationFrame to yield to the browser before starting
         // heavy background work — this ensures the map actually paints first.
+        // Start contour COG loading + initial generation in background
+        // (Bathymetry and hillshade layers start loading automatically via onAdd)
         requestAnimationFrame(() => {
-            // Start hillshade COG loading in background
-            if (state.hillshadeLayer && state.hillshadeLayer.startLoading) {
-                state.hillshadeLayer.startLoading();
-            }
-
-            // Start contour COG loading + initial generation in background
             console.time('⏱️ initializeContourGeneration (background)');
             initializeContourGeneration().then(() => {
                 console.timeEnd('⏱️ initializeContourGeneration (background)');
