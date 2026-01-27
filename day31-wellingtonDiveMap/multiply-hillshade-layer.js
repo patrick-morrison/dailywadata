@@ -24,9 +24,10 @@ function createMultiplyHillshadeLayer(options) {
     let texCoordBuffer = null;
     let texture = null;
     let imageLoaded = false;
+    let mapRef = null;
 
-    // Image bounds in Web Mercator (EPSG:3857)
-    let imageBounds = null;
+    // Image bounds as [west, south, east, north] in lng/lat (WGS84)
+    let boundsLngLat = null;
 
     // Shader sources
     const vertexShaderSource = `#version 300 es
@@ -105,15 +106,14 @@ function createMultiplyHillshadeLayer(options) {
     }
 
     /**
-     * Convert Web Mercator coordinates to MapLibre's internal Mercator units
-     * MapLibre uses a coordinate system where the world is a unit square [0, 1] x [0, 1]
+     * Convert Web Mercator to WGS84 lng/lat
      */
-    function webMercatorToMapLibre(x, y) {
-        // Web Mercator extent: -20037508.34 to 20037508.34
+    function webMercatorToLngLat(x, y) {
         const MERCATOR_EXTENT = 20037508.342789244;
-        const mlX = (x + MERCATOR_EXTENT) / (2 * MERCATOR_EXTENT);
-        const mlY = (MERCATOR_EXTENT - y) / (2 * MERCATOR_EXTENT);
-        return [mlX, mlY];
+        const lng = (x / MERCATOR_EXTENT) * 180;
+        let lat = (y / MERCATOR_EXTENT) * 180;
+        lat = (180 / Math.PI) * (2 * Math.atan(Math.exp((lat * Math.PI) / 180)) - Math.PI / 2);
+        return [lng, lat];
     }
 
     /**
@@ -129,7 +129,12 @@ function createMultiplyHillshadeLayer(options) {
             });
 
             const image = await tiff.getImage();
-            imageBounds = image.getBoundingBox(); // [minX, minY, maxX, maxY] in EPSG:3857
+            const imageBounds = image.getBoundingBox(); // [minX, minY, maxX, maxY] in EPSG:3857
+
+            // Convert to lng/lat for precision
+            const sw = webMercatorToLngLat(imageBounds[0], imageBounds[1]);
+            const ne = webMercatorToLngLat(imageBounds[2], imageBounds[3]);
+            boundsLngLat = [sw[0], sw[1], ne[0], ne[1]]; // [west, south, east, north]
 
             // Get NoData value from image metadata
             const fileDirectory = image.getFileDirectory();
@@ -139,7 +144,7 @@ function createMultiplyHillshadeLayer(options) {
             // Check number of bands - might have an alpha channel
             const samplesPerPixel = image.getSamplesPerPixel();
 
-            console.log('Hillshade bounds (EPSG:3857):', imageBounds);
+            console.log('Hillshade bounds (lng/lat):', boundsLngLat);
             console.log('NoData value:', noDataValue);
             console.log('Samples per pixel:', samplesPerPixel);
 
@@ -246,29 +251,11 @@ function createMultiplyHillshadeLayer(options) {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-            // Create vertex buffer with quad covering the image bounds
-            // Convert bounds to MapLibre coordinates
-            const [minX, minY, maxX, maxY] = imageBounds;
-            const bottomLeft = webMercatorToMapLibre(minX, minY);
-            const topRight = webMercatorToMapLibre(maxX, maxY);
-
-            // Quad vertices (two triangles)
-            const vertices = new Float32Array([
-                // Triangle 1
-                bottomLeft[0], topRight[1],   // top-left
-                topRight[0], topRight[1],     // top-right
-                bottomLeft[0], bottomLeft[1], // bottom-left
-                // Triangle 2
-                topRight[0], topRight[1],     // top-right
-                topRight[0], bottomLeft[1],   // bottom-right
-                bottomLeft[0], bottomLeft[1]  // bottom-left
-            ]);
-
+            // Create buffers (will be updated each frame with fresh coordinates)
             vertexBuffer = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-            gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+            texCoordBuffer = gl.createBuffer();
 
-            // Texture coordinates
+            // Set up static texture coordinates
             const texCoords = new Float32Array([
                 // Triangle 1
                 0, 0,  // top-left
@@ -280,7 +267,6 @@ function createMultiplyHillshadeLayer(options) {
                 0, 1   // bottom-left
             ]);
 
-            texCoordBuffer = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
             gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
 
@@ -292,6 +278,43 @@ function createMultiplyHillshadeLayer(options) {
         }
     }
 
+    /**
+     * Update vertex buffer with coordinates relative to map center
+     * This avoids precision issues by using small numbers
+     */
+    function updateVertices(gl) {
+        if (!boundsLngLat || !mapRef) return;
+
+        const [west, south, east, north] = boundsLngLat;
+
+        // Get current map center for relative coordinates
+        const center = mapRef.getCenter();
+        const centerMerc = maplibregl.MercatorCoordinate.fromLngLat(center);
+
+        // Compute corner coordinates relative to center (small numbers = good precision)
+        const sw = maplibregl.MercatorCoordinate.fromLngLat([west, south]);
+        const ne = maplibregl.MercatorCoordinate.fromLngLat([east, north]);
+        const nw = maplibregl.MercatorCoordinate.fromLngLat([west, north]);
+        const se = maplibregl.MercatorCoordinate.fromLngLat([east, south]);
+
+        // Quad vertices relative to center (two triangles)
+        const vertices = new Float32Array([
+            // Triangle 1
+            nw.x - centerMerc.x, nw.y - centerMerc.y,  // top-left
+            ne.x - centerMerc.x, ne.y - centerMerc.y,  // top-right
+            sw.x - centerMerc.x, sw.y - centerMerc.y,  // bottom-left
+            // Triangle 2
+            ne.x - centerMerc.x, ne.y - centerMerc.y,  // top-right
+            se.x - centerMerc.x, se.y - centerMerc.y,  // bottom-right
+            sw.x - centerMerc.x, sw.y - centerMerc.y   // bottom-left
+        ]);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW);
+
+        return centerMerc;
+    }
+
     return {
         id: layerId,
         type: 'custom',
@@ -301,6 +324,8 @@ function createMultiplyHillshadeLayer(options) {
          * Called when the layer is added to the map
          */
         onAdd(map, gl) {
+            mapRef = map;
+
             // Create shader program
             program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
 
@@ -330,6 +355,7 @@ function createMultiplyHillshadeLayer(options) {
             if (vertexBuffer) gl.deleteBuffer(vertexBuffer);
             if (texCoordBuffer) gl.deleteBuffer(texCoordBuffer);
             if (texture) gl.deleteTexture(texture);
+            mapRef = null;
         },
 
         /**
@@ -337,6 +363,10 @@ function createMultiplyHillshadeLayer(options) {
          */
         render(gl, args) {
             if (!imageLoaded || !program || !texture) return;
+
+            // Update vertices with coordinates relative to map center
+            const centerMerc = updateVertices(gl);
+            if (!centerMerc) return;
 
             // Save current WebGL state
             const previousBlendEnabled = gl.isEnabled(gl.BLEND);
@@ -365,8 +395,18 @@ function createMultiplyHillshadeLayer(options) {
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, texture);
 
-            // Set uniforms
-            gl.uniformMatrix4fv(program.uMatrix, false, args.defaultProjectionData.mainMatrix);
+            // Create translated matrix to account for center-relative coordinates
+            const baseMatrix = args.defaultProjectionData.mercatorMatrix || args.defaultProjectionData.mainMatrix;
+
+            // Translate the matrix by the center offset
+            // Matrix is column-major, so we modify elements [12] and [13] for translation
+            const translatedMatrix = new Float32Array(baseMatrix);
+            translatedMatrix[12] = baseMatrix[0] * centerMerc.x + baseMatrix[4] * centerMerc.y + baseMatrix[12];
+            translatedMatrix[13] = baseMatrix[1] * centerMerc.x + baseMatrix[5] * centerMerc.y + baseMatrix[13];
+            translatedMatrix[14] = baseMatrix[2] * centerMerc.x + baseMatrix[6] * centerMerc.y + baseMatrix[14];
+            translatedMatrix[15] = baseMatrix[3] * centerMerc.x + baseMatrix[7] * centerMerc.y + baseMatrix[15];
+
+            gl.uniformMatrix4fv(program.uMatrix, false, translatedMatrix);
             gl.uniform1i(program.uHillshade, 0);
             gl.uniform1f(program.uOpacity, opacity);
 

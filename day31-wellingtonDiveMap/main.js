@@ -57,8 +57,7 @@ const CONFIG = {
     },
 
     // Bathymetry COG files
-    STANDARD_BATHY_COG: 'merged_bathy_cog.tif',
-    HD_BATHY_COG: 'WellingtonHdBathy_cog.tif',
+    BATHY_COG: 'merged_bathy_cog.tif',
     HILLSHADE_COG: 'hillshade_cog.tif',
 
     // Water level configuration (from calibrated volume model)
@@ -98,8 +97,7 @@ const CONFIG = {
     // Contour configuration
     CONTOUR_COLOR: '#000000',
     CONTOUR_INTERVALS: {
-        14: 5,   // Zoom 14-15: 5m intervals
-        16: 2    // Zoom 16+: 2m intervals
+        16: 1    // Zoom 16+: 2m intervals
     },
     // Contours for depth below water surface (negative of AHD minus water level)
     // Generate contours at AHD levels that correspond to 5m, 10m, 15m... depth
@@ -114,8 +112,7 @@ const CONFIG = {
 const state = {
     layerVisibility: {
         bathymetry: true,
-        'hd-bathymetry': false,
-        contours: false
+        contours: true
     },
     measureMode: false,
     measurePoints: [],
@@ -124,8 +121,7 @@ const state = {
     surveyData: {},      // Survey line GeoJSON data by filename
     contoursCache: new Map(),
     isGeneratingContours: false,
-    geoTiffImage: null,  // Standard bathymetry reference
-    hdGeoTiffImage: null, // HD bathymetry reference
+    geoTiffImage: null,  // Bathymetry GeoTIFF reference for contour generation
     hillshadeLayer: null, // Custom WebGL hillshade layer reference
 
     // Water level control state
@@ -389,12 +385,11 @@ function initializeDepthGradient() {
 // ============================================
 
 /**
- * Set up color functions for bathymetry layers
+ * Set up color function for bathymetry layer
  * Uses dynamic water level from state
  */
-function setupBathymetryColorFunctions() {
-    // Color function for standard bathymetry - reads water level dynamically
-    MaplibreCOGProtocol.setColorFunction(CONFIG.STANDARD_BATHY_COG, (pixel, color, metadata) => {
+function setupBathymetryColorFunction() {
+    MaplibreCOGProtocol.setColorFunction(CONFIG.BATHY_COG, (pixel, color, metadata) => {
         const elevation = pixel[0];
         const waterLevel = getActiveWaterLevel();
         const [minDepth, maxDepth] = getActiveDepthRange();
@@ -416,38 +411,17 @@ function setupBathymetryColorFunctions() {
         const [r, g, b] = getTurboColorForDepth(depth, minDepth, maxDepth);
         color.set([r, g, b, 255]);
     });
-
-    // Color function for HD bathymetry (same logic)
-    MaplibreCOGProtocol.setColorFunction(CONFIG.HD_BATHY_COG, (pixel, color, metadata) => {
-        const elevation = pixel[0];
-        const waterLevel = getActiveWaterLevel();
-        const [minDepth, maxDepth] = getActiveDepthRange();
-
-        if (elevation === metadata.noData || elevation >= 1e5 || !Number.isFinite(elevation)) {
-            color.set([0, 0, 0, 0]);
-            return;
-        }
-
-        if (elevation > waterLevel) {
-            color.set([0, 0, 0, 0]);
-            return;
-        }
-
-        const depth = waterLevel - elevation;
-        const [r, g, b] = getTurboColorForDepth(depth, minDepth, maxDepth);
-        color.set([r, g, b, 255]);
-    });
 }
 
 async function addBathymetryLayers() {
-    // Set up color functions (will read water level dynamically)
-    setupBathymetryColorFunctions();
+    // Set up color function (will read water level dynamically)
+    setupBathymetryColorFunction();
 
     try {
-        // Add standard bathymetry source and layer
+        // Add bathymetry source and layer
         map.addSource('bathymetry-source', {
             type: 'raster',
-            url: `cog://${CONFIG.STANDARD_BATHY_COG}`,
+            url: `cog://${CONFIG.BATHY_COG}`,
             tileSize: 256
         });
 
@@ -461,26 +435,6 @@ async function addBathymetryLayers() {
             },
             layout: {
                 visibility: state.layerVisibility.bathymetry ? 'visible' : 'none'
-            }
-        });
-
-        // Add HD bathymetry source and layer (renders on top where it exists)
-        map.addSource('hd-bathymetry-source', {
-            type: 'raster',
-            url: `cog://${CONFIG.HD_BATHY_COG}`,
-            tileSize: 256
-        });
-
-        map.addLayer({
-            id: 'hd-bathymetry-layer',
-            type: 'raster',
-            source: 'hd-bathymetry-source',
-            paint: {
-                'raster-opacity': 1.0,
-                'raster-resampling': 'nearest'
-            },
-            layout: {
-                visibility: state.layerVisibility['hd-bathymetry'] ? 'visible' : 'none'
             }
         });
 
@@ -632,7 +586,7 @@ async function loadSurveyLines() {
 
 async function initializeContourGeneration() {
     try {
-        const tiff = await GeoTIFF.fromUrl(CONFIG.STANDARD_BATHY_COG, {
+        const tiff = await GeoTIFF.fromUrl(CONFIG.BATHY_COG, {
             allowFullFile: false,
             cacheSize: 100
         });
@@ -843,37 +797,13 @@ async function generateContoursForViewport() {
             const ahdLevel = multiPolygon.value;
             const depth = Math.round(waterLevel - ahdLevel);
 
+            // Skip invalid depths
+            if (depth <= 0) continue;
+
             for (const polygon of multiPolygon.coordinates) {
                 for (const ring of polygon) {
-                    // Check for NoData adjacency
-                    let nearNoData = false;
-                    const samplePoints = Math.min(ring.length, 20);
-                    const step = Math.max(1, Math.floor(ring.length / samplePoints));
-
-                    for (let i = 0; i < ring.length; i += step) {
-                        const [x, y] = ring[i];
-                        const px = Math.floor(x);
-                        const py = Math.floor(y);
-
-                        for (let dy = -1; dy <= 1; dy++) {
-                            for (let dx = -1; dx <= 1; dx++) {
-                                const checkX = px + dx;
-                                const checkY = py + dy;
-                                if (checkX >= 0 && checkX < width && checkY >= 0 && checkY < height) {
-                                    const idx = checkY * width + checkX;
-                                    const value = elevationGrid[idx];
-                                    if (value === -9999 || value >= 1e5) {
-                                        nearNoData = true;
-                                        break;
-                                    }
-                                }
-                            }
-                            if (nearNoData) break;
-                        }
-                        if (nearNoData) break;
-                    }
-
-                    if (nearNoData) continue;
+                    // Skip very small rings (noise)
+                    if (ring.length < 10) continue;
 
                     // Transform to geographic coordinates
                     const geoCoords = ring.map(([x, y]) => {
@@ -882,7 +812,7 @@ async function generateContoursForViewport() {
                         return webMercatorToLngLat(mercatorX, mercatorY);
                     });
 
-                    // Filter edge contours
+                    // Filter contours entirely outside viewport
                     const margin = (viewportMaxX - viewportMinX) * 0.01;
                     let hasInteriorPoint = false;
 
@@ -1171,10 +1101,6 @@ function initializeLayerControls() {
                     state.hillshadeLayer.setOpacity(checkbox.checked ? 1.0 : 0.0);
                     map.triggerRepaint();
                 }
-            } else if (layerId === 'hd-bathymetry') {
-                if (map.getLayer('hd-bathymetry-layer')) {
-                    map.setLayoutProperty('hd-bathymetry-layer', 'visibility', visibility);
-                }
             } else if (layerId === 'contours') {
                 if (map.getLayer('contours-layer')) {
                     map.setLayoutProperty('contours-layer', 'visibility', visibility);
@@ -1365,14 +1291,36 @@ function updateWaterLevelDisplay() {
  * Refresh bathymetry tiles after water level change
  */
 function refreshBathymetryTiles() {
-    // Clear tile caches to force re-render with new water level
-    const sources = ['bathymetry-source', 'hd-bathymetry-source'];
+    // Force reload by removing and re-adding the source
+    // This is needed because the COG protocol caches colored tiles
+    const source = map.getSource('bathymetry-source');
+    if (source) {
+        const visibility = map.getLayoutProperty('bathymetry-layer', 'visibility');
 
-    sources.forEach((sourceId) => {
-        if (map.getSource(sourceId)) {
-            map.style.sourceCaches[sourceId]?.clearTiles();
-        }
-    });
+        // Remove layer and source
+        map.removeLayer('bathymetry-layer');
+        map.removeSource('bathymetry-source');
+
+        // Re-add source and layer
+        map.addSource('bathymetry-source', {
+            type: 'raster',
+            url: `cog://${CONFIG.BATHY_COG}`,
+            tileSize: 256
+        });
+
+        map.addLayer({
+            id: 'bathymetry-layer',
+            type: 'raster',
+            source: 'bathymetry-source',
+            paint: {
+                'raster-opacity': 1.0,
+                'raster-resampling': 'nearest'
+            },
+            layout: {
+                visibility: visibility
+            }
+        }, 'hillshade-layer'); // Insert before hillshade
+    }
 
     map.triggerRepaint();
 
