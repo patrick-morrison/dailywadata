@@ -430,6 +430,11 @@ body {
     gap: 8px;
 }
 
+.measure-item-bearing {
+    color: #666;
+    font-size: 0.85em;
+}
+
 .measure-item-distance {
     color: #0891b2;
     font-weight: 400;
