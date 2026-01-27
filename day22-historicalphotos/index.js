@@ -37,8 +37,8 @@ scene.add(splatGroup);
 function createCaptionBox() {
     // High res canvas for text
     const canvas = document.createElement('canvas');
-    canvas.width = 2048;
-    canvas.height = 512;
+    canvas.width = 4096;
+    canvas.height = 1024;
     const ctx = canvas.getContext('2d');
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -107,24 +107,60 @@ function updateCaptionTexture(text) {
     ctx.textBaseline = "middle";
 
     // Auto-fit font size
-    let fontSize = 90;
+    let fontSize = 140;
     ctx.font = `${fontSize}px "Instrument Serif", serif`;
 
-    // Simple word wrap (or just fit width)
-    // For simplicity, let's just draw it. ID + Caption can be long.
-    // Try to break into 2 lines if too long?
-
+    // Word wrap logic
     const maxTextWidth = w - 120;
-    let textWidth = ctx.measureText(text).width;
+    const lineHeight = fontSize * 1.2;
+    const words = text.split(' ');
+    let lines = [];
+    let currentLine = words[0];
 
-    if (textWidth > maxTextWidth) {
-        // Simple scale down if too long
-        const scale = maxTextWidth / textWidth;
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const width = ctx.measureText(currentLine + " " + word).width;
+        if (width < maxTextWidth) {
+            currentLine += " " + word;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
+    }
+    lines.push(currentLine);
+
+    // If too many lines, scale font down
+    const totalHeight = lines.length * lineHeight;
+    if (totalHeight > h - 80) {
+        const scale = (h - 80) / totalHeight;
         fontSize = Math.floor(fontSize * scale);
-        ctx.font = `500 ${fontSize}px "Segoe UI", Roboto, sans-serif`;
+        ctx.font = `${fontSize}px "Instrument Serif", serif`;
+
+        // Re-wrap with new font
+        const newLineHeight = fontSize * 1.2;
+        lines = [];
+        currentLine = words[0];
+        for (let i = 1; i < words.length; i++) {
+            const word = words[i];
+            const width = ctx.measureText(currentLine + " " + word).width;
+            if (width < maxTextWidth) {
+                currentLine += " " + word;
+            } else {
+                lines.push(currentLine);
+                currentLine = word;
+            }
+        }
+        lines.push(currentLine);
     }
 
-    ctx.fillText(text, w / 2, h / 2);
+    // Draw lines centered
+    const finalLineHeight = fontSize * 1.2;
+    const blockHeight = lines.length * finalLineHeight;
+    const startY = (h - blockHeight) / 2 + (finalLineHeight / 2);
+
+    lines.forEach((line, index) => {
+        ctx.fillText(line, w / 2, startY + index * finalLineHeight);
+    });
 
     // Update texture
     captionMesh.material.map.needsUpdate = true;
