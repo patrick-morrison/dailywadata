@@ -668,12 +668,55 @@ body {
    Measure Mode Cursor
    ============================================ */
 
-.measure-mode-active {
+.measure-mode-active,
+.depth-probe-active {
     cursor: crosshair !important;
 }
 
-.measure-mode-active .maplibregl-canvas {
+.measure-mode-active .maplibregl-canvas,
+.depth-probe-active .maplibregl-canvas {
     cursor: crosshair !important;
+}
+
+/* ============================================
+   Depth Probe Tooltip
+   ============================================ */
+
+/* Desktop: lightweight cursor-following tooltip */
+.depth-probe-tooltip {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1500;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    padding: 6px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    display: none;
+    transform: translate(14px, 14px);
+}
+
+/* Mobile: MapLibre Popup with pointer arrow */
+.depth-probe-popup .maplibregl-popup-content {
+    background: rgba(0, 0, 0, 0.85) !important;
+    color: #fff;
+    padding: 6px 12px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    min-width: 0;
+}
+
+.depth-probe-popup .maplibregl-popup-tip {
+    border-top-color: rgba(0, 0, 0, 0.85);
+}
+
+.depth-probe-popup-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 400;
+    white-space: nowrap;
 }
 
 /* ============================================

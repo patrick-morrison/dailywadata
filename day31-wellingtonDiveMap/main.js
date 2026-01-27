@@ -137,6 +137,11 @@ const state = {
     // Water level control state
     useCurrentLevel: true,           // Whether to use Water Corp current level
     customStorageGL: 84,             // Custom storage level when not using current
+
+    // Depth probe tool state
+    depthProbeMode: false,
+    depthProbeTooltip: null,         // DOM element reference (desktop)
+    depthProbePopup: null,           // MapLibre Popup reference (mobile)
 };
 
 /**
@@ -366,7 +371,7 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
 // Add navigation control
-map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
+map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'bottom-right');
 
 // ============================================
 // Depth Gradient Legend
@@ -1012,6 +1017,14 @@ function initializeMeasureTool() {
         measureBtn.classList.toggle('active', state.measureMode);
 
         if (state.measureMode) {
+            // Deactivate depth probe if active
+            if (state.depthProbeMode) {
+                state.depthProbeMode = false;
+                document.getElementById('depth-probe-btn').classList.remove('active');
+                document.body.classList.remove('depth-probe-active');
+                if (state.depthProbeTooltip) state.depthProbeTooltip.style.display = 'none';
+                hideDepthProbePopup();
+            }
             document.body.classList.add('measure-mode-active');
             clearBtn.style.display = 'block';
         } else {
@@ -1145,6 +1158,138 @@ function updateMeasureVisualization() {
                 properties: {}
             }]
         });
+    }
+}
+
+// ============================================
+// Depth Probe Tool
+// ============================================
+
+function initializeDepthProbe() {
+    // Create desktop tooltip element
+    const tooltip = document.createElement('div');
+    tooltip.className = 'depth-probe-tooltip';
+    document.body.appendChild(tooltip);
+    state.depthProbeTooltip = tooltip;
+
+    const probeBtn = document.getElementById('depth-probe-btn');
+    const measureBtn = document.getElementById('measure-btn');
+
+    probeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.depthProbeMode = !state.depthProbeMode;
+        probeBtn.classList.toggle('active', state.depthProbeMode);
+
+        if (state.depthProbeMode) {
+            // Deactivate measure mode if active
+            if (state.measureMode) {
+                state.measureMode = false;
+                measureBtn.classList.remove('active');
+                document.body.classList.remove('measure-mode-active');
+            }
+            document.body.classList.add('depth-probe-active');
+        } else {
+            document.body.classList.remove('depth-probe-active');
+            tooltip.style.display = 'none';
+            hideDepthProbePopup();
+        }
+
+        probeBtn.blur();
+    });
+
+    // Track touch state so synthetic mousemove events don't show the desktop tooltip
+    let isTouching = false;
+
+    // Desktop: mousemove on map canvas
+    map.on('mousemove', (e) => {
+        if (!state.depthProbeMode || isTouching) return;
+        showDepthProbeDesktop(e.lngLat, e.point);
+    });
+
+    // Hide tooltip when mouse leaves the map
+    map.getCanvas().addEventListener('mouseleave', () => {
+        if (state.depthProbeMode) {
+            tooltip.style.display = 'none';
+        }
+    });
+
+    // Mobile: touchstart/touchmove on map canvas
+    const canvas = map.getCanvas();
+    const handleTouch = (e) => {
+        if (!state.depthProbeMode) return;
+        isTouching = true;
+        tooltip.style.display = 'none';
+        const touch = e.touches[0];
+        if (!touch) return;
+        const rect = canvas.getBoundingClientRect();
+        const point = new maplibregl.Point(
+            touch.clientX - rect.left,
+            touch.clientY - rect.top
+        );
+        const lngLat = map.unproject(point);
+        showDepthProbePopup(lngLat);
+    };
+
+    canvas.addEventListener('touchstart', handleTouch, { passive: true });
+    canvas.addEventListener('touchmove', handleTouch, { passive: true });
+    canvas.addEventListener('touchend', () => {
+        // Reset after a delay so the synthetic mousemove is also suppressed
+        setTimeout(() => { isTouching = false; }, 300);
+    }, { passive: true });
+}
+
+/**
+ * Compute the depth text for a given lngLat.
+ */
+function getDepthText(lngLat) {
+    const elev = state.bathymetryLayer
+        ? state.bathymetryLayer.getElevationAtLngLat(lngLat.lng, lngLat.lat)
+        : null;
+
+    if (elev === null) return 'No data';
+    const waterLevel = getActiveWaterLevel();
+    if (elev > waterLevel) return 'Above water';
+    return `${(waterLevel - elev).toFixed(1)}m`;
+}
+
+/**
+ * Desktop: lightweight fixed-position tooltip near cursor.
+ */
+function showDepthProbeDesktop(lngLat, screenPoint) {
+    const tooltip = state.depthProbeTooltip;
+    if (!tooltip) return;
+
+    tooltip.textContent = getDepthText(lngLat);
+    tooltip.style.display = 'block';
+    tooltip.style.left = `${screenPoint.x}px`;
+    tooltip.style.top = `${screenPoint.y}px`;
+}
+
+/**
+ * Mobile: MapLibre Popup anchored to the touch lngLat (with pointer arrow).
+ */
+function showDepthProbePopup(lngLat) {
+    const text = getDepthText(lngLat);
+
+    if (!state.depthProbePopup) {
+        state.depthProbePopup = new maplibregl.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            className: 'depth-probe-popup',
+            anchor: 'bottom'
+        });
+        state.depthProbePopup.addTo(map);
+    }
+
+    state.depthProbePopup
+        .setLngLat(lngLat)
+        .setHTML(`<span class="depth-probe-popup-text">${text}</span>`);
+}
+
+function hideDepthProbePopup() {
+    if (state.depthProbePopup) {
+        state.depthProbePopup.remove();
+        state.depthProbePopup = null;
     }
 }
 
@@ -1620,6 +1765,7 @@ map.on('load', async () => {
 
         // Initialize UI handlers
         initializeMeasureTool();
+        initializeDepthProbe();
         initializeLayerControls();
         initializeClickHandlers();
         initializeLegendToggles();

@@ -473,6 +473,25 @@ function createBathymetryLayer(options) {
         getOpacity() { return opacity; },
 
         /**
+         * Query the cached elevation at a given lng/lat.
+         * Returns elevation in metres AHD, or null if outside data / no data.
+         */
+        getElevationAtLngLat(lng, lat) {
+            if (!cachedElevation || !cachedBbox) return null;
+            const [mx, my] = lngLatToWebMercator(lng, lat);
+            const [minX, minY, maxX, maxY] = cachedBbox;
+            if (mx < minX || mx > maxX || my < minY || my > maxY) return null;
+            // Row 0 = north (maxY), so invert Y
+            const px = (mx - minX) / (maxX - minX) * cachedWidth;
+            const py = (maxY - my) / (maxY - minY) * cachedHeight;
+            const ix = Math.floor(px), iy = Math.floor(py);
+            if (ix < 0 || ix >= cachedWidth || iy < 0 || iy >= cachedHeight) return null;
+            const elev = cachedElevation[iy * cachedWidth + ix];
+            if (!Number.isFinite(elev) || elev >= noDataThreshold || elev === storedNoDataValue) return null;
+            return elev;
+        },
+
+        /**
          * Re-color the cached elevation data with the current water level.
          * Call after the water level slider changes — no COG re-read needed.
          */
