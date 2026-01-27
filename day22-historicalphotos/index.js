@@ -278,7 +278,8 @@ function init() {
         // Position it floating in front of user
         // Reverting to simple fixed placement relative to usage start (local space)
         // Standard WebXR "Forward" is -Z
-        splatGroup.position.set(0, 0, -1.2);
+        // Caption is at z=-0.5, put splat slightly further back
+        splatGroup.position.set(0, 0, -0.7);
         splatGroup.rotation.set(0, 0, 0);
 
         statusText.textContent = "AR Mode Active";
@@ -398,7 +399,18 @@ async function populateFileList() {
             const firstComma = line.indexOf(',');
             if (firstComma > -1) {
                 const filename = line.substring(0, firstComma).trim();
-                let caption = line.substring(firstComma + 1).trim();
+                // Find second comma to exclude the 'stored' column
+                let secondComma = line.indexOf(',', firstComma + 1);
+                // Handle quoted captions that might contain commas
+                if (line[firstComma + 1] === '"') {
+                    // Caption is quoted, find closing quote
+                    let closeQuote = line.indexOf('"', firstComma + 2);
+                    if (closeQuote > -1) {
+                        secondComma = line.indexOf(',', closeQuote + 1);
+                    }
+                }
+                let captionEnd = secondComma > -1 ? secondComma : line.length;
+                let caption = line.substring(firstComma + 1, captionEnd).trim();
 
                 // Remove quotes if present
                 if (caption.startsWith('"') && caption.endsWith('"')) {
@@ -408,14 +420,54 @@ async function populateFileList() {
                 // Clean up double quotes inside
                 caption = caption.replace(/""/g, '"');
 
-                data.push({ filename, caption });
+                // Extract stored column (third column after second comma)
+                let stored = 'external'; // default
+                if (secondComma > -1 && secondComma < line.length - 1) {
+                    stored = line.substring(secondComma + 1).trim();
+                }
+
+                data.push({ filename, caption, stored });
             }
         }
 
+        // Separate internal and external files
+        const internalFiles = data.filter(item => item.stored === 'internal');
+        const externalFiles = data.filter(item => item.stored === 'external');
+
+        // Check if CDN is available by testing one external file
+        let cdnAvailable = false;
+        if (externalFiles.length > 0) {
+            try {
+                const testFile = externalFiles[0];
+                const testSogFilename = testFile.filename.replace('.jpg', '.sog').replace('.png', '.sog');
+                const testUrl = `http://cdn.arenleishman.com/patrick-splats/${testSogFilename}`;
+
+                const response = await fetch(testUrl, { method: 'HEAD' });
+                cdnAvailable = response.ok;
+
+                if (!cdnAvailable) {
+                    console.warn('CDN not available, hiding external files');
+                }
+            } catch (error) {
+                console.warn('CDN check failed:', error);
+                cdnAvailable = false;
+            }
+        }
+
+        // Build dropdown with available files
+        const availableFiles = cdnAvailable ? data : internalFiles;
+
         imageSelect.innerHTML = '';
-        data.forEach((item, index) => {
+        availableFiles.forEach((item, index) => {
             const option = document.createElement('option');
-            option.value = `./splats/${item.filename.replace('.jpg', '.sog').replace('.png', '.sog')}`;
+            const sogFilename = item.filename.replace('.jpg', '.sog').replace('.png', '.sog');
+
+            // Use CDN for external, local path for internal
+            const baseUrl = item.stored === 'internal'
+                ? './splats/'
+                : 'http://cdn.arenleishman.com/patrick-splats/';
+
+            option.value = baseUrl + sogFilename;
             option.textContent = item.caption;
 
             // Select first by default
