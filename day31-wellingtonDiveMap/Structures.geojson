@@ -3,7 +3,7 @@
 "name": "Structures",
 "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::3857" } },
 "features": [
-{ "type": "Feature", "properties": { "fid": 1, "Name": "Well", "Reporter": "MattGannicot" }, "geometry": { "type": "Point", "coordinates": [ 12911559.23208893276751, -3948164.94536743266508 ] } },
-{ "type": "Feature", "properties": { "fid": 3, "Name": "Timber Structure", "Reporter": "Matt. Patrick drone location. 17.9m22Jun2024" }, "geometry": { "type": "Point", "coordinates": [ 12911799.492945913225412, -3947675.862303992733359 ] } }
+{ "type": "Feature", "properties": { "fid": 1, "Name": "Standpipe", "Reporter": "Matt Gannicot" }, "geometry": { "type": "Point", "coordinates": [ 12911559.23208893276751, -3948164.94536743266508 ] } },
+{ "type": "Feature", "properties": { "fid": 3, "Name": "Corduroy Road", "Reporter": "Matt Gannicot" }, "geometry": { "type": "Point", "coordinates": [ 12911799.492945913225412, -3947675.862303992733359 ] } }
 ]
 }

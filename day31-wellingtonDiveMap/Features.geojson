@@ -12,6 +12,6 @@
 { "type": "Feature", "properties": { "fid": 7, "Name": "Large pipe" }, "geometry": { "type": "Point", "coordinates": [ 12911403.239501407369971, -3948898.229057782329619 ] } },
 { "type": "Feature", "properties": { "fid": 8, "Name": "Pit" }, "geometry": { "type": "Point", "coordinates": [ 12911799.816692676395178, -3948064.183401217218488 ] } },
 { "type": "Feature", "properties": { "fid": 9, "Name": "Square" }, "geometry": { "type": "Point", "coordinates": [ 12912312.185795860365033, -3947612.99037022748962 ] } },
-{ "type": "Feature", "properties": { "fid": 10, "Name": "Creek crossing?" }, "geometry": { "type": "Point", "coordinates": [ 12911920.552021104842424, -3947198.218718687538058 ] } }
+{ "type": "Feature", "properties": { "fid": 10, "Name": "Creek crossing" }, "geometry": { "type": "Point", "coordinates": [ 12911920.552021104842424, -3947198.218718687538058 ] } }
 ]
 }

@@ -6,11 +6,6 @@
 { "type": "Feature", "properties": { "fid": 1, "name": "Scotsmans Gully" }, "geometry": { "type": "Point", "coordinates": [ 12911256.683362549170852, -3948306.720151371322572 ] } },
 { "type": "Feature", "properties": { "fid": 2, "name": "Potters Gorge" }, "geometry": { "type": "Point", "coordinates": [ 12911449.064137758687139, -3947712.472381062805653 ] } },
 { "type": "Feature", "properties": { "fid": 3, "name": "Chicken Treat" }, "geometry": { "type": "Point", "coordinates": [ 12913836.035932771861553, -3946490.055280346889049 ] } },
-{ "type": "Feature", "properties": { "fid": 4, "name": "Unnamed" }, "geometry": null },
-{ "type": "Feature", "properties": { "fid": 5, "name": "Unnamed" }, "geometry": { "type": "Point", "coordinates": [ 12912934.0854607000947, -3944223.983119556680322 ] } },
-{ "type": "Feature", "properties": { "fid": 6, "name": "South Point" }, "geometry": { "type": "Point", "coordinates": [ 12913259.078315678983927, -3947806.454493814148009 ] } },
-{ "type": "Feature", "properties": { "fid": 7, "name": "15m Entry" }, "geometry": null },
-{ "type": "Feature", "properties": { "fid": 8, "name": "Collapsed Entry" }, "geometry": null },
-{ "type": "Feature", "properties": { "fid": 9, "name": "Forbidden Entry" }, "geometry": null }
+{ "type": "Feature", "properties": { "fid": 6, "name": "South Point" }, "geometry": { "type": "Point", "coordinates": [ 12913259.078315678983927, -3947806.454493814148009 ] } }
 ]
 }
