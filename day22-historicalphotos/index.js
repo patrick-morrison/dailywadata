@@ -28,7 +28,107 @@ let splatGroup = new THREE.Group();
 let animationFrameId = null; // Track animation to allow cancellation
 let placementPending = false;
 let currentLoadId = 0; // Fixes ReferenceError by initializing before use
+let captionMesh = null; // VR Caption Display
+let loadingMesh = null; // VR Loading Spinner
+
 scene.add(splatGroup);
+
+// Create the Caption Box for VR
+function createCaptionBox() {
+    // High res canvas for text
+    const canvas = document.createElement('canvas');
+    canvas.width = 2048;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    const texture = new THREE.CanvasTexture(canvas);
+    // texture.minFilter = THREE.LinearFilter; // Better text quality
+
+    // Create plane
+    // Aspect ratio 4:1. Size in meters: 0.6m width, 0.15m height
+    const geometry = new THREE.PlaneGeometry(0.6, 0.15);
+    const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide
+    });
+
+    captionMesh = new THREE.Mesh(geometry, material);
+
+    // Position: "Floating at the entrance below my vision"
+    // Splat is at (0, 0, -1.2). Users head at (0,0,0).
+    // Put "just in front" (0.5m) and "very low" (-0.6m)
+    captionMesh.position.set(0, -0.6, -0.5);
+    // Tilted up steep to face user
+    captionMesh.rotation.x = -Math.PI / 3; // -60 degrees
+
+    scene.add(captionMesh);
+
+    // Initial draw
+    updateCaptionTexture("Select an image...");
+}
+
+function updateCaptionTexture(text) {
+    if (!captionMesh) return;
+
+    const canvas = captionMesh.material.map.image;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    // Clear
+    ctx.clearRect(0, 0, w, h);
+
+    // Background: Rounded Rectangle
+    ctx.fillStyle = "rgba(0, 0, 0, 0.9)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.lineWidth = 10;
+
+    // RoundRect function
+    const r = 50; // radius
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.lineTo(w - r, 0);
+    ctx.quadraticCurveTo(w, 0, w, r);
+    ctx.lineTo(w, h - r);
+    ctx.quadraticCurveTo(w, h, w - r, h);
+    ctx.lineTo(r, h);
+    ctx.quadraticCurveTo(0, h, 0, h - r);
+    ctx.lineTo(0, r);
+    ctx.quadraticCurveTo(0, 0, r, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Text
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Auto-fit font size
+    let fontSize = 90;
+    ctx.font = `${fontSize}px "Instrument Serif", serif`;
+
+    // Simple word wrap (or just fit width)
+    // For simplicity, let's just draw it. ID + Caption can be long.
+    // Try to break into 2 lines if too long?
+
+    const maxTextWidth = w - 120;
+    let textWidth = ctx.measureText(text).width;
+
+    if (textWidth > maxTextWidth) {
+        // Simple scale down if too long
+        const scale = maxTextWidth / textWidth;
+        fontSize = Math.floor(fontSize * scale);
+        ctx.font = `500 ${fontSize}px "Segoe UI", Roboto, sans-serif`;
+    }
+
+    ctx.fillText(text, w / 2, h / 2);
+
+    // Update texture
+    captionMesh.material.map.needsUpdate = true;
+}
 
 init();
 
@@ -141,7 +241,8 @@ function init() {
         // Now requested "2m closer" -> +2.0 shift (from 0.2 to 2.2)
         // Position it floating in front of user
         // Reverting to simple fixed placement relative to usage start (local space)
-        splatGroup.position.set(0, 0, 1.2);
+        // Standard WebXR "Forward" is -Z
+        splatGroup.position.set(0, 0, -1.2);
         splatGroup.rotation.set(0, 0, 0);
 
         statusText.textContent = "AR Mode Active";
@@ -194,7 +295,13 @@ function init() {
     controls.maxDistance = 10.0; // Allow backing up significantly
 
     // 4. Animation Loop
+    const clock = new THREE.Clock();
+
     renderer.setAnimationLoop(() => {
+        if (loadingMesh && loadingMesh.visible) {
+            loadingMesh.rotation.z -= 0.1;
+        }
+
         controls.update();
         renderer.render(scene, camera);
     });
@@ -204,6 +311,12 @@ function init() {
 
     // 6. Populate File List
     populateFileList();
+
+    // 7. Initialize Caption
+    createCaptionBox();
+
+    // 8. VR Spinner
+    createVRSpinner();
 
     // Listen for user interaction to interrupt animation
     const stopAnimation = () => {
@@ -223,36 +336,71 @@ function onResize() {
     renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
 }
 
-function populateFileList() {
-    const totalImages = 128; // We have 128 images now
+const loadingSpinner = document.getElementById('loading-spinner');
 
-    // Clear existing options if any (though usually empty on init)
-    imageSelect.innerHTML = '';
+async function populateFileList() {
+    imageSelect.innerHTML = '<option disabled selected>Loading list...</option>';
 
-    for (let i = 1; i <= totalImages; i++) {
-        const fileName = `${i}.sog`;
-        const option = document.createElement('option');
-        option.value = `./splats/${fileName}`;
-        option.textContent = `Image ${i}`;
+    try {
+        const response = await fetch('image_list.csv');
+        const text = await response.text();
 
-        // Select the first one by default
-        if (i === 1) {
-            option.selected = true;
+        // Simple CSV parser
+        // Assumes header row "filename,caption"
+        // Handles basic quotes if they exist
+        const lines = text.split('\n').filter(l => l.trim() !== '');
+        const data = [];
+
+        // Skip header
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i];
+            // Naive split by comma won't work perfectly with quoted captions containing commas
+            // Regex to match CSV fields:
+            const matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+            // Actually, simpler approach for this specific file format:
+            // filename, "caption"
+            const firstComma = line.indexOf(',');
+            if (firstComma > -1) {
+                const filename = line.substring(0, firstComma).trim();
+                let caption = line.substring(firstComma + 1).trim();
+
+                // Remove quotes if present
+                if (caption.startsWith('"') && caption.endsWith('"')) {
+                    caption = caption.substring(1, caption.length - 1);
+                }
+
+                // Clean up double quotes inside
+                caption = caption.replace(/""/g, '"');
+
+                data.push({ filename, caption });
+            }
         }
-        imageSelect.appendChild(option);
-    }
 
-    imageSelect.addEventListener('change', (e) => {
-        if (e.target.value) {
-            loadSplat(e.target.value);
+        imageSelect.innerHTML = '';
+        data.forEach((item, index) => {
+            const option = document.createElement('option');
+            option.value = `./splats/${item.filename.replace('.jpg', '.sog').replace('.png', '.sog')}`;
+            option.textContent = item.caption;
+
+            // Select first by default
+            if (index === 0) option.selected = true;
+
+            imageSelect.appendChild(option);
+        });
+
+        // Auto-load first
+        if (imageSelect.value) {
+            loadSplat(imageSelect.value);
         }
-    });
 
-    // Auto-load the selected default
-    if (imageSelect.value) {
-        loadSplat(imageSelect.value);
-    } else {
-        statusText.textContent = "Select an image to start.";
+        // Add change listener
+        imageSelect.addEventListener('change', (e) => {
+            if (e.target.value) loadSplat(e.target.value);
+        });
+
+    } catch (err) {
+        console.error("Error loading CSV:", err);
+        statusText.textContent = "Error loading image list.";
     }
 }
 
@@ -262,12 +410,28 @@ async function loadSplat(url) {
     const loadId = ++currentLoadId;
     statusText.textContent = `Loading ${url.split('/').pop()} ...`;
 
+    // Update VR Caption (Find text from Select option)
+    const select = document.getElementById('image-select');
+    // If loading from URL directly and not select change, might need to find option
+    // But usually driven by select.
+    if (select.value === url) {
+        const text = select.options[select.selectedIndex].text;
+        updateCaptionTexture(text);
+    } else {
+        // Try to find it? Or just filename
+        updateCaptionTexture(url.split('/').pop().replace('.sog', ''));
+    }
+
     // Cleanup immediately
     if (currentSplat) {
         splatGroup.remove(currentSplat);
         if (currentSplat.dispose) currentSplat.dispose();
         currentSplat = null;
     }
+
+    // Show spinner
+    if (loadingSpinner) loadingSpinner.style.display = 'block';
+    if (loadingMesh) loadingMesh.visible = true;
 
     try {
         // Create new SplatMesh
@@ -297,12 +461,37 @@ async function loadSplat(url) {
 
         animateCameraTo(0, 0, 0.07, 500);
 
+        // Hide spinner
+        if (loadingSpinner) loadingSpinner.style.display = 'none';
+        if (loadingMesh) loadingMesh.visible = false;
+
     } catch (err) {
         if (loadId === currentLoadId) {
             console.error("Error loading splat:", err);
             statusText.textContent = "Error loading. Check console.";
+            // Hide spinner on error
+            if (loadingSpinner) loadingSpinner.style.display = 'none';
+            if (loadingMesh) loadingMesh.visible = false;
         }
     }
+}
+
+function createVRSpinner() {
+    // Simple Ring
+    const geometry = new THREE.RingGeometry(0.04, 0.05, 32);
+    const material = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.8
+    });
+    loadingMesh = new THREE.Mesh(geometry, material);
+
+    // Position near caption but slightly above/center
+    loadingMesh.position.set(0, -0.4, -0.5); // float above caption
+    loadingMesh.visible = false; // hidden by default
+
+    scene.add(loadingMesh);
 }
 
 
