@@ -1,0 +1,1234 @@
+/**
+ * measure.js — Measurement tool, depth probe, elevation profile, contour drag
+ *
+ * All measure-related state manipulation, panel UI, click/drag handlers,
+ * and A* contour pathfinding interaction. Receives map, state, and config
+ * as explicit parameters.
+ */
+
+import {
+    haversineDistance,
+    formatDistance,
+    bearing,
+    coordFromKey,
+    lngLatToWebMercator,
+    webMercatorToLngLat,
+    getActiveWaterLevel,
+    findShortestPath,
+    MinHeap,
+    simplifyPathRDP,
+    _pointToLineDistance
+} from './utils.js';
+
+// ============================================
+// Measure Tool Initialization
+// ============================================
+
+/**
+ * Initialize measure and clear buttons, and add measure-related map
+ * sources and layers.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ *
+ * @mutates state.measureMode — toggled by button click
+ * @mutates state.depthProbeMode — deactivated when measure mode activates
+ */
+export function initializeMeasureTool(map, state) {
+    const measureBtn = document.getElementById('measure-btn');
+    const clearBtn = document.getElementById('clear-btn');
+
+    measureBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.measureMode = !state.measureMode;
+        measureBtn.classList.toggle('active', state.measureMode);
+
+        if (state.measureMode) {
+            if (state.depthProbeMode) {
+                state.depthProbeMode = false;
+                document.getElementById('depth-probe-btn').classList.remove('active');
+                document.body.classList.remove('depth-probe-active');
+                if (state.depthProbeTooltip) state.depthProbeTooltip.style.display = 'none';
+                hideDepthProbePopup(map, state);
+            }
+            document.body.classList.add('measure-mode-active');
+            clearBtn.style.display = 'block';
+            if (map.getLayer('survey-vertices-layer')) {
+                map.setLayoutProperty('survey-vertices-layer', 'visibility', 'visible');
+            }
+        } else {
+            document.body.classList.remove('measure-mode-active');
+            clearMeasurements(map, state);
+            if (map.getLayer('survey-vertices-layer')) {
+                map.setLayoutProperty('survey-vertices-layer', 'visibility', 'none');
+            }
+        }
+
+        measureBtn.blur();
+    });
+
+    clearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearMeasurements(map, state);
+    });
+
+    // Add measure sources
+    map.addSource('measure-line', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+    });
+
+    map.addSource('measure-points', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+    });
+
+    map.addLayer({
+        id: 'measure-line-layer',
+        type: 'line',
+        source: 'measure-line',
+        paint: {
+            'line-color': '#0891b2',
+            'line-width': 3,
+            'line-dasharray': [2, 2]
+        }
+    });
+
+    // Invisible wider hit-target for line drag detection
+    map.addLayer({
+        id: 'measure-line-hit',
+        type: 'line',
+        source: 'measure-line',
+        paint: {
+            'line-color': 'transparent',
+            'line-width': 16
+        }
+    });
+
+    // Contour preview layer (shown during contour drag)
+    map.addSource('measure-contour-preview', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+    });
+
+    map.addLayer({
+        id: 'measure-contour-preview-layer',
+        type: 'line',
+        source: 'measure-contour-preview',
+        paint: {
+            'line-color': '#06b6d4',
+            'line-width': 3,
+            'line-opacity': 0.8
+        }
+    });
+
+    map.addLayer({
+        id: 'measure-points-layer',
+        type: 'circle',
+        source: 'measure-points',
+        paint: {
+            'circle-radius': ['case', ['get', 'isContourAnchor'], 4, 6],
+            'circle-color': ['case', ['get', 'isContourAnchor'], '#06b6d4', '#0891b2'],
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 2
+        }
+    });
+}
+
+// ============================================
+// Clear Measurements
+// ============================================
+
+/**
+ * Reset all measure state and clear map visualizations.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ *
+ * @mutates state.measurePoints — reset to empty
+ * @mutates state.measureSegments — reset to empty
+ * @mutates state.measureTotalDistance — reset to 0
+ * @mutates state.lastMeasureVertexKey — reset to null
+ * @mutates state.draggingPointIndex — reset to null
+ * @mutates state._suppressClick — reset to false
+ * @mutates state.draggingContourSegment — reset to null
+ * @mutates state.contourDragGrid — reset to null
+ * @mutates state.contourPreviewCoords — reset to null
+ */
+export function clearMeasurements(map, state) {
+    state.measurePoints = [];
+    state.measureSegments = [];
+    state.measureTotalDistance = 0;
+    state.lastMeasureVertexKey = null;
+    state.draggingPointIndex = null;
+    state._suppressClick = false;
+    state.draggingContourSegment = null;
+    state.contourDragGrid = null;
+    state.contourPreviewCoords = null;
+
+    document.getElementById('measure-panel').style.display = 'none';
+    document.getElementById('measure-total').textContent = '0 m';
+    document.getElementById('measure-items').innerHTML = '';
+
+    map.getSource('measure-line').setData({ type: 'FeatureCollection', features: [] });
+    map.getSource('measure-points').setData({ type: 'FeatureCollection', features: [] });
+    map.getSource('survey-vertex-highlight').setData({ type: 'FeatureCollection', features: [] });
+    map.getSource('measure-contour-preview').setData({ type: 'FeatureCollection', features: [] });
+
+    const profileEl = document.getElementById('measure-profile');
+    if (profileEl) {
+        profileEl.classList.remove('visible');
+        profileEl.innerHTML = '';
+    }
+}
+
+// ============================================
+// Add Measure Points
+// ============================================
+
+/**
+ * Add a vertex-type point to the measure route (clicked on a survey vertex).
+ * If the previous point was also a vertex, routes along the survey graph.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ * @param {string} clickedKey - Canonical vertex key
+ *
+ * @reads state.measurePoints — to check previous point
+ * @reads state.lastMeasureVertexKey — previous vertex for graph routing
+ * @reads state.graph — survey graph adjacency list
+ * @mutates state.measurePoints — pushes new vertex point
+ * @mutates state.measureSegments — pushes new segment
+ * @mutates state.lastMeasureVertexKey — updated to clickedKey
+ * @mutates state.measureTotalDistance — incremented by segment distance
+ */
+export function addMeasureVertex(map, state, clickedKey) {
+    const [lng, lat] = coordFromKey(clickedKey);
+    const point = { lng, lat, isVertex: true, vertexKey: clickedKey };
+
+    let segmentDistance = 0;
+    let segmentCoords = null;
+    let segmentBearing = null;
+
+    if (state.measurePoints.length > 0) {
+        const prev = state.measurePoints[state.measurePoints.length - 1];
+
+        if (prev.isVertex && prev.vertexKey && state.lastMeasureVertexKey) {
+            const result = findShortestPath(state.graph, state.lastMeasureVertexKey, clickedKey);
+            if (result) {
+                segmentCoords = result.path.map(k => coordFromKey(k));
+                segmentDistance = result.distance;
+                segmentBearing = 'line';
+            } else {
+                segmentCoords = [[prev.lng, prev.lat], [lng, lat]];
+                segmentDistance = haversineDistance([prev.lng, prev.lat], [lng, lat]);
+                segmentBearing = bearing([prev.lng, prev.lat], [lng, lat]);
+            }
+        } else {
+            segmentCoords = [[prev.lng, prev.lat], [lng, lat]];
+            segmentDistance = haversineDistance([prev.lng, prev.lat], [lng, lat]);
+            segmentBearing = bearing([prev.lng, prev.lat], [lng, lat]);
+        }
+
+        state.measureSegments.push({ coords: segmentCoords, distance: segmentDistance });
+    }
+
+    state.measurePoints.push(point);
+    state.lastMeasureVertexKey = clickedKey;
+    state.measureTotalDistance += segmentDistance;
+
+    updateMeasurePanel(state, segmentDistance, segmentBearing);
+    updateMeasureVisualization(map, state);
+    updateVertexHighlights(map, state);
+}
+
+/**
+ * Add a free-form (non-vertex) measurement point at the given location,
+ * with a straight-line segment from the previous point.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ * @param {{ lng: number, lat: number }} lngLat - Click location
+ *
+ * @reads state.measurePoints — to check if a previous point exists
+ * @mutates state.measurePoints — pushes new point { lng, lat, isVertex: false }
+ * @mutates state.measureSegments — pushes new segment { coords, distance }
+ * @mutates state.lastMeasureVertexKey — set to null (breaks vertex chain)
+ * @mutates state.measureTotalDistance — incremented by segment distance
+ */
+export function addMeasureFreePoint(map, state, lngLat) {
+    const point = { lng: lngLat.lng, lat: lngLat.lat, isVertex: false, vertexKey: null };
+
+    let segmentDistance = 0;
+    let segmentBearing = null;
+
+    if (state.measurePoints.length > 0) {
+        const prev = state.measurePoints[state.measurePoints.length - 1];
+        const segmentCoords = [[prev.lng, prev.lat], [lngLat.lng, lngLat.lat]];
+        segmentDistance = haversineDistance([prev.lng, prev.lat], [lngLat.lng, lngLat.lat]);
+        segmentBearing = bearing([prev.lng, prev.lat], [lngLat.lng, lngLat.lat]);
+        state.measureSegments.push({ coords: segmentCoords, distance: segmentDistance });
+    }
+
+    state.measurePoints.push(point);
+    state.lastMeasureVertexKey = null;
+    state.measureTotalDistance += segmentDistance;
+
+    updateMeasurePanel(state, segmentDistance, segmentBearing);
+    updateMeasureVisualization(map, state);
+}
+
+// ============================================
+// Measure Panel
+// ============================================
+
+/**
+ * Append a new entry to the measure panel for the latest point.
+ *
+ * @param {Object} state - Application state
+ * @param {number} segmentDistance - Distance of the latest segment in meters
+ * @param {number|string|null} segmentBearing - Bearing or 'line' or null
+ *
+ * @reads state.measurePoints — to determine point index
+ * @reads state.measureTotalDistance — for total display
+ */
+export function updateMeasurePanel(state, segmentDistance, segmentBearing) {
+    const measurePanel = document.getElementById('measure-panel');
+    const measureTotal = document.getElementById('measure-total');
+    const measureItems = document.getElementById('measure-items');
+
+    const idx = state.measurePoints.length;
+    const displayName = idx === 1 ? 'Start point' : `Point ${idx}`;
+
+    measurePanel.style.display = 'block';
+    measureTotal.textContent = formatDistance(state.measureTotalDistance);
+
+    const bearingHtml = segmentBearing === 'line'
+        ? `<span class="measure-item-bearing">line</span>`
+        : segmentBearing !== null
+            ? `<span class="measure-item-bearing">${Math.round(segmentBearing)}\u00B0</span>`
+            : '';
+
+    const itemEl = document.createElement('div');
+    itemEl.className = 'measure-item';
+    itemEl.innerHTML = `
+        <span class="measure-item-name">
+            <span class="measure-item-dot" style="background: #0891b2;"></span>
+            ${displayName}
+        </span>
+        <span class="measure-item-info">
+            ${bearingHtml}
+            <span class="measure-item-distance">${formatDistance(segmentDistance)}</span>
+        </span>
+    `;
+    measureItems.appendChild(itemEl);
+    updateElevationProfile(state);
+}
+
+/**
+ * Full rebuild of the measure panel from current measurePoints and measureSegments.
+ * Needed when dragging changes distances/bearings of existing entries.
+ *
+ * @param {Object} state - Application state
+ * @param {Object} config - Application config
+ *
+ * @reads state.measurePoints — all current measure points
+ * @reads state.measureSegments — all current segments
+ * @reads state.measureTotalDistance — total distance
+ */
+export function rebuildMeasurePanel(state, config) {
+    const measurePanel = document.getElementById('measure-panel');
+    const measureTotal = document.getElementById('measure-total');
+    const measureItems = document.getElementById('measure-items');
+
+    measureItems.innerHTML = '';
+
+    if (state.measurePoints.length === 0) {
+        measurePanel.style.display = 'none';
+        return;
+    }
+
+    measurePanel.style.display = 'block';
+    measureTotal.textContent = formatDistance(state.measureTotalDistance);
+
+    for (let i = 0; i < state.measurePoints.length; i++) {
+        const displayName = i === 0 ? 'Start point' : `Point ${i + 1}`;
+        let bearingHtml = '';
+
+        if (i > 0) {
+            const prev = state.measurePoints[i - 1];
+            const curr = state.measurePoints[i];
+            const seg = state.measureSegments[i - 1];
+
+            if (seg.contourAHD !== undefined) {
+                const contourDepth = getActiveWaterLevel(state, config) - seg.contourAHD;
+                bearingHtml = `<span class="measure-item-bearing">${contourDepth.toFixed(1)}m contour</span>`;
+            } else if (prev.isVertex && curr.isVertex && seg.coords.length > 2) {
+                bearingHtml = `<span class="measure-item-bearing">line</span>`;
+            } else {
+                const b = bearing([prev.lng, prev.lat], [curr.lng, curr.lat]);
+                bearingHtml = `<span class="measure-item-bearing">${Math.round(b)}\u00B0</span>`;
+            }
+        }
+
+        const segDist = i > 0 ? state.measureSegments[i - 1].distance : 0;
+        const itemEl = document.createElement('div');
+        itemEl.className = 'measure-item';
+        itemEl.innerHTML = `
+            <span class="measure-item-name">
+                <span class="measure-item-dot" style="background: #0891b2;"></span>
+                ${displayName}
+            </span>
+            <span class="measure-item-info">
+                ${bearingHtml}
+                <span class="measure-item-distance">${formatDistance(segDist)}</span>
+            </span>
+        `;
+        measureItems.appendChild(itemEl);
+    }
+    updateElevationProfile(state);
+}
+
+// ============================================
+// Vertex Highlights
+// ============================================
+
+/**
+ * Update highlighted vertices (all selected vertex-type points).
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ *
+ * @reads state.measurePoints — filters for vertex-type points
+ */
+export function updateVertexHighlights(map, state) {
+    const features = state.measurePoints
+        .filter(p => p.isVertex)
+        .map(p => ({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+            properties: {}
+        }));
+
+    map.getSource('survey-vertex-highlight').setData({
+        type: 'FeatureCollection',
+        features
+    });
+}
+
+// ============================================
+// Measure Visualization
+// ============================================
+
+/**
+ * Update line and point GeoJSON on the map for the current measure state.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ *
+ * @reads state.measurePoints — point locations
+ * @reads state.measureSegments — segment coordinates
+ */
+export function updateMeasureVisualization(map, state) {
+    const pointFeatures = state.measurePoints.map((point, index) => ({
+        type: 'Feature',
+        geometry: {
+            type: 'Point',
+            coordinates: [point.lng, point.lat]
+        },
+        properties: { index, isVertex: point.isVertex, isContourAnchor: !!point.isContourAnchor }
+    }));
+
+    map.getSource('measure-points').setData({
+        type: 'FeatureCollection',
+        features: pointFeatures
+    });
+
+    if (state.measureSegments.length > 0) {
+        let allCoords = [];
+        for (const seg of state.measureSegments) {
+            if (allCoords.length === 0) {
+                allCoords = [...seg.coords];
+            } else {
+                allCoords.push(...seg.coords.slice(1));
+            }
+        }
+
+        map.getSource('measure-line').setData({
+            type: 'FeatureCollection',
+            features: [{
+                type: 'Feature',
+                geometry: {
+                    type: 'LineString',
+                    coordinates: allCoords
+                },
+                properties: {}
+            }]
+        });
+    } else {
+        map.getSource('measure-line').setData({ type: 'FeatureCollection', features: [] });
+    }
+}
+
+// ============================================
+// Elevation Profile
+// ============================================
+
+/**
+ * Build and display an SVG elevation profile in the measure panel.
+ * Shows depth below water surface along the measured route.
+ *
+ * @param {Object} state - Application state
+ *
+ * @reads state.measureSegments — segment coordinate data
+ * @reads state.bathymetryLayer — for elevation queries
+ */
+export function updateElevationProfile(state) {
+    const container = document.getElementById('measure-profile');
+    if (!container) return;
+
+    if (state.measureSegments.length === 0 || !state.bathymetryLayer) {
+        container.classList.remove('visible');
+        container.innerHTML = '';
+        return;
+    }
+
+    const waterLevel = getActiveWaterLevel(state, state._config);
+
+    const samples = [];
+    let cumulativeDist = 0;
+
+    for (const seg of state.measureSegments) {
+        const coords = seg.coords;
+        for (let i = 0; i < coords.length; i++) {
+            if (i < coords.length - 1) {
+                const [lng1, lat1] = coords[i];
+                const [lng2, lat2] = coords[i + 1];
+                const segDist = haversineDistance([lng1, lat1], [lng2, lat2]);
+                const numSamples = Math.max(1, Math.ceil(segDist / 2));
+
+                for (let s = 0; s < numSamples; s++) {
+                    const t = s / numSamples;
+                    const lng = lng1 + (lng2 - lng1) * t;
+                    const lat = lat1 + (lat2 - lat1) * t;
+                    const elev = state.bathymetryLayer.getElevationAtLngLat(lng, lat);
+                    const depth = elev !== null ? Math.max(0, waterLevel - elev) : 0;
+
+                    if (s === 0 && samples.length > 0) continue;
+                    samples.push({ dist: cumulativeDist + segDist * t, depth });
+                }
+                cumulativeDist += segDist;
+            }
+        }
+    }
+
+    const lastCoord = state.measureSegments[state.measureSegments.length - 1].coords;
+    const [fLng, fLat] = lastCoord[lastCoord.length - 1];
+    const fElev = state.bathymetryLayer.getElevationAtLngLat(fLng, fLat);
+    const fDepth = fElev !== null ? Math.max(0, waterLevel - fElev) : 0;
+    samples.push({ dist: cumulativeDist, depth: fDepth });
+
+    if (samples.length < 2) {
+        container.classList.remove('visible');
+        container.innerHTML = '';
+        return;
+    }
+
+    const totalDist = samples[samples.length - 1].dist;
+    let maxDepth = 0;
+    for (const s of samples) {
+        if (s.depth > maxDepth) maxDepth = s.depth;
+    }
+    maxDepth = Math.max(maxDepth, 1);
+
+    const svgW = 260;
+    const svgH = 80;
+    const margin = { top: 4, right: 8, bottom: 16, left: 28 };
+    const plotW = svgW - margin.left - margin.right;
+    const plotH = svgH - margin.top - margin.bottom;
+
+    const xScale = (d) => margin.left + (d / totalDist) * plotW;
+    const yScale = (d) => margin.top + (d / maxDepth) * plotH;
+
+    let pathD = `M ${xScale(samples[0].dist)} ${yScale(samples[0].depth)}`;
+    for (let i = 1; i < samples.length; i++) {
+        pathD += ` L ${xScale(samples[i].dist)} ${yScale(samples[i].depth)}`;
+    }
+
+    const fillD = pathD +
+        ` L ${xScale(totalDist)} ${yScale(0)}` +
+        ` L ${xScale(0)} ${yScale(0)} Z`;
+
+    const yLabels = [];
+    const yStep = maxDepth <= 5 ? 1 : maxDepth <= 15 ? 5 : 10;
+    for (let d = 0; d <= maxDepth; d += yStep) {
+        yLabels.push(d);
+    }
+
+    const xLabels = [];
+    const xStep = totalDist <= 50 ? 10 : totalDist <= 200 ? 50 : totalDist <= 500 ? 100 : 200;
+    for (let d = 0; d <= totalDist; d += xStep) {
+        xLabels.push(d);
+    }
+
+    const svg = `<svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">
+        <!-- Surface line -->
+        <line class="profile-surface" x1="${margin.left}" y1="${yScale(0)}" x2="${xScale(totalDist)}" y2="${yScale(0)}"/>
+        <!-- Depth fill -->
+        <path class="profile-fill" d="${fillD}"/>
+        <!-- Y-axis labels -->
+        ${yLabels.map(d => `
+            <line class="profile-axis" x1="${margin.left}" y1="${yScale(d)}" x2="${xScale(totalDist)}" y2="${yScale(d)}"/>
+            <text class="profile-label" x="${margin.left - 3}" y="${yScale(d) + 3}" text-anchor="end">${d}m</text>
+        `).join('')}
+        <!-- X-axis labels -->
+        ${xLabels.map(d => `
+            <text class="profile-label" x="${xScale(d)}" y="${svgH - 2}" text-anchor="middle">${d >= 1000 ? (d / 1000).toFixed(1) + 'k' : d}m</text>
+        `).join('')}
+    </svg>`;
+
+    container.innerHTML = svg;
+    container.classList.add('visible');
+}
+
+// ============================================
+// Depth Probe Tool
+// ============================================
+
+/**
+ * Initialize the depth probe button and hover/touch handlers.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ *
+ * @mutates state.depthProbeMode — toggled by button click
+ * @mutates state.depthProbeTooltip — DOM element created
+ * @mutates state.measureMode — deactivated when probe activates
+ */
+export function initializeDepthProbe(map, state) {
+    const tooltip = document.createElement('div');
+    tooltip.className = 'depth-probe-tooltip';
+    document.body.appendChild(tooltip);
+    state.depthProbeTooltip = tooltip;
+
+    const probeBtn = document.getElementById('depth-probe-btn');
+    const measureBtn = document.getElementById('measure-btn');
+
+    probeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        state.depthProbeMode = !state.depthProbeMode;
+        probeBtn.classList.toggle('active', state.depthProbeMode);
+
+        if (state.depthProbeMode) {
+            if (state.measureMode) {
+                state.measureMode = false;
+                measureBtn.classList.remove('active');
+                document.body.classList.remove('measure-mode-active');
+            }
+            document.body.classList.add('depth-probe-active');
+        } else {
+            document.body.classList.remove('depth-probe-active');
+            tooltip.style.display = 'none';
+            hideDepthProbePopup(map, state);
+        }
+
+        probeBtn.blur();
+    });
+
+    let isTouching = false;
+
+    map.on('mousemove', (e) => {
+        if (!state.depthProbeMode || isTouching) return;
+        showDepthProbeDesktop(state, e.lngLat, e.point);
+    });
+
+    map.getCanvas().addEventListener('mouseleave', () => {
+        if (state.depthProbeMode) {
+            tooltip.style.display = 'none';
+        }
+    });
+
+    const canvas = map.getCanvas();
+    const handleTouch = (e) => {
+        if (!state.depthProbeMode) return;
+        isTouching = true;
+        tooltip.style.display = 'none';
+        const touch = e.touches[0];
+        if (!touch) return;
+        const rect = canvas.getBoundingClientRect();
+        const point = new maplibregl.Point(
+            touch.clientX - rect.left,
+            touch.clientY - rect.top
+        );
+        const lngLat = map.unproject(point);
+        showDepthProbePopup(map, state, lngLat);
+    };
+
+    canvas.addEventListener('touchstart', handleTouch, { passive: true });
+    canvas.addEventListener('touchmove', handleTouch, { passive: true });
+    canvas.addEventListener('touchend', () => {
+        setTimeout(() => { isTouching = false; }, 300);
+    }, { passive: true });
+}
+
+/**
+ * Compute the depth text for a given lngLat.
+ *
+ * @param {Object} state - Application state
+ * @param {{ lng: number, lat: number }} lngLat - Location to probe
+ * @returns {string} Formatted depth string
+ *
+ * @reads state.bathymetryLayer — for elevation query
+ */
+export function getDepthText(state, lngLat) {
+    const elev = state.bathymetryLayer
+        ? state.bathymetryLayer.getElevationAtLngLat(lngLat.lng, lngLat.lat)
+        : null;
+
+    if (elev === null) return 'No data';
+    const waterLevel = getActiveWaterLevel(state, state._config);
+    if (elev > waterLevel) return 'Above water';
+    return `${(waterLevel - elev).toFixed(1)}m`;
+}
+
+/**
+ * Desktop: lightweight fixed-position tooltip near cursor.
+ */
+function showDepthProbeDesktop(state, lngLat, screenPoint) {
+    const tooltip = state.depthProbeTooltip;
+    if (!tooltip) return;
+
+    tooltip.textContent = getDepthText(state, lngLat);
+    tooltip.style.display = 'block';
+    tooltip.style.left = `${screenPoint.x}px`;
+    tooltip.style.top = `${screenPoint.y}px`;
+}
+
+/**
+ * Mobile: MapLibre Popup anchored to the touch lngLat.
+ */
+function showDepthProbePopup(map, state, lngLat) {
+    const text = getDepthText(state, lngLat);
+
+    if (!state.depthProbePopup) {
+        state.depthProbePopup = new maplibregl.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            className: 'depth-probe-popup',
+            anchor: 'bottom'
+        });
+        state.depthProbePopup.addTo(map);
+    }
+
+    state.depthProbePopup
+        .setLngLat(lngLat)
+        .setHTML(`<span class="depth-probe-popup-text">${text}</span>`);
+}
+
+/**
+ * Remove the depth probe popup.
+ */
+function hideDepthProbePopup(map, state) {
+    if (state.depthProbePopup) {
+        state.depthProbePopup.remove();
+        state.depthProbePopup = null;
+    }
+}
+
+// ============================================
+// A* Contour Pathfinding
+// ============================================
+
+/**
+ * A* contour pathfinding on a Float32 elevation grid.
+ * Finds a path between two points that stays close to a target elevation.
+ *
+ * @param {Float32Array} grid - Elevation values (AHD), row-major
+ * @param {number} width - Grid width in pixels
+ * @param {number} height - Grid height in pixels
+ * @param {number[]} bbox - [minX, minY, maxX, maxY] in EPSG:3857
+ * @param {number} startLng - Start longitude (WGS84)
+ * @param {number} startLat - Start latitude (WGS84)
+ * @param {number} endLng - End longitude (WGS84)
+ * @param {number} endLat - End latitude (WGS84)
+ * @param {number} targetElevation - Target AHD elevation to follow
+ * @param {number} [tolerance=0.5] - Max elevation deviation in meters
+ * @returns {Array|null} Array of [lng, lat] coordinates, or null if no path
+ */
+export function findContourPath(grid, width, height, bbox, startLng, startLat, endLng, endLat, targetElevation, tolerance = 0.5) {
+    const totalPixels = width * height;
+
+    const toGrid = (lng, lat) => {
+        const [mx, my] = lngLatToWebMercator(lng, lat);
+        const x = Math.floor((mx - bbox[0]) / (bbox[2] - bbox[0]) * width);
+        const y = Math.floor((bbox[3] - my) / (bbox[3] - bbox[1]) * height);
+        return [x, y];
+    };
+
+    const fromGrid = (x, y) => {
+        const mx = bbox[0] + (x / width) * (bbox[2] - bbox[0]);
+        const my = bbox[3] - (y / height) * (bbox[3] - bbox[1]);
+        return webMercatorToLngLat(mx, my);
+    };
+
+    const [startX, startY] = toGrid(startLng, startLat);
+    const [endX, endY] = toGrid(endLng, endLat);
+
+    if (startX < 0 || startX >= width || startY < 0 || startY >= height ||
+        endX < 0 || endX >= width || endY < 0 || endY >= height) {
+        return null;
+    }
+
+    const straightDist = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
+    const maxIterations = Math.min(50000, Math.max(5000, Math.ceil(straightDist * 100)));
+
+    const visited = new Uint8Array(totalPixels);
+    const gScores = new Float32Array(totalPixels);
+    gScores.fill(Infinity);
+
+    const startIdx = startY * width + startX;
+    gScores[startIdx] = 0;
+
+    const minHeap = new MinHeap();
+    const startH = Math.sqrt((startX - endX) ** 2 + (startY - endY) ** 2);
+    minHeap.push({ x: startX, y: startY, idx: startIdx, g: 0, h: startH, f: startH, parent: null });
+
+    let iterations = 0;
+
+    const neighborOffsets = [
+        { dx: -1, dy: -1, cost: 1.414 }, { dx: 0, dy: -1, cost: 1 }, { dx: 1, dy: -1, cost: 1.414 },
+        { dx: -1, dy: 0, cost: 1 },                                    { dx: 1, dy: 0, cost: 1 },
+        { dx: -1, dy: 1, cost: 1.414 },  { dx: 0, dy: 1, cost: 1 },  { dx: 1, dy: 1, cost: 1.414 }
+    ];
+
+    while (!minHeap.isEmpty() && iterations++ < maxIterations) {
+        const current = minHeap.pop();
+
+        if (visited[current.idx] === 1) continue;
+        visited[current.idx] = 1;
+
+        if (Math.abs(current.x - endX) <= 2 && Math.abs(current.y - endY) <= 2) {
+            const path = [];
+            let node = current;
+            while (node) {
+                path.unshift(fromGrid(node.x, node.y));
+                node = node.parent;
+            }
+            path[0] = [startLng, startLat];
+            path[path.length - 1] = [endLng, endLat];
+            return simplifyPathRDP(path);
+        }
+
+        for (let i = 0; i < 8; i++) {
+            const { dx, dy, cost } = neighborOffsets[i];
+            const nx = current.x + dx;
+            const ny = current.y + dy;
+
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+
+            const nIdx = ny * width + nx;
+            if (visited[nIdx] === 1) continue;
+
+            const elevation = grid[nIdx];
+            if (!Number.isFinite(elevation)) continue;
+
+            const diff = Math.abs(elevation - targetElevation);
+            if (diff > tolerance) continue;
+
+            const depthPenalty = (diff / tolerance) * 2.0;
+
+            const goalDx = endX - current.x;
+            const goalDy = endY - current.y;
+            const goalDist = Math.sqrt(goalDx * goalDx + goalDy * goalDy);
+            let directnessPenalty = 0;
+            if (goalDist > 0) {
+                const dot = (dx * goalDx + dy * goalDy) / (Math.sqrt(dx * dx + dy * dy) * goalDist);
+                directnessPenalty = (1 - dot) * 0.25;
+            }
+
+            const g = current.g + cost + depthPenalty + directnessPenalty;
+
+            if (g < gScores[nIdx]) {
+                gScores[nIdx] = g;
+                const h = Math.sqrt((nx - endX) ** 2 + (ny - endY) ** 2);
+                minHeap.push({ x: nx, y: ny, idx: nIdx, g, h, f: g + h, parent: current });
+            }
+        }
+    }
+
+    return null;
+}
+
+// ============================================
+// Contour Grid Loading (for A* drag)
+// ============================================
+
+/**
+ * Async load contour source at native resolution for the bounding box
+ * covering two endpoints + padding. Stores result in state.contourDragGrid.
+ *
+ * @param {Object} state - Application state
+ * @param {{ lng: number, lat: number }} ptA - First endpoint
+ * @param {{ lng: number, lat: number }} ptB - Second endpoint
+ *
+ * @reads state.contourTiff — GeoTIFF object reference
+ * @reads state.contourBbox — full extent bbox
+ * @reads state.contourNoData — NoData value
+ * @mutates state.contourDragGrid — stores loaded grid data
+ * @mutates state.contourDragGridLoading — loading flag
+ */
+export async function loadContourGridForDrag(state, ptA, ptB) {
+    if (!state.contourTiff || !state.contourBbox) return;
+
+    state.contourDragGridLoading = true;
+
+    try {
+        const [axM, ayM] = lngLatToWebMercator(ptA.lng, ptA.lat);
+        const [bxM, byM] = lngLatToWebMercator(ptB.lng, ptB.lat);
+
+        const minX = Math.min(axM, bxM);
+        const maxX = Math.max(axM, bxM);
+        const minY = Math.min(ayM, byM);
+        const maxY = Math.max(ayM, byM);
+
+        const pad = 100;
+        const [srcMinX, srcMinY, srcMaxX, srcMaxY] = state.contourBbox;
+        const bbox = [
+            Math.max(minX - pad, srcMinX),
+            Math.max(minY - pad, srcMinY),
+            Math.min(maxX + pad, srcMaxX),
+            Math.min(maxY + pad, srcMaxY)
+        ];
+
+        if (bbox[0] >= bbox[2] || bbox[1] >= bbox[3]) {
+            state.contourDragGridLoading = false;
+            return;
+        }
+
+        const rasters = await state.contourTiff.readRasters({
+            bbox,
+            resX: 1.0,
+            resY: 1.0
+        });
+
+        const rawGrid = rasters[0];
+        const width = rasters.width;
+        const height = rasters.height;
+
+        const grid = new Float32Array(rawGrid.length);
+        const noDataValue = state.contourNoData;
+        for (let i = 0; i < rawGrid.length; i++) {
+            const val = rawGrid[i];
+            if (val === noDataValue || val >= 1e5 || !Number.isFinite(val)) {
+                grid[i] = Number.NaN;
+            } else {
+                grid[i] = val;
+            }
+        }
+
+        state.contourDragGrid = { grid, width, height, bbox };
+        console.log(`Contour drag grid loaded: ${width}x${height} (${(rawGrid.length * 4 / 1024).toFixed(0)}KB)`);
+    } catch (error) {
+        console.error('Failed to load contour drag grid:', error);
+    } finally {
+        state.contourDragGridLoading = false;
+    }
+}
+
+// ============================================
+// Click and Drag Handlers
+// ============================================
+
+/**
+ * Initialize all click/drag event handlers for measurement, contour drag,
+ * and cursor feedback.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ * @param {Object} config - Application config
+ * @param {Object} callbacks - Cross-module callbacks
+ * @param {Function} callbacks.addMeasureVertex - (clickedKey) => void
+ * @param {Function} callbacks.addMeasureFreePoint - (lngLat) => void
+ */
+export function initializeClickHandlers(map, state, config, callbacks) {
+    // Vertex click handler
+    map.on('click', 'survey-vertices-layer', (e) => {
+        if (!state.measureMode) return;
+        if (state._suppressClick) return;
+        if (e.features.length === 0) return;
+        e.originalEvent._vertexHandled = true;
+        const key = e.features[0].properties.key;
+        callbacks.addMeasureVertex(key);
+    });
+
+    // General map click
+    map.on('click', (e) => {
+        if (!state.measureMode) return;
+        if (state._suppressClick) return;
+        if (e.originalEvent._vertexHandled) return;
+        callbacks.addMeasureFreePoint(e.lngLat);
+    });
+
+    // --- Drag handlers for free-form measure points ---
+
+    map.on('mousedown', 'measure-points-layer', (e) => {
+        if (!state.measureMode) return;
+        if (e.features.length === 0) return;
+        const feat = e.features[0];
+        if (feat.properties.isVertex) return;
+
+        e.preventDefault();
+        state.draggingPointIndex = feat.properties.index;
+        state._suppressClick = true;
+        map.dragPan.disable();
+        map.getCanvas().style.cursor = 'grabbing';
+    });
+
+    map.on('mousemove', (e) => {
+        if (state.draggingPointIndex === null) return;
+
+        const i = state.draggingPointIndex;
+        const pt = state.measurePoints[i];
+        pt.lng = e.lngLat.lng;
+        pt.lat = e.lngLat.lat;
+
+        if (i > 0) {
+            const prev = state.measurePoints[i - 1];
+            const seg = state.measureSegments[i - 1];
+            seg.coords = [[prev.lng, prev.lat], [pt.lng, pt.lat]];
+            seg.distance = haversineDistance([prev.lng, prev.lat], [pt.lng, pt.lat]);
+        }
+
+        if (i < state.measurePoints.length - 1) {
+            const next = state.measurePoints[i + 1];
+            const seg = state.measureSegments[i];
+            seg.coords = [[pt.lng, pt.lat], [next.lng, next.lat]];
+            seg.distance = haversineDistance([pt.lng, pt.lat], [next.lng, next.lat]);
+        }
+
+        state.measureTotalDistance = state.measureSegments.reduce((sum, s) => sum + s.distance, 0);
+
+        updateMeasureVisualization(map, state);
+        rebuildMeasurePanel(state, config);
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (state.draggingPointIndex === null) return;
+        state.draggingPointIndex = null;
+        map.dragPan.enable();
+        map.getCanvas().style.cursor = 'crosshair';
+        setTimeout(() => { state._suppressClick = false; }, 0);
+    });
+
+    // --- Contour drag: mousedown on measure line segment ---
+    map.on('mousedown', 'measure-line-hit', (e) => {
+        if (!state.measureMode) return;
+        if (state.measureSegments.length === 0) return;
+        if (state.draggingPointIndex !== null) return;
+
+        const clickLng = e.lngLat.lng;
+        const clickLat = e.lngLat.lat;
+        let bestSegIdx = -1;
+        let bestDist = Infinity;
+
+        for (let si = 0; si < state.measureSegments.length; si++) {
+            const seg = state.measureSegments[si];
+            if (seg.contourAHD !== undefined) continue;
+            const coords = seg.coords;
+            for (let ci = 0; ci < coords.length - 1; ci++) {
+                const [ax, ay] = coords[ci];
+                const [bx, by] = coords[ci + 1];
+                const d = _pointToLineDistance([clickLng, clickLat], [ax, ay], [bx, by]);
+                if (d < bestDist) {
+                    bestDist = d;
+                    bestSegIdx = si;
+                }
+            }
+        }
+
+        if (bestSegIdx < 0 || bestDist > 0.0001) return;
+
+        const pointAIndex = bestSegIdx;
+        const pointBIndex = bestSegIdx + 1;
+        const ptA = state.measurePoints[pointAIndex];
+        const ptB = state.measurePoints[pointBIndex];
+
+        if (ptA.isVertex && ptB.isVertex) return;
+
+        e.preventDefault();
+        state.draggingContourSegment = { segmentIndex: bestSegIdx, pointAIndex, pointBIndex };
+        state._suppressClick = true;
+        state.contourDragGrid = null;
+        state.contourPreviewCoords = null;
+        map.dragPan.disable();
+        map.getCanvas().style.cursor = 'crosshair';
+
+        loadContourGridForDrag(state, ptA, ptB);
+    });
+
+    // Contour drag preview
+    map.on('mousemove', (e) => {
+        if (state.draggingContourSegment === null) return;
+
+        const mouseElev = state.bathymetryLayer
+            ? state.bathymetryLayer.getElevationAtLngLat(e.lngLat.lng, e.lngLat.lat)
+            : null;
+
+        if (mouseElev === null) return;
+
+        const waterLevel = getActiveWaterLevel(state, config);
+        if (mouseElev > waterLevel) return;
+
+        const targetElevation = mouseElev;
+
+        if (state.contourDragGrid) {
+            const { grid, width, height, bbox } = state.contourDragGrid;
+            const { pointAIndex, pointBIndex } = state.draggingContourSegment;
+            const ptA = state.measurePoints[pointAIndex];
+            const ptB = state.measurePoints[pointBIndex];
+
+            const contourPath = findContourPath(
+                grid, width, height, bbox,
+                ptA.lng, ptA.lat, ptB.lng, ptB.lat,
+                targetElevation, 0.5
+            );
+
+            if (contourPath && contourPath.length >= 2) {
+                state.contourPreviewCoords = contourPath;
+                state._contourPreviewElevation = targetElevation;
+
+                const features = [];
+                const contourStart = contourPath[0];
+                const contourEnd = contourPath[contourPath.length - 1];
+
+                features.push({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: [[ptA.lng, ptA.lat], contourStart] },
+                    properties: { type: 'approach' }
+                });
+
+                features.push({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: contourPath },
+                    properties: { type: 'contour' }
+                });
+
+                features.push({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: [contourEnd, [ptB.lng, ptB.lat]] },
+                    properties: { type: 'depart' }
+                });
+
+                map.getSource('measure-contour-preview').setData({
+                    type: 'FeatureCollection',
+                    features
+                });
+            } else {
+                map.getSource('measure-contour-preview').setData({ type: 'FeatureCollection', features: [] });
+                state.contourPreviewCoords = null;
+            }
+        }
+    });
+
+    // Contour drag finalize
+    globalThis.addEventListener('mouseup', () => {
+        if (state.draggingContourSegment === null) return;
+
+        const { segmentIndex, pointAIndex, pointBIndex } = state.draggingContourSegment;
+
+        if (state.contourPreviewCoords && state.contourPreviewCoords.length >= 2) {
+            const contourPath = state.contourPreviewCoords;
+            const targetElevation = state._contourPreviewElevation;
+            const contourStart = contourPath[0];
+            const contourEnd = contourPath[contourPath.length - 1];
+            const ptA = state.measurePoints[pointAIndex];
+            const ptB = state.measurePoints[pointBIndex];
+
+            const approachCoords = [[ptA.lng, ptA.lat], contourStart];
+            const approachDist = haversineDistance(approachCoords[0], approachCoords[1]);
+
+            let contourDist = 0;
+            for (let i = 0; i < contourPath.length - 1; i++) {
+                contourDist += haversineDistance(contourPath[i], contourPath[i + 1]);
+            }
+
+            const departCoords = [contourEnd, [ptB.lng, ptB.lat]];
+            const departDist = haversineDistance(departCoords[0], departCoords[1]);
+
+            const anchorA = {
+                lng: contourStart[0], lat: contourStart[1],
+                isVertex: false, vertexKey: null, isContourAnchor: true
+            };
+            const anchorB = {
+                lng: contourEnd[0], lat: contourEnd[1],
+                isVertex: false, vertexKey: null, isContourAnchor: true
+            };
+
+            state.measureSegments.splice(segmentIndex, 1,
+                { coords: approachCoords, distance: approachDist },
+                { coords: contourPath, distance: contourDist, contourAHD: targetElevation },
+                { coords: departCoords, distance: departDist }
+            );
+
+            state.measurePoints.splice(pointBIndex, 0, anchorA, anchorB);
+
+            state.measureTotalDistance = state.measureSegments.reduce((sum, s) => sum + s.distance, 0);
+        }
+
+        state.draggingContourSegment = null;
+        state.contourDragGrid = null;
+        state.contourPreviewCoords = null;
+        delete state._contourPreviewElevation;
+        map.dragPan.enable();
+        if (state.measureMode) {
+            map.getCanvas().style.cursor = 'crosshair';
+        }
+
+        map.getSource('measure-contour-preview').setData({ type: 'FeatureCollection', features: [] });
+
+        updateMeasureVisualization(map, state);
+        rebuildMeasurePanel(state, config);
+        updateElevationProfile(state);
+
+        setTimeout(() => { state._suppressClick = false; }, 0);
+    });
+
+    // --- Cursor feedback ---
+
+    map.on('mouseenter', 'survey-vertices-layer', () => {
+        if (state.measureMode && state.draggingPointIndex === null) {
+            map.getCanvas().style.cursor = 'pointer';
+        }
+    });
+
+    map.on('mouseleave', 'survey-vertices-layer', () => {
+        if (state.measureMode && state.draggingPointIndex === null) {
+            map.getCanvas().style.cursor = 'crosshair';
+        }
+    });
+
+    map.on('mouseenter', 'measure-points-layer', (e) => {
+        if (!state.measureMode || state.draggingPointIndex !== null) return;
+        if (e.features.length > 0 && !e.features[0].properties.isVertex) {
+            map.getCanvas().style.cursor = 'grab';
+        }
+    });
+
+    map.on('mouseleave', 'measure-points-layer', () => {
+        if (state.measureMode && state.draggingPointIndex === null) {
+            map.getCanvas().style.cursor = 'crosshair';
+        }
+    });
+
+    map.on('mouseenter', 'measure-line-hit', () => {
+        if (state.measureMode && state.draggingPointIndex === null && state.draggingContourSegment === null) {
+            map.getCanvas().style.cursor = 'ns-resize';
+        }
+    });
+
+    map.on('mouseleave', 'measure-line-hit', () => {
+        if (state.measureMode && state.draggingPointIndex === null && state.draggingContourSegment === null) {
+            map.getCanvas().style.cursor = 'crosshair';
+        }
+    });
+}
