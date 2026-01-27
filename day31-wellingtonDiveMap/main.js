@@ -127,6 +127,7 @@ const state = {
     contourNoData: -9999, // NoData value from contour source
     contourBbox: null,    // Full extent bbox [minX, minY, maxX, maxY] EPSG:3857
     contourGenToken: 0,   // Counter for cancelling stale async reads
+    lastContourGeoJSON: null, // Last generated GeoJSON for debug download
     hillshadeLayer: null, // Custom WebGL hillshade layer reference
 
     // Water level control state
@@ -745,7 +746,14 @@ function lngLatToWebMercator(lng, lat) {
 }
 
 /**
- * Generate contour GeoJSON from a grid + bbox
+ * Generate contour GeoJSON from a grid + bbox.
+ *
+ * d3.contours produces closed polygon rings. When an isoline hits the NoData
+ * boundary it gets "closed" by tracing along the boundary edge. These boundary
+ * segments appear at every threshold. We identify them by collecting all
+ * pixel-space coordinates from the deepest threshold's rings (which are purely
+ * boundary), then stripping those coordinates from rings at other depths.
+ * What remains are the real interior isoline segments.
  */
 function generateContourGeoJSON(grid, width, height, bbox, waterLevel, interval) {
     const maxContourDepth = Math.round(waterLevel - CONFIG.MIN_ELEVATION_AHD);
@@ -763,6 +771,37 @@ function generateContourGeoJSON(grid, width, height, bbox, waterLevel, interval)
         .smooth(true);
 
     const contourMultiPolygons = contourGenerator(grid);
+
+    // --- Pass 1: find the deepest threshold and collect its boundary coords ---
+    let deepestAHD = Infinity;
+    for (const mp of contourMultiPolygons) {
+        if (mp.coordinates.length > 0 && mp.value < deepestAHD) {
+            deepestAHD = mp.value;
+        }
+    }
+    const deepestDepth = Math.round(waterLevel - deepestAHD);
+
+    // Build a Set of pixel-coordinate keys from the deepest rings
+    const boundaryCoords = new Set();
+    for (const mp of contourMultiPolygons) {
+        if (mp.value !== deepestAHD) continue;
+        for (const polygon of mp.coordinates) {
+            for (const ring of polygon) {
+                for (const [x, y] of ring) {
+                    // Key at ~0.01 pixel precision to handle smoothing
+                    boundaryCoords.add(`${(x * 100) | 0},${(y * 100) | 0}`);
+                }
+            }
+        }
+    }
+
+    // --- Pass 2: build features, stripping boundary coordinates ---
+    const pixelToGeo = (x, y) => {
+        const mercatorX = bbox[0] + (x / width) * (bbox[2] - bbox[0]);
+        const mercatorY = bbox[3] - (y / height) * (bbox[3] - bbox[1]);
+        return webMercatorToLngLat(mercatorX, mercatorY);
+    };
+
     const features = [];
 
     for (const multiPolygon of contourMultiPolygons) {
@@ -772,30 +811,75 @@ function generateContourGeoJSON(grid, width, height, bbox, waterLevel, interval)
         const depth = Math.round(waterLevel - ahdLevel);
         if (depth <= 0) continue;
 
+        // Drop the deepest threshold entirely (purely boundary)
+        if (depth === deepestDepth) continue;
+
         for (const polygon of multiPolygon.coordinates) {
             for (const ring of polygon) {
                 if (ring.length < 10) continue;
 
-                const geoCoords = ring.map(([x, y]) => {
-                    const mercatorX = bbox[0] + (x / width) * (bbox[2] - bbox[0]);
-                    const mercatorY = bbox[3] - (y / height) * (bbox[3] - bbox[1]);
-                    return webMercatorToLngLat(mercatorX, mercatorY);
-                });
-
-                features.push({
-                    type: 'Feature',
-                    properties: { depth, ahdLevel, interval },
-                    geometry: {
-                        type: 'LineString',
-                        coordinates: geoCoords
+                // Split ring into segments by removing boundary points
+                let currentSegment = [];
+                for (const [x, y] of ring) {
+                    const key = `${(x * 100) | 0},${(y * 100) | 0}`;
+                    if (boundaryCoords.has(key)) {
+                        // Flush current segment if long enough
+                        if (currentSegment.length >= 5) {
+                            features.push({
+                                type: 'Feature',
+                                properties: { depth, ahdLevel, interval },
+                                geometry: {
+                                    type: 'LineString',
+                                    coordinates: currentSegment.map(
+                                        ([px, py]) => pixelToGeo(px, py)
+                                    )
+                                }
+                            });
+                        }
+                        currentSegment = [];
+                    } else {
+                        currentSegment.push([x, y]);
                     }
-                });
+                }
+                // Flush final segment
+                if (currentSegment.length >= 5) {
+                    features.push({
+                        type: 'Feature',
+                        properties: { depth, ahdLevel, interval },
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: currentSegment.map(
+                                ([px, py]) => pixelToGeo(px, py)
+                            )
+                        }
+                    });
+                }
             }
         }
     }
 
     return { type: 'FeatureCollection', features };
 }
+
+/**
+ * Download the current contour GeoJSON for analysis.
+ * Call from the browser console: downloadContourGeoJSON()
+ */
+globalThis.downloadContourGeoJSON = function () {
+    if (!state.lastContourGeoJSON) {
+        console.warn('No contour data available — zoom in to generate contours first');
+        return;
+    }
+    const data = state.lastContourGeoJSON;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `contours_z${Math.floor(map.getZoom())}.geojson`;
+    a.click();
+    URL.revokeObjectURL(url);
+    console.log(`Downloaded ${data.features.length} features`);
+};
 
 function generateContoursForViewport() {
     if (!state.contourLowRes) return;
@@ -821,7 +905,8 @@ function generateContoursForViewport() {
     const cacheKey = `${tier}-${zoom}-${interval}-${waterLevel.toFixed(1)}-${bounds.toString()}`;
 
     if (state.contoursCache.has(cacheKey)) {
-        map.getSource('contours-source').setData(state.contoursCache.get(cacheKey));
+        state.lastContourGeoJSON = state.contoursCache.get(cacheKey);
+        map.getSource('contours-source').setData(state.lastContourGeoJSON);
         return;
     }
 
@@ -831,6 +916,7 @@ function generateContoursForViewport() {
         try {
             const { grid, width, height, bbox } = state.contourLowRes;
             const geojson = generateContourGeoJSON(grid, width, height, bbox, waterLevel, interval);
+            state.lastContourGeoJSON = geojson;
 
             if (map.getSource('contours-source')) {
                 map.getSource('contours-source').setData(geojson);
@@ -878,12 +964,16 @@ async function generateHighResContours(bounds, waterLevel, interval, cacheKey) {
         const sw = lngLatToWebMercator(bounds.getWest(), bounds.getSouth());
         const ne = lngLatToWebMercator(bounds.getEast(), bounds.getNorth());
 
-        // Clamp to contour source extent
+        // Expand by 50% (same as hillshade) so panning doesn't show edges
+        const padX = (ne[0] - sw[0]) * 0.5;
+        const padY = (ne[1] - sw[1]) * 0.5;
+
+        // Clamp expanded viewport to contour source extent
         const [srcMinX, srcMinY, srcMaxX, srcMaxY] = state.contourBbox;
-        const bboxMinX = Math.max(sw[0], srcMinX);
-        const bboxMinY = Math.max(sw[1], srcMinY);
-        const bboxMaxX = Math.min(ne[0], srcMaxX);
-        const bboxMaxY = Math.min(ne[1], srcMaxY);
+        const bboxMinX = Math.max(sw[0] - padX, srcMinX);
+        const bboxMinY = Math.max(sw[1] - padY, srcMinY);
+        const bboxMaxX = Math.min(ne[0] + padX, srcMaxX);
+        const bboxMaxY = Math.min(ne[1] + padY, srcMaxY);
 
         // Skip if viewport doesn't overlap the source
         if (bboxMinX >= bboxMaxX || bboxMinY >= bboxMaxY) {
@@ -932,6 +1022,7 @@ async function generateHighResContours(bounds, waterLevel, interval, cacheKey) {
         }
 
         const geojson = generateContourGeoJSON(grid, width, height, bbox, waterLevel, interval);
+        state.lastContourGeoJSON = geojson;
 
         if (map.getSource('contours-source')) {
             map.getSource('contours-source').setData(geojson);

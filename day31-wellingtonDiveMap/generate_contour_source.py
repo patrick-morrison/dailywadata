@@ -17,7 +17,7 @@ gdal.UseExceptions()
 # ── Configuration ──────────────────────────────────────────────────────────────
 INPUT_COG = "merged_bathy_cog.tif"
 OUTPUT_COG = "contour_source.tif"
-SHORT_AXIS = 2048          # Target short axis in pixels
+SHORT_AXIS = 1024          # Target short axis in pixels
 NODATA_IN = 1_000_000.0    # Source NoData value
 NODATA_OUT = -9999.0        # Output NoData value
 

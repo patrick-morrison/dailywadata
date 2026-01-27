@@ -30,7 +30,15 @@ function createMultiplyHillshadeLayer(options) {
     let mapRef = null;
     let glRef = null;
 
-    // Image bounds as [west, south, east, north] in lng/lat (WGS84)
+    // COG state for viewport-based reads
+    let tiffRef = null;
+    let storedNoDataValue = null;
+    let storedSamplesPerPixel = null;
+    let fullExtentEpsg3857 = null; // [minX, minY, maxX, maxY]
+    let viewportToken = 0;         // For cancelling stale async reads
+    let moveendHandler = null;     // For cleanup on remove
+
+    // Current texture bounds as [west, south, east, north] in lng/lat (WGS84)
     let boundsLngLat = null;
 
     // Shader sources
@@ -121,13 +129,47 @@ function createMultiplyHillshadeLayer(options) {
     }
 
     /**
-     * Read rasters at a given resolution and create/replace the WebGL texture.
-     * Returns the GeoTIFF image reference for reuse.
+     * Convert WGS84 lng/lat to Web Mercator
      */
-    async function readAndCreateTexture(gl, tiff, noDataValue, samplesPerPixel, width, height, label) {
-        console.time(`⏱️ hillshade: readRasters (${label})`);
-        const rasters = await tiff.readRasters({ width, height });
-        console.timeEnd(`⏱️ hillshade: readRasters (${label})`);
+    function lngLatToWebMercator(lng, lat) {
+        const MERCATOR_EXTENT = 20037508.342789244;
+        const x = (lng / 180) * MERCATOR_EXTENT;
+        const y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180);
+        return [x, (y / 180) * MERCATOR_EXTENT];
+    }
+
+    let textureSeq = 0; // unique ID for timer labels
+
+    /**
+     * Read rasters at a given resolution and create/replace the WebGL texture.
+     * Returns false if the read was stale (token mismatch), true otherwise.
+     * @param {WebGLRenderingContext} gl
+     * @param {GeoTIFF} tiff - GeoTIFF object (auto-selects best overview)
+     * @param {number|null} noDataValue
+     * @param {number} samplesPerPixel
+     * @param {number} width - Requested output width
+     * @param {number} height - Requested output height
+     * @param {string} label - For logging
+     * @param {number[]} [bbox] - Optional [minX, minY, maxX, maxY] in EPSG:3857
+     * @param {number} [token] - Viewport token; if provided, bail early when stale
+     */
+    async function readAndCreateTexture(gl, tiff, noDataValue, samplesPerPixel, width, height, label, bbox, token) {
+        const seq = ++textureSeq;
+        const timerRead = `⏱️ hillshade: readRasters #${seq} (${label})`;
+        const timerPixels = `⏱️ hillshade: processPixels #${seq} (${label})`;
+
+        console.time(timerRead);
+        const readOpts = { width, height };
+        if (bbox) readOpts.bbox = bbox;
+        const rasters = await tiff.readRasters(readOpts);
+        console.timeEnd(timerRead);
+
+        // Bail before expensive pixel work if a newer request superseded this one
+        if (token !== undefined && token !== viewportToken) return false;
+
+        // Use actual returned dimensions (should match requested, but be safe)
+        const actualWidth = rasters.width || width;
+        const actualHeight = rasters.height || height;
 
         const data = rasters[0];
         const alphaBand = samplesPerPixel >= 2 ? rasters[samplesPerPixel - 1] : null;
@@ -140,7 +182,7 @@ function createMultiplyHillshadeLayer(options) {
             return false;
         };
 
-        console.time(`⏱️ hillshade: processPixels (${label})`);
+        console.time(timerPixels);
         const isNoData = new Uint8Array(data.length);
         let pixelData;
 
@@ -171,7 +213,7 @@ function createMultiplyHillshadeLayer(options) {
             }
         }
 
-        const rgbaData = new Uint8Array(width * height * 4);
+        const rgbaData = new Uint8Array(actualWidth * actualHeight * 4);
         for (let i = 0; i < pixelData.length; i++) {
             const val = pixelData[i];
             rgbaData[i * 4] = val;
@@ -179,7 +221,10 @@ function createMultiplyHillshadeLayer(options) {
             rgbaData[i * 4 + 2] = val;
             rgbaData[i * 4 + 3] = isNoData[i] ? 0 : 255;
         }
-        console.timeEnd(`⏱️ hillshade: processPixels (${label})`);
+        console.timeEnd(timerPixels);
+
+        // Final stale check before touching GL state
+        if (token !== undefined && token !== viewportToken) return false;
 
         // Create or replace the WebGL texture
         if (texture) {
@@ -187,59 +232,52 @@ function createMultiplyHillshadeLayer(options) {
         }
         texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgbaData);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, actualWidth, actualHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, rgbaData);
 
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-        console.log(`Hillshade texture created (${label}): ${width}×${height}`);
+        console.log(`Hillshade texture created (${label}): ${actualWidth}×${actualHeight}`);
+        return true;
     }
 
     /**
-     * Load the hillshade COG with progressive quality:
-     * 1. First pass: low-res (~2048px) for instant display
-     * 2. Second pass: full native resolution for crisp detail
+     * Open the hillshade COG, read metadata, create GL buffers,
+     * do the initial viewport read, and wire up moveend for re-reads.
      */
     async function loadHillshadeImage(gl) {
         try {
             console.log('Loading hillshade COG:', cogUrl);
             console.time('⏱️ hillshade: GeoTIFF.fromUrl');
-            const tiff = await GeoTIFF.fromUrl(cogUrl, {
+            tiffRef = await GeoTIFF.fromUrl(cogUrl, {
                 allowFullFile: false,
                 cacheSize: 100
             });
             console.timeEnd('⏱️ hillshade: GeoTIFF.fromUrl');
 
             console.time('⏱️ hillshade: getImage');
-            const image = await tiff.getImage();
+            const image = await tiffRef.getImage();
             console.timeEnd('⏱️ hillshade: getImage');
-            const imageBounds = image.getBoundingBox();
 
-            // Convert to lng/lat for precision
-            const sw = webMercatorToLngLat(imageBounds[0], imageBounds[1]);
-            const ne = webMercatorToLngLat(imageBounds[2], imageBounds[3]);
-            boundsLngLat = [sw[0], sw[1], ne[0], ne[1]];
-
+            // Store metadata for viewport reads
+            fullExtentEpsg3857 = image.getBoundingBox(); // [minX, minY, maxX, maxY]
             const fileDirectory = image.getFileDirectory();
             const gdalNoData = fileDirectory.GDAL_NODATA;
-            const noDataValue = gdalNoData !== undefined ? parseFloat(gdalNoData) : null;
-            const samplesPerPixel = image.getSamplesPerPixel();
+            storedNoDataValue = gdalNoData !== undefined ? parseFloat(gdalNoData) : null;
+            storedSamplesPerPixel = image.getSamplesPerPixel();
 
             const nativeWidth = image.getWidth();
             const nativeHeight = image.getHeight();
 
-            console.log('Hillshade bounds (lng/lat):', boundsLngLat);
-            console.log('NoData value:', noDataValue, '| Samples per pixel:', samplesPerPixel);
+            const sw = webMercatorToLngLat(fullExtentEpsg3857[0], fullExtentEpsg3857[1]);
+            const ne = webMercatorToLngLat(fullExtentEpsg3857[2], fullExtentEpsg3857[3]);
+            console.log('Hillshade bounds (lng/lat):', [sw[0], sw[1], ne[0], ne[1]]);
+            console.log(`Hillshade native: ${nativeWidth}×${nativeHeight}`);
+            console.log('NoData value:', storedNoDataValue, '| Samples per pixel:', storedSamplesPerPixel);
 
-            // --- Pass 1: Low-res for quick display ---
-            const MAX_DIM_LOW = 2048;
-            const scaleLow = Math.min(1, MAX_DIM_LOW / Math.max(nativeWidth, nativeHeight));
-            const lowWidth = Math.round(nativeWidth * scaleLow);
-            const lowHeight = Math.round(nativeHeight * scaleLow);
-
-            // Create buffers on first load
+            // Create GL buffers once
             vertexBuffer = gl.createBuffer();
             texCoordBuffer = gl.createBuffer();
             const texCoords = new Float32Array([
@@ -249,25 +287,87 @@ function createMultiplyHillshadeLayer(options) {
             gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
             gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
 
-            console.log(`Hillshade native: ${nativeWidth}×${nativeHeight}`);
+            // Initial viewport read
+            await loadHillshadeForViewport(gl);
 
-            await readAndCreateTexture(gl, tiff, noDataValue, samplesPerPixel, lowWidth, lowHeight, 'low-res');
-            imageLoaded = true;
-
-            // Trigger repaint so the low-res version appears immediately
-            if (mapRef) mapRef.triggerRepaint();
-
-            // --- Pass 2: Full native resolution ---
-            // Yield to browser first so the low-res frame renders
-            await new Promise(resolve => requestAnimationFrame(resolve));
-
-            await readAndCreateTexture(gl, tiff, noDataValue, samplesPerPixel, nativeWidth, nativeHeight, 'full-res');
-
-            // Trigger repaint to swap in the high-res texture
-            if (mapRef) mapRef.triggerRepaint();
+            // Re-read on map movement (debounced)
+            let debounceTimer = null;
+            moveendHandler = () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => loadHillshadeForViewport(gl), 200);
+            };
+            mapRef.on('moveend', moveendHandler);
 
         } catch (error) {
             console.error('Failed to load hillshade COG:', error);
+        }
+    }
+
+    /**
+     * Read the hillshade for the current map viewport at screen-appropriate
+     * resolution, using COG overviews automatically.
+     */
+    async function loadHillshadeForViewport(gl) {
+        if (!tiffRef || !fullExtentEpsg3857 || !mapRef) return;
+
+        const token = ++viewportToken;
+
+        try {
+            const mapBounds = mapRef.getBounds();
+            const swMerc = lngLatToWebMercator(mapBounds.getWest(), mapBounds.getSouth());
+            const neMerc = lngLatToWebMercator(mapBounds.getEast(), mapBounds.getNorth());
+
+            // Expand viewport by 50% so panning doesn't show edges
+            const padX = (neMerc[0] - swMerc[0]) * 0.5;
+            const padY = (neMerc[1] - swMerc[1]) * 0.5;
+
+            // Clamp expanded viewport to hillshade extent
+            const [extMinX, extMinY, extMaxX, extMaxY] = fullExtentEpsg3857;
+            const bboxMinX = Math.max(swMerc[0] - padX, extMinX);
+            const bboxMinY = Math.max(swMerc[1] - padY, extMinY);
+            const bboxMaxX = Math.min(neMerc[0] + padX, extMaxX);
+            const bboxMaxY = Math.min(neMerc[1] + padY, extMaxY);
+
+            if (bboxMinX >= bboxMaxX || bboxMinY >= bboxMaxY) return; // no overlap
+
+            const bbox = [bboxMinX, bboxMinY, bboxMaxX, bboxMaxY];
+
+            // Calculate screen pixel density for the visible area.
+            // Web Mercator resolution at zoom z: 40075016.686 / (256 * 2^z) metres/px
+            const zoom = mapRef.getZoom();
+            const metersPerPixel = 40075016.686 / (256 * Math.pow(2, zoom));
+
+            let reqWidth = Math.round((bboxMaxX - bboxMinX) / metersPerPixel);
+            let reqHeight = Math.round((bboxMaxY - bboxMinY) / metersPerPixel);
+
+            // Cap to avoid enormous textures
+            const MAX_DIM = 2048;
+            if (Math.max(reqWidth, reqHeight) > MAX_DIM) {
+                const scale = MAX_DIM / Math.max(reqWidth, reqHeight);
+                reqWidth = Math.max(1, Math.round(reqWidth * scale));
+                reqHeight = Math.max(1, Math.round(reqHeight * scale));
+            }
+
+            const label = `viewport z${zoom.toFixed(1)} ${reqWidth}×${reqHeight}`;
+            const ok = await readAndCreateTexture(
+                gl, tiffRef, storedNoDataValue, storedSamplesPerPixel,
+                reqWidth, reqHeight, label, bbox, token
+            );
+
+            // readAndCreateTexture returns false if the token went stale
+            if (!ok) return;
+
+            // Update texture bounds to match the bbox we actually read
+            const swLL = webMercatorToLngLat(bboxMinX, bboxMinY);
+            const neLL = webMercatorToLngLat(bboxMaxX, bboxMaxY);
+            boundsLngLat = [swLL[0], swLL[1], neLL[0], neLL[1]];
+
+            imageLoaded = true;
+            if (mapRef) mapRef.triggerRepaint();
+        } catch (error) {
+            if (token === viewportToken) {
+                console.error('Failed to load hillshade for viewport:', error);
+            }
         }
     }
 
@@ -357,10 +457,12 @@ function createMultiplyHillshadeLayer(options) {
          * Called when the layer is removed from the map
          */
         onRemove(map, gl) {
+            if (moveendHandler) map.off('moveend', moveendHandler);
             if (program) gl.deleteProgram(program);
             if (vertexBuffer) gl.deleteBuffer(vertexBuffer);
             if (texCoordBuffer) gl.deleteBuffer(texCoordBuffer);
             if (texture) gl.deleteTexture(texture);
+            tiffRef = null;
             mapRef = null;
             glRef = null;
         },
