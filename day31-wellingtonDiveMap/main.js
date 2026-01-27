@@ -114,7 +114,10 @@ const CONFIG = {
 const state = {
     layerVisibility: {
         bathymetry: true,
-        contours: true
+        contours: true,
+        entries: true,
+        features: true,
+        structures: true
     },
     measureMode: false,
     measurePoints: [],
@@ -1239,6 +1242,14 @@ function initializeLayerControls() {
                 if (checkbox.checked) {
                     generateContoursForViewport();
                 }
+            } else if (['entries', 'features', 'structures'].includes(layerId)) {
+                const sourceId = `overlay-${layerId}`;
+                if (map.getLayer(`${sourceId}-circles`)) {
+                    map.setLayoutProperty(`${sourceId}-circles`, 'visibility', visibility);
+                }
+                if (map.getLayer(`${sourceId}-labels`)) {
+                    map.setLayoutProperty(`${sourceId}-labels`, 'visibility', visibility);
+                }
             }
         });
     });
@@ -1488,6 +1499,101 @@ function initializeWaterLevelControls() {
 }
 
 // ============================================
+// GeoJSON Overlay Layers (Entries, Features, Structures)
+// ============================================
+
+const OVERLAY_LAYERS = [
+    { id: 'entries',    file: 'Entries.geojson',    color: '#e74c3c', label: 'Entries' },
+    { id: 'features',   file: 'Features.geojson',   color: '#f39c12', label: 'Features' },
+    { id: 'structures', file: 'Structures.geojson', color: '#3498db', label: 'Structures' }
+];
+
+async function loadOverlayLayers() {
+    for (const layer of OVERLAY_LAYERS) {
+        try {
+            const response = await fetch(layer.file);
+            if (!response.ok) { console.warn(`Could not load ${layer.file}`); continue; }
+            const geojson = await response.json();
+
+            // Reproject EPSG:3857 → WGS84 and filter null geometries
+            const features = geojson.features
+                .filter(f => f.geometry !== null)
+                .map(f => ({
+                    ...f,
+                    geometry: {
+                        type: f.geometry.type,
+                        coordinates: webMercatorToLngLat(f.geometry.coordinates[0], f.geometry.coordinates[1])
+                    }
+                }));
+
+            const sourceId = `overlay-${layer.id}`;
+            map.addSource(sourceId, {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features }
+            });
+
+            // Circle layer
+            map.addLayer({
+                id: `${sourceId}-circles`,
+                type: 'circle',
+                source: sourceId,
+                paint: {
+                    'circle-radius': 7,
+                    'circle-color': layer.color,
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': 2,
+                    'circle-opacity': 0.9
+                }
+            });
+
+            // Label layer
+            map.addLayer({
+                id: `${sourceId}-labels`,
+                type: 'symbol',
+                source: sourceId,
+                layout: {
+                    'text-field': ['coalesce', ['get', 'name'], ['get', 'Name'], ''],
+                    'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+                    'text-size': 12,
+                    'text-offset': [0, 1.5],
+                    'text-anchor': 'top',
+                    'text-optional': true
+                },
+                paint: {
+                    'text-color': '#000000',
+                    'text-halo-color': '#ffffff',
+                    'text-halo-width': 1.5
+                }
+            });
+
+            // Click popup
+            map.on('click', `${sourceId}-circles`, (e) => {
+                if (state.measureMode) { addMeasurePoint(e.lngLat); return; }
+                const props = e.features[0].properties;
+                const name = props.name || props.Name || 'Unnamed';
+                const extra = props.Reporter ? `<div class="popup-row"><span class="popup-label">Reporter</span>${props.Reporter}</div>` : '';
+                if (state.activePopup) state.activePopup.remove();
+                state.activePopup = new maplibregl.Popup({ closeButton: true, maxWidth: '280px' })
+                    .setLngLat(e.lngLat)
+                    .setHTML(`<div class="segment-popup"><div class="popup-title">${name}</div>${extra}</div>`)
+                    .addTo(map);
+            });
+
+            map.on('mouseenter', `${sourceId}-circles`, () => {
+                if (!state.measureMode) map.getCanvas().style.cursor = 'pointer';
+            });
+            map.on('mouseleave', `${sourceId}-circles`, () => {
+                if (!state.measureMode) map.getCanvas().style.cursor = '';
+            });
+
+            console.log(`Loaded overlay: ${layer.label} (${features.length} features)`);
+        } catch (error) {
+            console.error(`Error loading ${layer.file}:`, error);
+        }
+    }
+}
+
+// ============================================
 // Map Load Handler
 // ============================================
 
@@ -1508,6 +1614,9 @@ map.on('load', async () => {
 
         // Set up contour source/layers (synchronous, needs survey lines first for z-order)
         setupContourLayers();
+
+        // Load GeoJSON overlay layers (Entries, Features, Structures)
+        await loadOverlayLayers();
 
         // Initialize UI handlers
         initializeMeasureTool();
@@ -1532,6 +1641,7 @@ map.on('load', async () => {
             initializeContourGeneration().then(() => {
                 console.timeEnd('⏱️ initializeContourGeneration (background)');
             });
+
         });
 
     } catch (error) {

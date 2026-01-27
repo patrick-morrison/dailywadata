@@ -1,0 +1,17 @@
+{
+"type": "FeatureCollection",
+"name": "Features",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::3857" } },
+"features": [
+{ "type": "Feature", "properties": { "fid": 1, "Name": "River Crossing NW Corner" }, "geometry": { "type": "Point", "coordinates": [ 12913536.105706861242652, -3948456.750624650623649 ] } },
+{ "type": "Feature", "properties": { "fid": 2, "Name": "Steep banking on path" }, "geometry": { "type": "Point", "coordinates": [ 12912063.270399244502187, -3947481.783236427232623 ] } },
+{ "type": "Feature", "properties": { "fid": 3, "Name": "Tall Trees" }, "geometry": { "type": "Point", "coordinates": [ 12912797.19584796205163, -3948147.552702220156789 ] } },
+{ "type": "Feature", "properties": { "fid": 4, "Name": "Tall Trees" }, "geometry": { "type": "Point", "coordinates": [ 12912870.327681127935648, -3948212.877387387212366 ] } },
+{ "type": "Feature", "properties": { "fid": 5, "Name": "Tree across path" }, "geometry": { "type": "Point", "coordinates": [ 12911780.182816438376904, -3947959.543879754375666 ] } },
+{ "type": "Feature", "properties": { "fid": 6, "Name": "Break in path" }, "geometry": { "type": "Point", "coordinates": [ 12911757.317737562581897, -3947768.33999865828082 ] } },
+{ "type": "Feature", "properties": { "fid": 7, "Name": "Large pipe" }, "geometry": { "type": "Point", "coordinates": [ 12911403.239501407369971, -3948898.229057782329619 ] } },
+{ "type": "Feature", "properties": { "fid": 8, "Name": "Pit" }, "geometry": { "type": "Point", "coordinates": [ 12911799.816692676395178, -3948064.183401217218488 ] } },
+{ "type": "Feature", "properties": { "fid": 9, "Name": "Square" }, "geometry": { "type": "Point", "coordinates": [ 12912312.185795860365033, -3947612.99037022748962 ] } },
+{ "type": "Feature", "properties": { "fid": 10, "Name": "Creek crossing?" }, "geometry": { "type": "Point", "coordinates": [ 12911920.552021104842424, -3947198.218718687538058 ] } }
+]
+}
