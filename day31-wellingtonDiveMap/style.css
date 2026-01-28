@@ -730,7 +730,7 @@ body {
 
 .measure-mode-active .maplibregl-canvas,
 .depth-probe-active .maplibregl-canvas {
-    cursor: crosshair !important;
+    cursor: crosshair;
 }
 
 /* ============================================

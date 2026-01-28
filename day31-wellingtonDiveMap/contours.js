@@ -105,7 +105,7 @@ export function setupContourLayers(map, state, config, generateContoursForViewpo
  * @mutates state.contourBbox — stores full extent bbox
  * @mutates state.contourLowRes — stores { grid, width, height, bbox }
  */
-export async function initializeContourGeneration(map, state, config, generateContoursForViewportFn) {
+export async function initializeContourGeneration(map, state, config, generateContoursForViewportFn, pool) {
     try {
         console.time('\u23F1\uFE0F contour: load contour source');
         const tiff = await GeoTIFF.fromUrl(config.CONTOUR_COG, {
@@ -114,6 +114,7 @@ export async function initializeContourGeneration(map, state, config, generateCo
         });
 
         state.contourTiff = tiff;
+        state.geoTiffPool = pool || null;
 
         const image = await tiff.getImage();
         const nativeWidth = image.getWidth();
@@ -134,7 +135,7 @@ export async function initializeContourGeneration(map, state, config, generateCo
         // old native quality but derived from higher-res smoothed source)
         const lowWidth = Math.round(nativeWidth / 4);
         const lowHeight = Math.round(nativeHeight / 4);
-        const rasters = await tiff.readRasters({ width: lowWidth, height: lowHeight });
+        const rasters = await tiff.readRasters({ width: lowWidth, height: lowHeight, pool });
         const rawGrid = rasters[0];
 
         const grid = new Float32Array(rawGrid.length);
@@ -423,7 +424,8 @@ export async function generateHighResContours(map, state, config, bounds, waterL
         const rasters = await state.contourTiff.readRasters({
             bbox,
             resX,
-            resY
+            resY,
+            pool: state.geoTiffPool
         });
 
         if (token !== state.contourGenToken) {

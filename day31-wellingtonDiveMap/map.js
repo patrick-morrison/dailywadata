@@ -63,7 +63,7 @@ export function initializeDepthGradient(state, config) {
  * @mutates state.bathymetryLayer — stores custom WebGL bathymetry layer reference
  * @mutates state.hillshadeLayer — stores custom WebGL hillshade layer reference
  */
-export function addBathymetryLayers(map, state, config) {
+export function addBathymetryLayers(map, state, config, pool) {
     try {
         state.bathymetryLayer = createBathymetryLayer({
             id: 'bathymetry-layer',
@@ -72,14 +72,16 @@ export function addBathymetryLayers(map, state, config) {
             getWaterLevel: () => getActiveWaterLevel(state, config),
             getDepthRange: () => getActiveDepthRange(state, config),
             noDataThreshold: 1e5,
-            colormap: TURBO_COLORMAP
+            colormap: TURBO_COLORMAP,
+            pool
         });
         map.addLayer(state.bathymetryLayer);
 
         state.hillshadeLayer = createMultiplyHillshadeLayer({
             id: 'hillshade-layer',
             cogUrl: config.HILLSHADE_COG,
-            opacity: 1.0
+            opacity: 1.0,
+            pool
         });
         map.addLayer(state.hillshadeLayer);
 

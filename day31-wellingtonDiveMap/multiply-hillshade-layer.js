@@ -20,6 +20,7 @@ function createMultiplyHillshadeLayer(options) {
     const cogUrl = options.cogUrl;
     let opacity = options.opacity !== undefined ? options.opacity : 1.0;
     const deferLoading = options.deferLoading || false;
+    const pool = options.pool || null;
 
     // WebGL resources
     let program = null;
@@ -36,6 +37,8 @@ function createMultiplyHillshadeLayer(options) {
     let storedSamplesPerPixel = null;
     let fullExtentEpsg3857 = null; // [minX, minY, maxX, maxY]
     let viewportToken = 0;         // For cancelling stale async reads
+    let readInFlight = false;      // Prevent concurrent readRasters calls
+    let pendingViewportUpdate = false; // Flag: moveend arrived while busy
     let moveendHandler = null;     // For cleanup on remove
 
     // Current texture bounds as [west, south, east, north] in lng/lat (WGS84)
@@ -158,14 +161,22 @@ function createMultiplyHillshadeLayer(options) {
         const timerRead = `⏱️ hillshade: readRasters #${seq} (${label})`;
         const timerPixels = `⏱️ hillshade: processPixels #${seq} (${label})`;
 
+        // Bail before expensive read if a newer viewport request already arrived
+        if (token !== undefined && token !== viewportToken) return false;
+
         console.time(timerRead);
-        const readOpts = { width, height };
+        const readOpts = { width, height, pool };
         if (bbox) readOpts.bbox = bbox;
         const rasters = await tiff.readRasters(readOpts);
         console.timeEnd(timerRead);
 
         // Bail before expensive pixel work if a newer request superseded this one
         if (token !== undefined && token !== viewportToken) return false;
+
+        // Yield a full frame so MapLibre can paint pending interactive updates
+        // (e.g. measure point GeoJSON setData) before we block with pixel work.
+        // readInFlight stays true in the caller so viewportToken can't change.
+        await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
 
         // Use actual returned dimensions (should match requested, but be safe)
         const actualWidth = rasters.width || width;
@@ -294,7 +305,7 @@ function createMultiplyHillshadeLayer(options) {
             let debounceTimer = null;
             moveendHandler = () => {
                 clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(() => loadHillshadeForViewport(gl), 200);
+                debounceTimer = setTimeout(() => loadHillshadeForViewport(gl), 300);
             };
             mapRef.on('moveend', moveendHandler);
 
@@ -314,7 +325,10 @@ function createMultiplyHillshadeLayer(options) {
     async function loadHillshadeForViewport(gl) {
         if (!tiffRef || !fullExtentEpsg3857 || !mapRef) return;
 
+        if (readInFlight) { pendingViewportUpdate = true; return; }
+
         const token = ++viewportToken;
+        pendingViewportUpdate = false;
 
         try {
             const mapBounds = mapRef.getBounds();
@@ -353,6 +367,8 @@ function createMultiplyHillshadeLayer(options) {
             }
 
             const label = `viewport z${zoom.toFixed(1)} ${reqWidth}×${reqHeight}`;
+
+            readInFlight = true;
             const ok = await readAndCreateTexture(
                 gl, tiffRef, storedNoDataValue, storedSamplesPerPixel,
                 reqWidth, reqHeight, label, bbox, token
@@ -371,6 +387,12 @@ function createMultiplyHillshadeLayer(options) {
         } catch (error) {
             if (token === viewportToken) {
                 console.error('Failed to load hillshade for viewport:', error);
+            }
+        } finally {
+            readInFlight = false;
+            if (pendingViewportUpdate) {
+                pendingViewportUpdate = false;
+                if (moveendHandler) moveendHandler();
             }
         }
     }

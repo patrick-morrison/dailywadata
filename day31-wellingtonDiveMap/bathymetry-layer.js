@@ -29,6 +29,7 @@ function createBathymetryLayer(options) {
     const getDepthRange = options.getDepthRange;
     const noDataThreshold = options.noDataThreshold || 1e5;
     const colormap = options.colormap;
+    const pool = options.pool || null;
 
     // WebGL resources
     let program = null;
@@ -44,6 +45,8 @@ function createBathymetryLayer(options) {
     let storedNoDataValue = null;
     let fullExtentEpsg3857 = null; // [minX, minY, maxX, maxY]
     let viewportToken = 0;
+    let readInFlight = false;
+    let pendingViewportUpdate = false;
     let moveendHandler = null;
 
     // Cached elevation data for re-coloring on water level change
@@ -269,7 +272,12 @@ function createBathymetryLayer(options) {
     async function loadBathymetryForViewport(gl) {
         if (!tiffRef || !fullExtentEpsg3857 || !mapRef) return;
 
+        // If a read is already in-flight, flag that a new viewport is pending.
+        // The finally block will re-trigger when the current operation finishes.
+        if (readInFlight) { pendingViewportUpdate = true; return; }
+
         const token = ++viewportToken;
+        pendingViewportUpdate = false;
 
         try {
             const mapBounds = mapRef.getBounds();
@@ -311,11 +319,23 @@ function createBathymetryLayer(options) {
             const timerRead = `⏱️ bathy: readRasters #${seq} (${label})`;
             const timerColor = `⏱️ bathy: colormap #${seq} (${label})`;
 
+            // Bail before expensive read if a newer viewport request already arrived
+            if (token !== viewportToken) return;
+
+            readInFlight = true;
             console.time(timerRead);
-            const rasters = await tiffRef.readRasters({ bbox, width: reqWidth, height: reqHeight });
+            const rasters = await tiffRef.readRasters({ bbox, width: reqWidth, height: reqHeight, pool });
             console.timeEnd(timerRead);
 
-            if (token !== viewportToken) return; // stale
+            // Bail if a newer request was somehow queued (safety check —
+            // readInFlight should prevent viewportToken changes)
+            if (token !== viewportToken) return;
+
+            // Yield a full frame so MapLibre can paint pending interactive updates
+            // (e.g. measure point GeoJSON setData) before we block with pixel work.
+            // readInFlight stays true so no concurrent call can enter and
+            // invalidate our token during the yield.
+            await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
 
             const actualWidth = rasters.width || reqWidth;
             const actualHeight = rasters.height || reqHeight;
@@ -334,8 +354,6 @@ function createBathymetryLayer(options) {
             const rgba = buildRGBA(elevation, actualWidth, actualHeight);
             console.timeEnd(timerColor);
 
-            if (token !== viewportToken) return; // stale
-
             uploadTexture(gl, rgba, actualWidth, actualHeight);
 
             // Update bounds
@@ -350,6 +368,13 @@ function createBathymetryLayer(options) {
         } catch (error) {
             if (token === viewportToken) {
                 console.error('Failed to load bathymetry viewport:', error);
+            }
+        } finally {
+            readInFlight = false;
+            // If a moveend arrived while we were busy, re-trigger
+            if (pendingViewportUpdate) {
+                pendingViewportUpdate = false;
+                if (moveendHandler) moveendHandler();
             }
         }
     }

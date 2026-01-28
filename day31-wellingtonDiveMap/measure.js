@@ -1022,7 +1022,8 @@ export async function loadContourGridForDrag(state, ptA, ptB) {
         const rasters = await state.contourTiff.readRasters({
             bbox,
             resX,
-            resY
+            resY,
+            pool: state.geoTiffPool
         });
 
         const rawGrid = rasters[0];

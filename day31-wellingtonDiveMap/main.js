@@ -273,6 +273,8 @@ const clickHandlerCallbacks = {
 // Map Load Handler
 // ============================================
 
+const geoTiffPool = new GeoTIFF.Pool();
+
 map.on('load', async () => {
     console.timeEnd('\u23F1\uFE0F SCRIPT START \u2192 map load event');
     console.time('\u23F1\uFE0F TOTAL MAP INITIALIZATION');
@@ -283,7 +285,7 @@ map.on('load', async () => {
         updateWaterLevelDisplay(state, CONFIG);
 
         // Add bathymetry + hillshade layers
-        addBathymetryLayers(map, state, CONFIG);
+        addBathymetryLayers(map, state, CONFIG, geoTiffPool);
 
         // Load survey lines (small CSV fetches)
         await loadSurveyLines(map, state, CONFIG);
@@ -338,7 +340,7 @@ map.on('load', async () => {
         // Start contour COG loading + initial generation in background
         requestAnimationFrame(() => {
             console.time('\u23F1\uFE0F initializeContourGeneration (background)');
-            initializeContourGeneration(map, state, CONFIG, boundGenerateContoursForViewport).then(() => {
+            initializeContourGeneration(map, state, CONFIG, boundGenerateContoursForViewport, geoTiffPool).then(() => {
                 console.timeEnd('\u23F1\uFE0F initializeContourGeneration (background)');
             });
         });
