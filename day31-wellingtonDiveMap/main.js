@@ -53,10 +53,10 @@ const CONFIG = {
     },
 
     // Bathymetry COG files
-    BATHY_COG: 'merged_bathy_cog.tif',
-    HILLSHADE_COG: 'hillshade_cog.tif',
+    BATHY_COG: 'rasters/merged_bathy_cog.tif',
+    HILLSHADE_COG: 'rasters/hillshade_cog.tif',
     // Pre-processed contour source: 4096px short side with 2/4/8/16x overview pyramids, pre-smoothed
-    CONTOUR_COG: 'contour_source.tif',
+    CONTOUR_COG: 'rasters/contour_source.tif',
 
     // Water level configuration (from calibrated volume model)
     // Update CURRENT_STORAGE_GL to recalculate water level automatically
@@ -71,11 +71,11 @@ const CONFIG = {
 
     // Survey line files and colors
     SURVEY_LINE_FILES: [
-        'north_adjusted.csv',
-        'south_adjusted.csv',
-        'northT1_adjusted.csv',
-        'northT2_adjusted.csv',
-        'southT1_adjusted.csv'
+        'surveyData/north_adjusted.csv',
+        'surveyData/south_adjusted.csv',
+        'surveyData/northT1_adjusted.csv',
+        'surveyData/northT2_adjusted.csv',
+        'surveyData/southT1_adjusted.csv'
     ],
     SURVEY_LINE_COLORS: {
         'north_adjusted': '#FF6B6B',

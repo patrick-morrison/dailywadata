@@ -153,7 +153,7 @@ export async function loadSurveyLines(map, state, config) {
             }
 
             if (coordinates.length >= 2) {
-                const lineKey = filename.replace('.csv', '');
+                const lineKey = filename.replace(/^.*\//, '').replace('.csv', '');
                 state.surveyData[lineKey] = {
                     coordinates,
                     points,
@@ -353,8 +353,8 @@ export function addVertexMarkers(map, state) {
 // ============================================
 
 const OVERLAY_LAYERS = [
-    { id: 'entries',    file: 'Entries.geojson',    color: '#e74c3c', label: 'Entries' },
-    { id: 'structures', file: 'Structures.geojson', color: '#f39c12', label: 'Structures' }
+    { id: 'entries',    file: 'points/Entries.geojson',    color: '#e74c3c', label: 'Entries' },
+    { id: 'structures', file: 'points/Structures.geojson', color: '#f39c12', label: 'Structures' }
 ];
 
 /**
