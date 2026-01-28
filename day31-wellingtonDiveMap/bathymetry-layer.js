@@ -445,7 +445,7 @@ function createBathymetryLayer(options) {
         },
 
         render(gl, args) {
-            if (!imageLoaded || !program || !texture) return;
+            if (!imageLoaded || !program || !texture || opacity === 0) return;
 
             const centerMerc = updateVertices(gl);
             if (!centerMerc) return;

@@ -474,7 +474,7 @@ function createMultiplyHillshadeLayer(options) {
         },
 
         render(gl, args) {
-            if (!imageLoaded || !program || !texture) return;
+            if (!imageLoaded || !program || !texture || opacity === 0) return;
 
             // Update vertices with coordinates relative to map center
             const centerMerc = updateVertices(gl);
