@@ -722,6 +722,7 @@ export function refreshBathymetryTiles(state) {
  * @param {Object} callbacks - Cross-module callbacks
  * @param {Function} callbacks.updateElevationProfile - () => void
  * @param {Function} callbacks.generateContoursForViewport - () => void
+ * @param {Function} callbacks.rebuildMeasurePanel - () => void
  */
 export function onWaterLevelChange(state, config, callbacks) {
     updateWaterLevelDisplay(state, config);
@@ -732,6 +733,7 @@ export function onWaterLevelChange(state, config, callbacks) {
     }
 
     callbacks.updateElevationProfile();
+    callbacks.rebuildMeasurePanel();
 }
 
 /**

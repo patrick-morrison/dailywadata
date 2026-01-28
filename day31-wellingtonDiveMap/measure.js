@@ -181,6 +181,59 @@ export function clearMeasurements(map, state) {
         profileEl.classList.remove('visible');
         profileEl.innerHTML = '';
     }
+
+    if (state.onNavPlanChange) state.onNavPlanChange();
+}
+
+// ============================================
+// Delete Measure Point
+// ============================================
+
+/**
+ * Delete a measure point by index. Removes the point and its adjacent
+ * segments, re-joining neighbours with a straight line if in the middle.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ * @param {Object} config - Application config
+ * @param {number} index - Index of the point to delete
+ */
+export function deleteMeasurePoint(map, state, config, index) {
+    const points = state.measurePoints;
+    const segs = state.measureSegments;
+
+    if (index < 0 || index >= points.length) return;
+
+    if (points.length <= 1) {
+        clearMeasurements(map, state);
+        return;
+    }
+
+    if (index === 0) {
+        points.splice(0, 1);
+        if (segs.length > 0) segs.splice(0, 1);
+    } else if (index === points.length - 1) {
+        points.splice(index, 1);
+        if (segs.length > 0) segs.splice(index - 1, 1);
+    } else {
+        // Middle point: remove point and both adjacent segments,
+        // replace with a single straight-line segment
+        const prev = points[index - 1];
+        const next = points[index + 1];
+        const newCoords = [[prev.lng, prev.lat], [next.lng, next.lat]];
+        const newDist = haversineDistance(newCoords[0], newCoords[1]);
+
+        points.splice(index, 1);
+        segs.splice(index - 1, 2, { coords: newCoords, distance: newDist });
+    }
+
+    state.measureTotalDistance = segs.reduce((sum, s) => sum + s.distance, 0);
+    state.lastMeasureVertexKey = null;
+
+    updateMeasureVisualization(map, state);
+    rebuildMeasurePanel(state, config);
+    updateElevationProfile(state);
+    updateVertexHighlights(map, state);
 }
 
 // ============================================
@@ -469,6 +522,9 @@ export function updateMeasureVisualization(map, state) {
     } else {
         map.getSource('measure-line').setData({ type: 'FeatureCollection', features: [] });
     }
+
+    // Notify URL hash updater
+    if (state.onNavPlanChange) state.onNavPlanChange();
 }
 
 // ============================================
@@ -1037,6 +1093,8 @@ export function initializeClickHandlers(map, state, config, callbacks) {
 
         e.preventDefault();
         state.draggingPointIndex = feat.properties.index;
+        state._dragMoved = false;
+        state._dragStartScreen = { x: e.point.x, y: e.point.y };
         state._suppressClick = true;
         map.dragPan.disable();
         map.getCanvas().style.cursor = 'grabbing';
@@ -1044,6 +1102,14 @@ export function initializeClickHandlers(map, state, config, callbacks) {
 
     map.on('mousemove', (e) => {
         if (state.draggingPointIndex === null) return;
+
+        // Distinguish click from drag: require > 3px movement
+        if (!state._dragMoved) {
+            const dx = e.point.x - state._dragStartScreen.x;
+            const dy = e.point.y - state._dragStartScreen.y;
+            if (dx * dx + dy * dy <= 9) return;
+            state._dragMoved = true;
+        }
 
         const i = state.draggingPointIndex;
         const pt = state.measurePoints[i];
@@ -1078,11 +1144,25 @@ export function initializeClickHandlers(map, state, config, callbacks) {
         rebuildMeasurePanel(state, config);
     });
 
-    window.addEventListener('mouseup', () => {
+    globalThis.addEventListener('mouseup', () => {
         if (state.draggingPointIndex === null) return;
+
+        const idx = state.draggingPointIndex;
+        const wasDrag = state._dragMoved;
+
         state.draggingPointIndex = null;
+        state._dragMoved = false;
+        state._dragStartScreen = null;
         map.dragPan.enable();
-        map.getCanvas().style.cursor = 'crosshair';
+        if (state.measureMode) {
+            map.getCanvas().style.cursor = 'crosshair';
+        }
+
+        if (!wasDrag) {
+            // Click without drag — delete the point
+            deleteMeasurePoint(map, state, config, idx);
+        }
+
         setTimeout(() => { state._suppressClick = false; }, 0);
     });
 
@@ -1296,4 +1376,137 @@ export function initializeClickHandlers(map, state, config, callbacks) {
             map.getCanvas().style.cursor = 'crosshair';
         }
     });
+}
+
+// ============================================
+// Nav Plan URL Encoding / Decoding
+// ============================================
+
+function r(n, dp) {
+    const f = 10 ** dp;
+    return Math.round(n * f) / f;
+}
+
+/**
+ * Encode the current nav plan (measure state + view) into a URL-safe string.
+ * Returns null if there is no nav plan to encode.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ * @param {Object} config - Application config
+ * @returns {string|null} Base64url-encoded nav plan, or null
+ */
+export function encodeNavPlan(map, state, config) {
+    if (state.measurePoints.length === 0) return null;
+
+    const plan = {
+        v: 1,
+        w: state.useCurrentLevel ? null : r(state.customStorageGL, 2),
+        c: [r(map.getCenter().lng, 6), r(map.getCenter().lat, 6), r(map.getZoom(), 1)],
+        p: state.measurePoints.map(pt => {
+            if (pt.isVertex) return [r(pt.lng, 6), r(pt.lat, 6), 1, pt.vertexKey];
+            if (pt.isContourAnchor) return [r(pt.lng, 6), r(pt.lat, 6), 2];
+            return [r(pt.lng, 6), r(pt.lat, 6), 0];
+        }),
+        s: state.measureSegments.map(seg => {
+            if (seg.coords.length === 2 && seg.contourAHD === undefined) {
+                return 0; // straight line, derivable from points
+            }
+            const entry = { c: seg.coords.map(([lng, lat]) => [r(lng, 6), r(lat, 6)]) };
+            if (seg.contourAHD !== undefined) entry.a = r(seg.contourAHD, 2);
+            return entry;
+        })
+    };
+
+    const json = JSON.stringify(plan);
+    // URL-safe base64: replace +/= with -_.
+    return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/**
+ * Decode a URL-safe base64 nav plan string back into a plan object.
+ *
+ * @param {string} encoded - Base64url-encoded nav plan
+ * @returns {Object|null} Decoded plan object, or null on failure
+ */
+export function decodeNavPlan(encoded) {
+    try {
+        // Restore standard base64 from URL-safe variant
+        let b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        const plan = JSON.parse(atob(b64));
+        if (plan.v !== 1) return null;
+        return plan;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Restore a nav plan from a decoded plan object into application state.
+ * Rebuilds measure points, segments, panel and visualization.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ * @param {Object} config - Application config
+ * @param {Object} plan - Decoded plan object from decodeNavPlan
+ */
+export function restoreNavPlan(map, state, config, plan) {
+    // Restore water level
+    if (plan.w !== null && plan.w !== undefined) {
+        state.useCurrentLevel = false;
+        state.customStorageGL = plan.w;
+        const slider = document.getElementById('water-level-slider');
+        const lockCheckbox = document.getElementById('water-level-lock');
+        if (slider) slider.value = plan.w;
+        if (lockCheckbox) lockCheckbox.checked = false;
+    }
+
+    // Restore map view
+    if (plan.c) {
+        map.jumpTo({ center: [plan.c[0], plan.c[1]], zoom: plan.c[2] });
+    }
+
+    // Restore points
+    state.measurePoints = plan.p.map(entry => ({
+        lng: entry[0],
+        lat: entry[1],
+        isVertex: entry[2] === 1,
+        vertexKey: entry[2] === 1 ? entry[3] : null,
+        isContourAnchor: entry[2] === 2
+    }));
+
+    // Restore segments
+    state.measureSegments = plan.s.map((seg, i) => {
+        if (seg === 0) {
+            const ptA = state.measurePoints[i];
+            const ptB = state.measurePoints[i + 1];
+            const coords = [[ptA.lng, ptA.lat], [ptB.lng, ptB.lat]];
+            return { coords, distance: haversineDistance(coords[0], coords[1]) };
+        }
+        const coords = seg.c;
+        let distance = 0;
+        for (let j = 0; j < coords.length - 1; j++) {
+            distance += haversineDistance(coords[j], coords[j + 1]);
+        }
+        const result = { coords, distance };
+        if (seg.a !== undefined) result.contourAHD = seg.a;
+        return result;
+    });
+
+    state.measureTotalDistance = state.measureSegments.reduce((sum, s) => sum + s.distance, 0);
+    state.lastMeasureVertexKey = null;
+
+    // Activate measure mode UI
+    state.measureMode = true;
+    const measureBtn = document.getElementById('measure-btn');
+    if (measureBtn) measureBtn.classList.add('active');
+    document.body.classList.add('measure-mode-active');
+    const clearBtn = document.getElementById('clear-btn');
+    if (clearBtn) clearBtn.style.display = 'block';
+
+    updateMeasureVisualization(map, state);
+    rebuildMeasurePanel(state, config);
+    updateElevationProfile(state);
+    updateVertexHighlights(map, state);
 }

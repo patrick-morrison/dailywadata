@@ -257,6 +257,10 @@ function createBathymetryLayer(options) {
             };
             mapRef.on('moveend', moveendHandler);
 
+            // Trigger a re-read in case the viewport changed during COG loading
+            // (e.g., nav plan restore called jumpTo before this handler existed)
+            moveendHandler();
+
         } catch (error) {
             console.error('Failed to load bathymetry COG:', error);
         }

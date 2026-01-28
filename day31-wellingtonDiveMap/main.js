@@ -24,7 +24,8 @@ import {
     initializeMobileToggle,
     initializeContextMenu,
     updateWaterLevelDisplay,
-    initializeWaterLevelControls
+    initializeWaterLevelControls,
+    onWaterLevelChange
 } from './map.js';
 
 import {
@@ -32,8 +33,12 @@ import {
     addMeasureVertex,
     addMeasureFreePoint,
     updateElevationProfile,
+    rebuildMeasurePanel,
     initializeDepthProbe,
-    initializeClickHandlers
+    initializeClickHandlers,
+    encodeNavPlan,
+    decodeNavPlan,
+    restoreNavPlan
 } from './measure.js';
 
 // ============================================
@@ -216,6 +221,25 @@ globalThis.downloadContourGeoJSON = function () {
 };
 
 // ============================================
+// Nav Plan URL State
+// ============================================
+
+let _navHashTimer = null;
+
+/** Debounced update of the URL hash with the current nav plan state. */
+function updateNavHash() {
+    clearTimeout(_navHashTimer);
+    _navHashTimer = setTimeout(() => {
+        const encoded = encodeNavPlan(map, state, CONFIG);
+        if (encoded) {
+            history.replaceState(null, '', '#nav=' + encoded);
+        } else if (location.hash.startsWith('#nav=')) {
+            history.replaceState(null, '', location.pathname + location.search);
+        }
+    }, 500);
+}
+
+// ============================================
 // Cross-Module Callback Factories
 // ============================================
 
@@ -225,7 +249,8 @@ const boundGenerateContoursForViewport = () => generateContoursForViewport(map, 
 // Water level callbacks
 const waterLevelCallbacks = {
     updateElevationProfile: () => updateElevationProfile(state),
-    generateContoursForViewport: boundGenerateContoursForViewport
+    generateContoursForViewport: boundGenerateContoursForViewport,
+    rebuildMeasurePanel: () => rebuildMeasurePanel(state, CONFIG)
 };
 
 // Layer control callbacks
@@ -278,12 +303,37 @@ map.on('load', async () => {
         initializeMobileToggle();
         initializeContextMenu(map);
 
+        // Wire up nav plan URL updates — called whenever measure state changes
+        state.onNavPlanChange = updateNavHash;
+
+        // Restore nav plan from URL hash if present
+        let navPlanRestored = false;
+        if (location.hash.startsWith('#nav=')) {
+            const plan = decodeNavPlan(location.hash.slice(5));
+            if (plan) {
+                restoreNavPlan(map, state, CONFIG, plan);
+                navPlanRestored = true;
+                console.log('Nav plan restored from URL');
+            }
+        }
+
+        // If a nav plan changed the water level, propagate through
+        // the full pipeline (display, bathymetry recolor, contour cache clear)
+        if (navPlanRestored && !state.useCurrentLevel) {
+            onWaterLevelChange(state, CONFIG, waterLevelCallbacks);
+        }
+
         // Hide loading overlay — map is interactive now
         document.getElementById('loading').classList.add('hidden');
         console.timeEnd('\u23F1\uFE0F TOTAL MAP INITIALIZATION');
 
         // Force a render frame so MapLibre draws the bathymetry tiles
         map.triggerRepaint();
+
+        // Fire moveend so viewport-dependent layers (bathymetry, hillshade)
+        // re-read at the correct position — especially after nav plan restore
+        // which uses jumpTo (doesn't fire moveend automatically)
+        map.fire('moveend');
 
         // Start contour COG loading + initial generation in background
         requestAnimationFrame(() => {
