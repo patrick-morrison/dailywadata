@@ -132,8 +132,8 @@ export async function initializeContourGeneration(map, state, config, generateCo
 
         // Use 8x overview for display grid (~512px short side, equivalent to
         // old native quality but derived from higher-res smoothed source)
-        const lowWidth = Math.round(nativeWidth / 8);
-        const lowHeight = Math.round(nativeHeight / 8);
+        const lowWidth = Math.round(nativeWidth / 4);
+        const lowHeight = Math.round(nativeHeight / 4);
         const rasters = await tiff.readRasters({ width: lowWidth, height: lowHeight });
         const rawGrid = rasters[0];
 
