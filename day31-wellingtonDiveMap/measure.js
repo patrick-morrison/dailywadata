@@ -1085,7 +1085,7 @@ export function initializeClickHandlers(map, state, config, callbacks) {
 
     // --- Drag handlers for free-form measure points ---
 
-    map.on('mousedown', 'measure-points-layer', (e) => {
+    function handlePointDragStart(e) {
         if (!state.measureMode) return;
         if (e.features.length === 0) return;
         const feat = e.features[0];
@@ -1098,9 +1098,12 @@ export function initializeClickHandlers(map, state, config, callbacks) {
         state._suppressClick = true;
         map.dragPan.disable();
         map.getCanvas().style.cursor = 'grabbing';
-    });
+    }
 
-    map.on('mousemove', (e) => {
+    map.on('mousedown', 'measure-points-layer', handlePointDragStart);
+    map.on('touchstart', 'measure-points-layer', handlePointDragStart);
+
+    function handlePointDragMove(e) {
         if (state.draggingPointIndex === null) return;
 
         // Distinguish click from drag: require > 3px movement
@@ -1142,9 +1145,12 @@ export function initializeClickHandlers(map, state, config, callbacks) {
 
         updateMeasureVisualization(map, state);
         rebuildMeasurePanel(state, config);
-    });
+    }
 
-    globalThis.addEventListener('mouseup', () => {
+    map.on('mousemove', handlePointDragMove);
+    map.on('touchmove', handlePointDragMove);
+
+    function handlePointDragEnd() {
         if (state.draggingPointIndex === null) return;
 
         const idx = state.draggingPointIndex;
@@ -1164,10 +1170,13 @@ export function initializeClickHandlers(map, state, config, callbacks) {
         }
 
         setTimeout(() => { state._suppressClick = false; }, 0);
-    });
+    }
 
-    // --- Contour drag: mousedown on measure line segment ---
-    map.on('mousedown', 'measure-line-hit', (e) => {
+    globalThis.addEventListener('mouseup', handlePointDragEnd);
+    globalThis.addEventListener('touchend', handlePointDragEnd);
+
+    // --- Contour drag: mousedown/touchstart on measure line segment ---
+    function handleContourDragStart(e) {
         if (!state.measureMode) return;
         if (state.measureSegments.length === 0) return;
         if (state.draggingPointIndex !== null) return;
@@ -1209,10 +1218,13 @@ export function initializeClickHandlers(map, state, config, callbacks) {
         map.getCanvas().style.cursor = 'crosshair';
 
         loadContourGridForDrag(state, ptA, ptB);
-    });
+    }
+
+    map.on('mousedown', 'measure-line-hit', handleContourDragStart);
+    map.on('touchstart', 'measure-line-hit', handleContourDragStart);
 
     // Contour drag preview
-    map.on('mousemove', (e) => {
+    function handleContourDragMove(e) {
         if (state.draggingContourSegment === null) return;
 
         const mouseElev = state.bathymetryLayer
@@ -1273,10 +1285,13 @@ export function initializeClickHandlers(map, state, config, callbacks) {
                 state.contourPreviewCoords = null;
             }
         }
-    });
+    }
+
+    map.on('mousemove', handleContourDragMove);
+    map.on('touchmove', handleContourDragMove);
 
     // Contour drag finalize
-    globalThis.addEventListener('mouseup', () => {
+    function handleContourDragEnd() {
         if (state.draggingContourSegment === null) return;
 
         const { segmentIndex, pointAIndex, pointBIndex } = state.draggingContourSegment;
@@ -1336,7 +1351,10 @@ export function initializeClickHandlers(map, state, config, callbacks) {
         updateElevationProfile(state);
 
         setTimeout(() => { state._suppressClick = false; }, 0);
-    });
+    }
+
+    globalThis.addEventListener('mouseup', handleContourDragEnd);
+    globalThis.addEventListener('touchend', handleContourDragEnd);
 
     // --- Cursor feedback ---
 

@@ -598,60 +598,134 @@ export function initializeMobileToggle() {
  *
  * @param {maplibregl.Map} map - The map instance
  */
-export function initializeContextMenu(map) {
-    map.on('contextmenu', (e) => {
-        const existing = document.getElementById('context-menu');
-        if (existing) existing.remove();
+function showContextMenu(lngLat, point) {
+    const existing = document.getElementById('context-menu');
+    if (existing) existing.remove();
 
-        const { lng, lat } = e.lngLat;
-        const coords = formatCoordinates(lng, lat);
+    const { lng, lat } = lngLat;
+    const coords = formatCoordinates(lng, lat);
 
-        const menu = document.createElement('div');
-        menu.id = 'context-menu';
-        menu.className = 'context-menu';
-        menu.style.left = `${e.point.x}px`;
-        menu.style.top = `${e.point.y}px`;
+    const menu = document.createElement('div');
+    menu.id = 'context-menu';
+    menu.className = 'context-menu';
+    menu.style.visibility = 'hidden';
+    menu.style.left = `${point.x}px`;
+    menu.style.top = `${point.y}px`;
 
-        menu.innerHTML = `
-            <div class="context-menu-item" id="copy-dd">
-                <span>Copy Decimal Degrees</span>
-                <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${coords.gmaps}</span>
-            </div>
-            <div class="context-menu-separator"></div>
-            <div class="context-menu-item" id="copy-dm">
-                <span>Copy Decimal Minutes</span>
-                <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${coords.display}</span>
-            </div>
-            <div class="context-menu-separator"></div>
-            <div class="context-menu-item" id="copy-link">
-                <span>Copy Link</span>
-            </div>
-        `;
+    menu.innerHTML = `
+        <div class="context-menu-item" id="copy-dd">
+            <span>Copy Decimal Degrees</span>
+            <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${coords.gmaps}</span>
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" id="copy-dm">
+            <span>Copy Decimal Minutes</span>
+            <span style="opacity: 0.5; margin-left: 12px; font-size: 0.7rem;">${coords.display}</span>
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" id="copy-link">
+            <span>Copy Link</span>
+        </div>
+    `;
 
-        document.body.appendChild(menu);
+    document.body.appendChild(menu);
 
-        document.getElementById('copy-dd').addEventListener('click', () => {
-            navigator.clipboard.writeText(coords.gmaps);
-            menu.remove();
-        });
+    // Clamp menu position so it stays on screen with padding,
+    // and offset away from the touch point if it would overlap
+    const menuRect = menu.getBoundingClientRect();
+    const vw = globalThis.innerWidth;
+    const vh = globalThis.innerHeight;
+    const pad = 12;
+    let left = point.x;
+    let top = point.y;
+    if (left + menuRect.width + pad > vw) left = point.x - menuRect.width;
+    if (top + menuRect.height + pad > vh) top = point.y - menuRect.height;
+    if (left < pad) left = pad;
+    if (top < pad) top = pad;
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+    menu.style.visibility = '';
 
-        document.getElementById('copy-dm').addEventListener('click', () => {
-            navigator.clipboard.writeText(coords.display);
-            menu.remove();
-        });
-
-        document.getElementById('copy-link').addEventListener('click', () => {
-            const url = `${globalThis.location.origin}${globalThis.location.pathname}#${lat.toFixed(6)},${lng.toFixed(6)}`;
-            navigator.clipboard.writeText(url);
-            menu.remove();
-        });
-
-        const closeMenu = () => {
-            menu.remove();
-            document.removeEventListener('click', closeMenu);
-        };
-        setTimeout(() => document.addEventListener('click', closeMenu), 100);
+    document.getElementById('copy-dd').addEventListener('click', () => {
+        navigator.clipboard.writeText(coords.gmaps);
+        menu.remove();
     });
+
+    document.getElementById('copy-dm').addEventListener('click', () => {
+        navigator.clipboard.writeText(coords.display);
+        menu.remove();
+    });
+
+    document.getElementById('copy-link').addEventListener('click', () => {
+        const url = `${globalThis.location.origin}${globalThis.location.pathname}#${lat.toFixed(6)},${lng.toFixed(6)}`;
+        navigator.clipboard.writeText(url);
+        menu.remove();
+    });
+
+    const closeMenu = () => {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+    };
+    setTimeout(() => document.addEventListener('click', closeMenu), 100);
+}
+
+export function initializeContextMenu(map) {
+    // Desktop: right-click
+    map.on('contextmenu', (e) => {
+        showContextMenu(e.lngLat, e.point);
+    });
+
+    // Mobile: long-press (500ms)
+    const canvas = map.getCanvas();
+    let longPressTimer = null;
+    let longPressTouch = null;
+
+    canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            return;
+        }
+        const touch = e.touches[0];
+        longPressTouch = { x: touch.clientX, y: touch.clientY };
+
+        longPressTimer = setTimeout(() => {
+            if (!longPressTouch) return;
+            const rect = canvas.getBoundingClientRect();
+            const point = {
+                x: longPressTouch.x - rect.left,
+                y: longPressTouch.y - rect.top
+            };
+            const lngLat = map.unproject(point);
+            showContextMenu(lngLat, point);
+            longPressTouch = null;
+        }, 500);
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', (e) => {
+        if (!longPressTimer || !longPressTouch) return;
+        const touch = e.touches[0];
+        const dx = touch.clientX - longPressTouch.x;
+        const dy = touch.clientY - longPressTouch.y;
+        // Cancel if finger moved more than 10px
+        if (dx * dx + dy * dy > 100) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            longPressTouch = null;
+        }
+    }, { passive: true });
+
+    canvas.addEventListener('touchend', () => {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+        longPressTouch = null;
+    }, { passive: true });
+
+    canvas.addEventListener('touchcancel', () => {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+        longPressTouch = null;
+    }, { passive: true });
 }
 
 // ============================================
