@@ -1,5 +1,5 @@
 /**
- * Custom MapLibre layer that renders bathymetry from a COG with viewport-based reads.
+ * bathymetry-layer.js — Custom WebGL bathymetry renderer
  *
  * Instead of tiling via maplibre-cog-protocol (many small HTTP range requests),
  * this fetches the entire COG once (allowFullFile: true, ~6 MB) and then reads
@@ -10,7 +10,14 @@
  * is re-colored without any new COG reads.
  */
 
+// ============================================
+// Bathymetry Layer Factory
+// ============================================
+
 /**
+ * Create a custom MapLibre layer that renders bathymetry from a COG
+ * with viewport-based reads and turbo colormap.
+ *
  * @param {Object} options
  * @param {string} options.id - Layer ID
  * @param {string} options.cogUrl - URL to bathymetry COG file
@@ -58,7 +65,9 @@ function createBathymetryLayer(options) {
     // Current texture bounds as [west, south, east, north] in lng/lat
     let boundsLngLat = null;
 
-    // ── Shaders ──────────────────────────────────────────────────────────────
+    // ============================================
+    // Shaders
+    // ============================================
 
     const vertexShaderSource = `#version 300 es
         in vec2 a_pos;
@@ -88,7 +97,9 @@ function createBathymetryLayer(options) {
         }
     `;
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    // ============================================
+    // Helpers
+    // ============================================
 
     function compileShader(gl, type, source) {
         const shader = gl.createShader(type);
@@ -137,7 +148,9 @@ function createBathymetryLayer(options) {
         return [x, (y / 180) * E];
     }
 
-    // ── Colormap ─────────────────────────────────────────────────────────────
+    // ============================================
+    // Colormap
+    // ============================================
 
     /**
      * Map a depth value to an RGB color using the supplied colormap.
@@ -162,7 +175,9 @@ function createBathymetryLayer(options) {
         ];
     }
 
-    // ── Texture building ─────────────────────────────────────────────────────
+    // ============================================
+    // Texture Building
+    // ============================================
 
     /**
      * Build an RGBA texture from cached elevation data using current water level.
@@ -209,35 +224,23 @@ function createBathymetryLayer(options) {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     }
 
-    // ── COG loading ──────────────────────────────────────────────────────────
-
-    let textureSeq = 0;
+    // ============================================
+    // COG Loading
+    // ============================================
 
     async function loadBathymetryImage(gl) {
         try {
-            console.log('Loading bathymetry COG:', cogUrl);
-            console.time('⏱️ bathy: GeoTIFF.fromUrl');
             tiffRef = await GeoTIFF.fromUrl(cogUrl, {
                 allowFullFile: true,   // Fetch entire 6 MB file in one request
                 cacheSize: 100
             });
-            console.timeEnd('⏱️ bathy: GeoTIFF.fromUrl');
 
-            console.time('⏱️ bathy: getImage');
             const image = await tiffRef.getImage();
-            console.timeEnd('⏱️ bathy: getImage');
 
             fullExtentEpsg3857 = image.getBoundingBox();
             const fd = image.getFileDirectory();
             const gdalNoData = fd.GDAL_NODATA;
             storedNoDataValue = gdalNoData !== undefined ? parseFloat(gdalNoData) : null;
-
-            const nativeWidth = image.getWidth();
-            const nativeHeight = image.getHeight();
-            const sw = webMercatorToLngLat(fullExtentEpsg3857[0], fullExtentEpsg3857[1]);
-            const ne = webMercatorToLngLat(fullExtentEpsg3857[2], fullExtentEpsg3857[3]);
-            console.log(`Bathymetry: ${nativeWidth}×${nativeHeight}, bounds: [${sw[0].toFixed(4)}, ${sw[1].toFixed(4)}] → [${ne[0].toFixed(4)}, ${ne[1].toFixed(4)}]`);
-            console.log('NoData:', storedNoDataValue);
 
             // Create GL buffers
             vertexBuffer = gl.createBuffer();
@@ -314,18 +317,11 @@ function createBathymetryLayer(options) {
                 reqHeight = Math.max(1, Math.round(reqHeight * scale));
             }
 
-            const seq = ++textureSeq;
-            const label = `viewport z${zoom.toFixed(1)} ${reqWidth}×${reqHeight}`;
-            const timerRead = `⏱️ bathy: readRasters #${seq} (${label})`;
-            const timerColor = `⏱️ bathy: colormap #${seq} (${label})`;
-
             // Bail before expensive read if a newer viewport request already arrived
             if (token !== viewportToken) return;
 
             readInFlight = true;
-            console.time(timerRead);
             const rasters = await tiffRef.readRasters({ bbox, width: reqWidth, height: reqHeight, pool });
-            console.timeEnd(timerRead);
 
             // Bail if a newer request was somehow queued (safety check —
             // readInFlight should prevent viewportToken changes)
@@ -350,9 +346,7 @@ function createBathymetryLayer(options) {
             cachedHeight = actualHeight;
             cachedBbox = bbox;
 
-            console.time(timerColor);
             const rgba = buildRGBA(elevation, actualWidth, actualHeight);
-            console.timeEnd(timerColor);
 
             uploadTexture(gl, rgba, actualWidth, actualHeight);
 
@@ -362,7 +356,6 @@ function createBathymetryLayer(options) {
             boundsLngLat = [swLL[0], swLL[1], neLL[0], neLL[1]];
 
             imageLoaded = true;
-            console.log(`Bathymetry texture (${label}): ${actualWidth}×${actualHeight}`);
             if (mapRef) mapRef.triggerRepaint();
 
         } catch (error) {
@@ -379,7 +372,9 @@ function createBathymetryLayer(options) {
         }
     }
 
-    // ── Vertex update ────────────────────────────────────────────────────────
+    // ============================================
+    // Vertex Update
+    // ============================================
 
     function updateVertices(gl) {
         if (!boundsLngLat || !mapRef) return null;
@@ -407,7 +402,9 @@ function createBathymetryLayer(options) {
         return centerMerc;
     }
 
-    // ── Layer interface ──────────────────────────────────────────────────────
+    // ============================================
+    // Layer Interface
+    // ============================================
 
     return {
         id: layerId,
@@ -526,10 +523,8 @@ function createBathymetryLayer(options) {
          */
         recolor() {
             if (!cachedElevation || !glRef) return;
-            console.time('⏱️ bathy: recolor');
             const rgba = buildRGBA(cachedElevation, cachedWidth, cachedHeight);
             uploadTexture(glRef, rgba, cachedWidth, cachedHeight);
-            console.timeEnd('⏱️ bathy: recolor');
             if (mapRef) mapRef.triggerRepaint();
         }
     };

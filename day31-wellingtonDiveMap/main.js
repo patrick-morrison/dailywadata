@@ -158,8 +158,6 @@ const state = {
 // Map Initialization
 // ============================================
 
-console.time('\u23F1\uFE0F SCRIPT START \u2192 map load event');
-
 const map = new maplibregl.Map({
     container: 'map',
     style: {
@@ -276,8 +274,6 @@ const clickHandlerCallbacks = {
 const geoTiffPool = new GeoTIFF.Pool();
 
 map.on('load', async () => {
-    console.timeEnd('\u23F1\uFE0F SCRIPT START \u2192 map load event');
-    console.time('\u23F1\uFE0F TOTAL MAP INITIALIZATION');
     try {
         // Initialize water level controls first
         initializeWaterLevelControls(map, state, CONFIG, waterLevelCallbacks);
@@ -327,7 +323,6 @@ map.on('load', async () => {
 
         // Hide loading overlay — map is interactive now
         document.getElementById('loading').classList.add('hidden');
-        console.timeEnd('\u23F1\uFE0F TOTAL MAP INITIALIZATION');
 
         // Force a render frame so MapLibre draws the bathymetry tiles
         map.triggerRepaint();
@@ -339,10 +334,7 @@ map.on('load', async () => {
 
         // Start contour COG loading + initial generation in background
         requestAnimationFrame(() => {
-            console.time('\u23F1\uFE0F initializeContourGeneration (background)');
-            initializeContourGeneration(map, state, CONFIG, boundGenerateContoursForViewport, geoTiffPool).then(() => {
-                console.timeEnd('\u23F1\uFE0F initializeContourGeneration (background)');
-            });
+            initializeContourGeneration(map, state, CONFIG, boundGenerateContoursForViewport, geoTiffPool);
         });
 
     } catch (error) {

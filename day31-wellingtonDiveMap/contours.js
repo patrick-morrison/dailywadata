@@ -107,7 +107,6 @@ export function setupContourLayers(map, state, config, generateContoursForViewpo
  */
 export async function initializeContourGeneration(map, state, config, generateContoursForViewportFn, pool) {
     try {
-        console.time('\u23F1\uFE0F contour: load contour source');
         const tiff = await GeoTIFF.fromUrl(config.CONTOUR_COG, {
             allowFullFile: false,
             cacheSize: 100
@@ -149,13 +148,9 @@ export async function initializeContourGeneration(map, state, config, generateCo
         }
 
         state.contourLowRes = { grid, width: lowWidth, height: lowHeight, bbox };
-        console.timeEnd('\u23F1\uFE0F contour: load contour source');
-        console.log(`Contour source loaded: native ${nativeWidth}\u00D7${nativeHeight}, low-res ${lowWidth}\u00D7${lowHeight}, ${(rawGrid.length * 4 / 1024).toFixed(0)}KB`);
 
         if (map.getZoom() >= Math.min(...Object.keys(config.CONTOUR_INTERVALS).map(Number))) {
-            console.time('\u23F1\uFE0F contour: generateContoursForViewport (initial)');
             generateContoursForViewportFn();
-            console.timeEnd('\u23F1\uFE0F contour: generateContoursForViewport (initial)');
         }
 
     } catch (error) {
@@ -330,7 +325,6 @@ export function generateContoursForViewport(map, state, config) {
     }
 
     if (zoom < 16) {
-        console.time('\u23F1\uFE0F contour: generate (low-res)');
         try {
             const { grid, width, height, bbox } = state.contourLowRes;
             const geojson = generateContourGeoJSON(grid, width, height, bbox, waterLevel, interval, config);
@@ -348,7 +342,6 @@ export function generateContoursForViewport(map, state, config) {
         } catch (error) {
             console.error('Failed to generate contours (low-res):', error);
         }
-        console.timeEnd('\u23F1\uFE0F contour: generate (low-res)');
     } else {
         // Show low-res immediately, then async hi-res
         try {
@@ -395,8 +388,6 @@ export async function generateHighResContours(map, state, config, bounds, waterL
     const token = ++state.contourGenToken;
 
     try {
-        console.time('\u23F1\uFE0F contour: generate (hi-res)');
-
         const sw = lngLatToWebMercator(bounds.getWest(), bounds.getSouth());
         const ne = lngLatToWebMercator(bounds.getEast(), bounds.getNorth());
 
@@ -410,7 +401,7 @@ export async function generateHighResContours(map, state, config, bounds, waterL
         const bboxMaxY = Math.min(ne[1] + padY, srcMaxY);
 
         if (bboxMinX >= bboxMaxX || bboxMinY >= bboxMaxY) {
-            console.timeEnd('\u23F1\uFE0F contour: generate (hi-res)');
+
             return;
         }
 
@@ -429,7 +420,7 @@ export async function generateHighResContours(map, state, config, bounds, waterL
         });
 
         if (token !== state.contourGenToken) {
-            console.timeEnd('\u23F1\uFE0F contour: generate (hi-res)');
+
             return;
         }
 
@@ -449,7 +440,7 @@ export async function generateHighResContours(map, state, config, bounds, waterL
         }
 
         if (token !== state.contourGenToken) {
-            console.timeEnd('\u23F1\uFE0F contour: generate (hi-res)');
+
             return;
         }
 
@@ -465,8 +456,6 @@ export async function generateHighResContours(map, state, config, bounds, waterL
             state.contoursCache.delete(firstKey);
         }
         state.contoursCache.set(cacheKey, geojson);
-
-        console.timeEnd('\u23F1\uFE0F contour: generate (hi-res)');
     } catch (error) {
         console.error('Failed to generate contours (hi-res):', error);
     }

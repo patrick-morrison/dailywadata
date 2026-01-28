@@ -1,10 +1,16 @@
 /**
- * Custom MapLibre layer that renders a hillshade COG with multiply blend mode.
- * This provides QGIS-quality hillshading that MapLibre doesn't natively support.
+ * multiply-hillshade-layer.js — Custom WebGL hillshade renderer
+ *
+ * Renders a hillshade COG with multiply blend mode, providing
+ * QGIS-quality hillshading that MapLibre doesn't natively support.
  */
 
+// ============================================
+// Hillshade Layer Factory
+// ============================================
+
 /**
- * Creates a custom MapLibre layer that renders a hillshade COG
+ * Create a custom MapLibre layer that renders a hillshade COG
  * with multiply blend mode.
  *
  * @param {Object} options
@@ -44,7 +50,10 @@ function createMultiplyHillshadeLayer(options) {
     // Current texture bounds as [west, south, east, north] in lng/lat (WGS84)
     let boundsLngLat = null;
 
-    // Shader sources
+    // ============================================
+    // Shaders
+    // ============================================
+
     const vertexShaderSource = `#version 300 es
         in vec2 a_pos;
         in vec2 a_texCoord;
@@ -77,9 +86,10 @@ function createMultiplyHillshadeLayer(options) {
         }
     `;
 
-    /**
-     * Compile a shader from source
-     */
+    // ============================================
+    // Helpers
+    // ============================================
+
     function compileShader(gl, type, source) {
         const shader = gl.createShader(type);
         gl.shaderSource(shader, source);
@@ -93,9 +103,6 @@ function createMultiplyHillshadeLayer(options) {
         return shader;
     }
 
-    /**
-     * Create shader program
-     */
     function createProgram(gl, vertexSource, fragmentSource) {
         const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexSource);
         const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
@@ -113,16 +120,12 @@ function createMultiplyHillshadeLayer(options) {
             return null;
         }
 
-        // Clean up shaders (they're linked into program now)
         gl.deleteShader(vertexShader);
         gl.deleteShader(fragmentShader);
 
         return prog;
     }
 
-    /**
-     * Convert Web Mercator to WGS84 lng/lat
-     */
     function webMercatorToLngLat(x, y) {
         const MERCATOR_EXTENT = 20037508.342789244;
         const lng = (x / MERCATOR_EXTENT) * 180;
@@ -131,9 +134,6 @@ function createMultiplyHillshadeLayer(options) {
         return [lng, lat];
     }
 
-    /**
-     * Convert WGS84 lng/lat to Web Mercator
-     */
     function lngLatToWebMercator(lng, lat) {
         const MERCATOR_EXTENT = 20037508.342789244;
         const x = (lng / 180) * MERCATOR_EXTENT;
@@ -141,34 +141,30 @@ function createMultiplyHillshadeLayer(options) {
         return [x, (y / 180) * MERCATOR_EXTENT];
     }
 
-    let textureSeq = 0; // unique ID for timer labels
+    // ============================================
+    // Texture Building
+    // ============================================
 
     /**
      * Read rasters at a given resolution and create/replace the WebGL texture.
-     * Returns false if the read was stale (token mismatch), true otherwise.
+     *
      * @param {WebGLRenderingContext} gl
      * @param {GeoTIFF} tiff - GeoTIFF object (auto-selects best overview)
      * @param {number|null} noDataValue
      * @param {number} samplesPerPixel
      * @param {number} width - Requested output width
      * @param {number} height - Requested output height
-     * @param {string} label - For logging
      * @param {number[]} [bbox] - Optional [minX, minY, maxX, maxY] in EPSG:3857
      * @param {number} [token] - Viewport token; if provided, bail early when stale
+     * @returns {boolean} false if the read was stale (token mismatch)
      */
-    async function readAndCreateTexture(gl, tiff, noDataValue, samplesPerPixel, width, height, label, bbox, token) {
-        const seq = ++textureSeq;
-        const timerRead = `⏱️ hillshade: readRasters #${seq} (${label})`;
-        const timerPixels = `⏱️ hillshade: processPixels #${seq} (${label})`;
-
+    async function readAndCreateTexture(gl, tiff, noDataValue, samplesPerPixel, width, height, bbox, token) {
         // Bail before expensive read if a newer viewport request already arrived
         if (token !== undefined && token !== viewportToken) return false;
 
-        console.time(timerRead);
         const readOpts = { width, height, pool };
         if (bbox) readOpts.bbox = bbox;
         const rasters = await tiff.readRasters(readOpts);
-        console.timeEnd(timerRead);
 
         // Bail before expensive pixel work if a newer request superseded this one
         if (token !== undefined && token !== viewportToken) return false;
@@ -193,7 +189,6 @@ function createMultiplyHillshadeLayer(options) {
             return false;
         };
 
-        console.time(timerPixels);
         const isNoData = new Uint8Array(data.length);
         let pixelData;
 
@@ -232,7 +227,6 @@ function createMultiplyHillshadeLayer(options) {
             rgbaData[i * 4 + 2] = val;
             rgbaData[i * 4 + 3] = isNoData[i] ? 0 : 255;
         }
-        console.timeEnd(timerPixels);
 
         // Final stale check before touching GL state
         if (token !== undefined && token !== viewportToken) return false;
@@ -250,9 +244,12 @@ function createMultiplyHillshadeLayer(options) {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
-        console.log(`Hillshade texture created (${label}): ${actualWidth}×${actualHeight}`);
         return true;
     }
+
+    // ============================================
+    // COG Loading
+    // ============================================
 
     /**
      * Open the hillshade COG, read metadata, create GL buffers,
@@ -260,17 +257,12 @@ function createMultiplyHillshadeLayer(options) {
      */
     async function loadHillshadeImage(gl) {
         try {
-            console.log('Loading hillshade COG:', cogUrl);
-            console.time('⏱️ hillshade: GeoTIFF.fromUrl');
             tiffRef = await GeoTIFF.fromUrl(cogUrl, {
                 allowFullFile: false,
                 cacheSize: 100
             });
-            console.timeEnd('⏱️ hillshade: GeoTIFF.fromUrl');
 
-            console.time('⏱️ hillshade: getImage');
             const image = await tiffRef.getImage();
-            console.timeEnd('⏱️ hillshade: getImage');
 
             // Store metadata for viewport reads
             fullExtentEpsg3857 = image.getBoundingBox(); // [minX, minY, maxX, maxY]
@@ -278,15 +270,6 @@ function createMultiplyHillshadeLayer(options) {
             const gdalNoData = fileDirectory.GDAL_NODATA;
             storedNoDataValue = gdalNoData !== undefined ? parseFloat(gdalNoData) : null;
             storedSamplesPerPixel = image.getSamplesPerPixel();
-
-            const nativeWidth = image.getWidth();
-            const nativeHeight = image.getHeight();
-
-            const sw = webMercatorToLngLat(fullExtentEpsg3857[0], fullExtentEpsg3857[1]);
-            const ne = webMercatorToLngLat(fullExtentEpsg3857[2], fullExtentEpsg3857[3]);
-            console.log('Hillshade bounds (lng/lat):', [sw[0], sw[1], ne[0], ne[1]]);
-            console.log(`Hillshade native: ${nativeWidth}×${nativeHeight}`);
-            console.log('NoData value:', storedNoDataValue, '| Samples per pixel:', storedSamplesPerPixel);
 
             // Create GL buffers once
             vertexBuffer = gl.createBuffer();
@@ -317,6 +300,10 @@ function createMultiplyHillshadeLayer(options) {
             console.error('Failed to load hillshade COG:', error);
         }
     }
+
+    // ============================================
+    // Viewport Reading
+    // ============================================
 
     /**
      * Read the hillshade for the current map viewport at screen-appropriate
@@ -366,12 +353,10 @@ function createMultiplyHillshadeLayer(options) {
                 reqHeight = Math.max(1, Math.round(reqHeight * scale));
             }
 
-            const label = `viewport z${zoom.toFixed(1)} ${reqWidth}×${reqHeight}`;
-
             readInFlight = true;
             const ok = await readAndCreateTexture(
                 gl, tiffRef, storedNoDataValue, storedSamplesPerPixel,
-                reqWidth, reqHeight, label, bbox, token
+                reqWidth, reqHeight, bbox, token
             );
 
             // readAndCreateTexture returns false if the token went stale
@@ -397,10 +382,10 @@ function createMultiplyHillshadeLayer(options) {
         }
     }
 
-    /**
-     * Update vertex buffer with coordinates relative to map center
-     * This avoids precision issues by using small numbers
-     */
+    // ============================================
+    // Vertex Update
+    // ============================================
+
     function updateVertices(gl) {
         if (!boundsLngLat || !mapRef) return;
 
@@ -434,14 +419,15 @@ function createMultiplyHillshadeLayer(options) {
         return centerMerc;
     }
 
+    // ============================================
+    // Layer Interface
+    // ============================================
+
     return {
         id: layerId,
         type: 'custom',
         renderingMode: '2d',
 
-        /**
-         * Called when the layer is added to the map
-         */
         onAdd(map, gl) {
             mapRef = map;
             glRef = gl;
@@ -469,19 +455,13 @@ function createMultiplyHillshadeLayer(options) {
             }
         },
 
-        /**
-         * Explicitly start loading the hillshade COG.
-         * Call this after the map is visible when deferLoading=true.
-         */
+        /** Start COG loading explicitly (when deferLoading=true). */
         startLoading() {
             if (glRef && mapRef && !imageLoaded) {
                 loadHillshadeImage(glRef);
             }
         },
 
-        /**
-         * Called when the layer is removed from the map
-         */
         onRemove(map, gl) {
             if (moveendHandler) map.off('moveend', moveendHandler);
             if (program) gl.deleteProgram(program);
@@ -493,9 +473,6 @@ function createMultiplyHillshadeLayer(options) {
             glRef = null;
         },
 
-        /**
-         * Called during each render frame
-         */
         render(gl, args) {
             if (!imageLoaded || !program || !texture) return;
 
@@ -556,16 +533,10 @@ function createMultiplyHillshadeLayer(options) {
             gl.useProgram(previousProgram);
         },
 
-        /**
-         * Set the opacity of the hillshade layer
-         */
         setOpacity(newOpacity) {
             opacity = newOpacity;
         },
 
-        /**
-         * Get current opacity
-         */
         getOpacity() {
             return opacity;
         }
