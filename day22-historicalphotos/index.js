@@ -17,9 +17,17 @@ renderer.xr.setReferenceSpaceType('local'); // Explicitly request local space fo
 
 // Initialize SparkRenderer to configure global splat settings
 // SparkRenderer must be added to the scene to function correctly
-const spark = new SparkRenderer({ renderer, maxStdDev: Math.sqrt(5) });
+const spark = new SparkRenderer({
+    renderer,
+    maxStdDev: Math.sqrt(5),  // VR-friendly setting
+    preUpdate: false           // Good for WebXR per docs
+});
+
 // Dilate splats to fill gaps ("black splotches") caused by lower point count
-spark.splatScale = 5.0;
+spark.blurAmount = .25;       // Controls gap filling (try 0.15-0.4)
+spark.preBlurAmount = 0.0;     // If splats look wrong, try 0.2-0.3
+spark.minPixelRadius = 0.35;   // Minimum splat size (try 0.2-1.0)
+
 scene.add(spark);
 
 let controls;
@@ -467,9 +475,12 @@ async function populateFileList() {
         const availableFiles = cdnAvailable ? data : internalFiles;
 
         imageSelect.innerHTML = '';
-        availableFiles.forEach((item, index) => {
+        availableFiles.forEach((item) => {
             const option = document.createElement('option');
             const sogFilename = item.filename.replace('.jpg', '.sog').replace('.png', '.sog');
+
+            // Extract ID from filename (remove .sog extension)
+            const splatId = sogFilename.replace('.sog', '');
 
             // Use CDN for external, local path for internal
             const baseUrl = item.stored === 'internal'
@@ -478,21 +489,44 @@ async function populateFileList() {
 
             option.value = baseUrl + sogFilename;
             option.textContent = item.caption;
-
-            // Select first by default
-            if (index === 0) option.selected = true;
+            option.dataset.splatId = splatId; // Store filename ID for URL params
 
             imageSelect.appendChild(option);
         });
 
-        // Auto-load first
+        // Check URL parameters for initial selection
+        const urlParams = new URLSearchParams(window.location.search);
+        const spParam = urlParams.get('sp');
+
+        let initialIndex = 0; // Default to first
+        if (spParam) {
+            // Find option with matching splat ID
+            const options = Array.from(imageSelect.options);
+            const matchIndex = options.findIndex(opt => opt.dataset.splatId === spParam);
+            if (matchIndex !== -1) {
+                initialIndex = matchIndex;
+            }
+        }
+
+        imageSelect.selectedIndex = initialIndex;
+
+        // Auto-load selected
         if (imageSelect.value) {
             loadSplat(imageSelect.value);
         }
 
-        // Add change listener
+        // Add change listener with URL update
         imageSelect.addEventListener('change', (e) => {
-            if (e.target.value) loadSplat(e.target.value);
+            if (e.target.value) {
+                // Update URL parameter with splat ID
+                const selectedOption = e.target.options[e.target.selectedIndex];
+                const splatId = selectedOption.dataset.splatId;
+                const url = new URL(window.location);
+                url.searchParams.set('sp', splatId);
+                window.history.pushState({}, '', url);
+
+                loadSplat(e.target.value);
+            }
         });
 
     } catch (err) {
@@ -608,6 +642,14 @@ function navigateImages(direction) {
     if (newIndex >= select.options.length) newIndex = 0;
 
     select.selectedIndex = newIndex;
+
+    // Update URL parameter with splat ID
+    const selectedOption = select.options[newIndex];
+    const splatId = selectedOption.dataset.splatId;
+    const url = new URL(window.location);
+    url.searchParams.set('sp', splatId);
+    window.history.pushState({}, '', url);
+
     loadSplat(select.value);
 }
 
