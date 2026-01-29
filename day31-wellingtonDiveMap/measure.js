@@ -1016,8 +1016,8 @@ export async function loadContourGridForDrag(state, ptA, ptB) {
 
         // Use 2x overview resolution for routing — higher res than display
         // (which uses 8x) but accessed efficiently via bbox reads
-        const resX = state.contourPixelSizeX ? state.contourPixelSizeX * 2 : 0.5;
-        const resY = state.contourPixelSizeY ? state.contourPixelSizeY * 2 : 0.5;
+        const resX = state.contourPixelSizeX ? state.contourPixelSizeX : 0.5;
+        const resY = state.contourPixelSizeY ? state.contourPixelSizeY : 0.5;
 
         const rasters = await state.contourTiff.readRasters({
             bbox,

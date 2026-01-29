@@ -159,9 +159,9 @@ def main():
     # Factor 8  → display low-res cached grid (equivalent to old native quality)
     # Factor 16 → lightweight fallback
     # Factor 2/4 → reserved for contour routing (A* pathfinding)
-    print("Building overview pyramids (factors 2, 4, 8, 16)...")
+    print("Building overview pyramids (factors 2, 4)...")
     ds = gdal.Open(OUTPUT_COG, gdalconst.GA_Update)
-    ds.BuildOverviews("AVERAGE", [2, 4, 8])
+    ds.BuildOverviews("AVERAGE", [2, 4])
     ds.FlushCache()
     ds = None
     print("  Overviews built successfully")
