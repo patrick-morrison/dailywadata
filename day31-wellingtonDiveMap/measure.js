@@ -167,6 +167,7 @@ export function clearMeasurements(map, state) {
     state.contourDragGrid = null;
     state.contourPreviewCoords = null;
 
+    document.getElementById('clear-btn').style.display = 'none';
     document.getElementById('measure-panel').style.display = 'none';
     document.getElementById('measure-total').textContent = '0 m';
     document.getElementById('measure-items').innerHTML = '';
