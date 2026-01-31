@@ -356,6 +356,7 @@ export function updateMeasurePanel(state, segmentDistance, segmentBearing) {
     const displayName = idx === 1 ? 'Start point' : `Point ${idx}`;
 
     measurePanel.style.display = 'block';
+    document.getElementById('clear-btn').style.display = 'block';
     measureTotal.textContent = formatDistance(state.measureTotalDistance);
 
     const bearingHtml = segmentBearing === 'line'
@@ -404,6 +405,7 @@ export function rebuildMeasurePanel(state, config) {
     }
 
     measurePanel.style.display = 'block';
+    document.getElementById('clear-btn').style.display = 'block';
     measureTotal.textContent = formatDistance(state.measureTotalDistance);
 
     for (let i = 0; i < state.measurePoints.length; i++) {
