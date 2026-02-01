@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wellington Dam Dive Map</title>
-    <meta name="description" content="Interactive dive map of Wellington Dam with bathymetry visualization and survey line overlays">
+    <meta name="description"
+        content="Interactive dive map of Wellington Dam with bathymetry visualization and survey line overlays">
 
     <!-- External Dependencies -->
     <script src="https://unpkg.com/maplibre-gl@5.16.0/dist/maplibre-gl.js"></script>
@@ -20,6 +21,10 @@
 
     <!-- Styles -->
     <link rel="stylesheet" href="style.css">
+
+    <!-- Analytics -->
+    <script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
+        src="https://umami.padmorrison.com/umami.js"></script>
 </head>
 
 <body>
@@ -51,18 +56,20 @@
                 <!-- Measure Tool Toggle -->
                 <div class="measure-toggle">
                     <button class="measure-btn" id="measure-btn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M2 12h4M18 12h4M12 2v4M12 18v4"/>
-                            <circle cx="12" cy="12" r="3"/>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M2 12h4M18 12h4M12 2v4M12 18v4" />
+                            <circle cx="12" cy="12" r="3" />
                         </svg>
                         <span>Measure</span>
                     </button>
                     <button class="measure-btn" id="depth-probe-btn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="2" x2="12" y2="22"/>
-                            <line x1="8" y1="6" x2="12" y2="2"/>
-                            <line x1="16" y1="6" x2="12" y2="2"/>
-                            <line x1="6" y1="22" x2="18" y2="22"/>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="2" x2="12" y2="22" />
+                            <line x1="8" y1="6" x2="12" y2="2" />
+                            <line x1="16" y1="6" x2="12" y2="2" />
+                            <line x1="6" y1="22" x2="18" y2="22" />
                         </svg>
                         <span>Depth</span>
                     </button>
@@ -140,7 +147,7 @@
                             </label>
                         </div>
                     </div>
-<div class="layer-control" data-layer="structures">
+                    <div class="layer-control" data-layer="structures">
                         <div class="layer-header">
                             <label class="layer-toggle">
                                 <input type="checkbox" checked>
