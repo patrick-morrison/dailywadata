@@ -162,7 +162,7 @@ Both layers implement viewport-based COG reads with:
 [Survey AS20131211, Department of Transport](https://dot-wa.maps.arcgis.com/apps/webappviewer/index.html?id=d58dd77d85654783b5fc8c775953c69b)
 [Survey AS20130627, Department of Transport](https://dot-wa.maps.arcgis.com/apps/webappviewer/index.html?id=d58dd77d85654783b5fc8c775953c69b)
 
-**Survey Lines**: Dive survey data, January 2026
+**Survey Lines**: Dive survey data, January 2026. Survey team: Aren Leishman, Matt Gannicott, Huw Porter, Doreen Ee, Patrick Morrison, Gabriel Feng, Geoff Paynter, Stuart Parsons, Andrew Currie.
 
 **Water Level**: [Water Corporation of Western Australia](https://www.watercorporation.com.au/water-supply/rainfall-and-dams/dam-levels)
 
