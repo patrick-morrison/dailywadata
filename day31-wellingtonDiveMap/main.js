@@ -38,7 +38,8 @@ import {
     initializeClickHandlers,
     encodeNavPlan,
     decodeNavPlan,
-    restoreNavPlan
+    restoreNavPlan,
+    regeneratePendingContours
 } from './measure.js';
 
 // ============================================
@@ -306,12 +307,32 @@ map.on('load', async () => {
 
         // Restore nav plan from URL hash if present
         let navPlanRestored = false;
+        let navPlanHasPendingContours = false;
         if (location.hash.startsWith('#nav=')) {
-            const plan = decodeNavPlan(location.hash.slice(5));
-            if (plan) {
-                restoreNavPlan(map, state, CONFIG, plan);
+            const decoded = decodeNavPlan(location.hash.slice(5));
+            if (decoded) {
+                navPlanHasPendingContours = restoreNavPlan(map, state, CONFIG, decoded.plan);
                 navPlanRestored = true;
-                console.log('Nav plan restored from URL');
+                console.log('Nav plan restored from URL' + (navPlanHasPendingContours ? ' (contours pending)' : ''));
+                // Upgrade v1/v2 links to v3 (compressed, deferred contours) format
+                if (decoded.needsUpgrade && !navPlanHasPendingContours) {
+                    const v3Encoded = encodeNavPlan(map, state, CONFIG);
+                    if (v3Encoded) {
+                        history.replaceState(null, '', '#nav=' + v3Encoded);
+                        console.log('Nav plan upgraded to v3');
+                    }
+                }
+            }
+        } else {
+            // Check for simple coordinate link: #lat,lng
+            const coordMatch = location.hash.match(/^#(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
+            if (coordMatch) {
+                const lat = parseFloat(coordMatch[1]);
+                const lng = parseFloat(coordMatch[2]);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    map.jumpTo({ center: [lng, lat], zoom: 16 });
+                    console.log('Coordinate link restored:', lat, lng);
+                }
             }
         }
 
@@ -332,9 +353,28 @@ map.on('load', async () => {
         // which uses jumpTo (doesn't fire moveend automatically)
         map.fire('moveend');
 
+        // If nav plan was restored, refresh elevation profile once bathymetry data loads
+        // The initial updateElevationProfile in restoreNavPlan runs before data is available
+        if (navPlanRestored) {
+            map.once('idle', () => {
+                updateElevationProfile(state);
+            });
+        }
+
         // Start contour COG loading + initial generation in background
-        requestAnimationFrame(() => {
-            initializeContourGeneration(map, state, CONFIG, boundGenerateContoursForViewport, geoTiffPool);
+        requestAnimationFrame(async () => {
+            await initializeContourGeneration(map, state, CONFIG, boundGenerateContoursForViewport, geoTiffPool);
+
+            // Regenerate any pending contour paths now that COG data is available
+            if (navPlanHasPendingContours) {
+                regeneratePendingContours(map, state, CONFIG);
+                // Now that contours are regenerated, upgrade URL to v3 format
+                const v3Encoded = encodeNavPlan(map, state, CONFIG);
+                if (v3Encoded) {
+                    history.replaceState(null, '', '#nav=' + v3Encoded);
+                    console.log('Nav plan upgraded to v3 after contour regeneration');
+                }
+            }
         });
 
     } catch (error) {

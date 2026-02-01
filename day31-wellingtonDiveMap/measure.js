@@ -1413,16 +1413,19 @@ function r(n, dp) {
  * Encode the current nav plan (measure state + view) into a URL-safe string.
  * Returns null if there is no nav plan to encode.
  *
+ * Uses v3 format with LZ-string compression and deferred contour regeneration.
+ * Contour segments store only the target elevation, not the full coordinate chain.
+ *
  * @param {maplibregl.Map} map - The map instance
  * @param {Object} state - Application state
  * @param {Object} config - Application config
- * @returns {string|null} Base64url-encoded nav plan, or null
+ * @returns {string|null} Compressed nav plan string, or null
  */
 export function encodeNavPlan(map, state, config) {
     if (state.measurePoints.length === 0) return null;
 
     const plan = {
-        v: 1,
+        v: 3,
         w: state.useCurrentLevel ? null : r(state.customStorageGL, 2),
         c: [r(map.getCenter().lng, 6), r(map.getCenter().lat, 6), r(map.getZoom(), 1)],
         p: state.measurePoints.map(pt => {
@@ -1434,31 +1437,53 @@ export function encodeNavPlan(map, state, config) {
             if (seg.coords.length === 2 && seg.contourAHD === undefined) {
                 return 0; // straight line, derivable from points
             }
-            const entry = { c: seg.coords.map(([lng, lat]) => [r(lng, 6), r(lat, 6)]) };
-            if (seg.contourAHD !== undefined) entry.a = r(seg.contourAHD, 2);
-            return entry;
+            // v3: contour segments store only elevation, path regenerated at runtime
+            if (seg.contourAHD !== undefined) {
+                return { a: r(seg.contourAHD, 2) };
+            }
+            // Non-contour multi-point segment (e.g., vertex-to-vertex path)
+            return { c: seg.coords.map(([lng, lat]) => [r(lng, 6), r(lat, 6)]) };
         })
     };
 
     const json = JSON.stringify(plan);
-    // URL-safe base64: replace +/= with -_.
-    return btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    // v3: LZ-string compression to URI-safe format
+    return '3.' + LZString.compressToEncodedURIComponent(json);
 }
 
 /**
- * Decode a URL-safe base64 nav plan string back into a plan object.
+ * Decode a nav plan string back into a plan object.
+ * Supports v1 (base64 JSON), v2 (LZ-string, full coords), and v3 (LZ-string, deferred contours).
  *
- * @param {string} encoded - Base64url-encoded nav plan
- * @returns {Object|null} Decoded plan object, or null on failure
+ * @param {string} encoded - Encoded nav plan string
+ * @returns {{plan: Object, needsUpgrade: boolean}|null} Decoded plan with upgrade info, or null on failure
  */
 export function decodeNavPlan(encoded) {
     try {
-        // Restore standard base64 from URL-safe variant
-        let b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-        while (b64.length % 4) b64 += '=';
-        const plan = JSON.parse(atob(b64));
-        if (plan.v !== 1) return null;
-        return plan;
+        let plan;
+        let needsUpgrade = false;
+
+        if (encoded.startsWith('3.')) {
+            // v3: LZ-string compressed, deferred contours
+            const json = LZString.decompressFromEncodedURIComponent(encoded.slice(2));
+            if (!json) return null;
+            plan = JSON.parse(json);
+        } else if (encoded.startsWith('2.')) {
+            // v2: LZ-string compressed, full coords
+            const json = LZString.decompressFromEncodedURIComponent(encoded.slice(2));
+            if (!json) return null;
+            plan = JSON.parse(json);
+            needsUpgrade = true;
+        } else {
+            // v1: URL-safe base64 JSON
+            let b64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+            while (b64.length % 4) b64 += '=';
+            plan = JSON.parse(atob(b64));
+            needsUpgrade = true;
+        }
+
+        if (plan.v !== 1 && plan.v !== 2 && plan.v !== 3) return null;
+        return { plan, needsUpgrade };
     } catch {
         return null;
     }
@@ -1468,10 +1493,15 @@ export function decodeNavPlan(encoded) {
  * Restore a nav plan from a decoded plan object into application state.
  * Rebuilds measure points, segments, panel and visualization.
  *
+ * For v3 plans, contour segments may only have elevation (no coords) and will
+ * be marked as pending regeneration. Call regeneratePendingContours() once
+ * contour COG data is available.
+ *
  * @param {maplibregl.Map} map - The map instance
  * @param {Object} state - Application state
  * @param {Object} config - Application config
  * @param {Object} plan - Decoded plan object from decodeNavPlan
+ * @returns {boolean} True if there are pending contours to regenerate
  */
 export function restoreNavPlan(map, state, config, plan) {
     // Restore water level
@@ -1499,13 +1529,31 @@ export function restoreNavPlan(map, state, config, plan) {
     }));
 
     // Restore segments
+    let hasPendingContours = false;
     state.measureSegments = plan.s.map((seg, i) => {
+        const ptA = state.measurePoints[i];
+        const ptB = state.measurePoints[i + 1];
+
         if (seg === 0) {
-            const ptA = state.measurePoints[i];
-            const ptB = state.measurePoints[i + 1];
+            // Straight line segment
             const coords = [[ptA.lng, ptA.lat], [ptB.lng, ptB.lat]];
             return { coords, distance: haversineDistance(coords[0], coords[1]) };
         }
+
+        if (seg.a !== undefined && !seg.c) {
+            // v3 deferred contour: only elevation, needs regeneration
+            // Create placeholder straight line for now
+            hasPendingContours = true;
+            const coords = [[ptA.lng, ptA.lat], [ptB.lng, ptB.lat]];
+            return {
+                coords,
+                distance: haversineDistance(coords[0], coords[1]),
+                contourAHD: seg.a,
+                pendingRegeneration: true
+            };
+        }
+
+        // Full coordinate chain (v1/v2 or non-contour multi-point)
         const coords = seg.c;
         let distance = 0;
         for (let j = 0; j < coords.length - 1; j++) {
@@ -1518,6 +1566,7 @@ export function restoreNavPlan(map, state, config, plan) {
 
     state.measureTotalDistance = state.measureSegments.reduce((sum, s) => sum + s.distance, 0);
     state.lastMeasureVertexKey = null;
+    state.hasPendingContours = hasPendingContours;
 
     // Activate measure mode UI
     state.measureMode = true;
@@ -1531,4 +1580,68 @@ export function restoreNavPlan(map, state, config, plan) {
     rebuildMeasurePanel(state, config);
     updateElevationProfile(state);
     updateVertexHighlights(map, state);
+
+    return hasPendingContours;
+}
+
+/**
+ * Regenerate contour paths for segments marked as pending.
+ * Call this once contour COG data (state.contourLowRes) is available.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {Object} state - Application state
+ * @param {Object} config - Application config
+ */
+export function regeneratePendingContours(map, state, config) {
+    if (!state.hasPendingContours) return;
+    if (!state.contourLowRes) {
+        console.warn('Cannot regenerate contours: COG data not loaded yet');
+        return;
+    }
+
+    const { grid, width, height, bbox } = state.contourLowRes;
+    let anyRegenerated = false;
+
+    for (let i = 0; i < state.measureSegments.length; i++) {
+        const seg = state.measureSegments[i];
+        if (!seg.pendingRegeneration) continue;
+
+        const ptA = state.measurePoints[i];
+        const ptB = state.measurePoints[i + 1];
+
+        const contourPath = findContourPath(
+            grid, width, height, bbox,
+            ptA.lng, ptA.lat, ptB.lng, ptB.lat,
+            seg.contourAHD
+        );
+
+        if (contourPath && contourPath.length >= 2) {
+            // Update segment with regenerated path
+            seg.coords = contourPath;
+            let distance = 0;
+            for (let j = 0; j < contourPath.length - 1; j++) {
+                distance += haversineDistance(contourPath[j], contourPath[j + 1]);
+            }
+            seg.distance = distance;
+            delete seg.pendingRegeneration;
+            anyRegenerated = true;
+        } else {
+            // Contour path couldn't be found - keep as straight line
+            console.warn(`Could not regenerate contour path for segment ${i} at ${seg.contourAHD}m AHD`);
+            delete seg.pendingRegeneration;
+            delete seg.contourAHD; // No longer a contour segment
+        }
+    }
+
+    if (anyRegenerated) {
+        state.measureTotalDistance = state.measureSegments.reduce((sum, s) => sum + s.distance, 0);
+        state.hasPendingContours = false;
+
+        updateMeasureVisualization(map, state);
+        rebuildMeasurePanel(state, config);
+        updateElevationProfile(state);
+
+        // Update URL with regenerated paths (will re-encode as v3)
+        if (state.onNavPlanChange) state.onNavPlanChange();
+    }
 }
