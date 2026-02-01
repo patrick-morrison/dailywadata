@@ -1085,6 +1085,71 @@
                 </div>
             </div>
 
+            <div class="day-entry" id="day31">
+                <div class="day-header">
+                    <span class="day-num">31</span>
+                    <h3 class="day-name"><a href="day31-wellingtonDiveMap/index.html">Wellington Dam Dive Map</a>
+                    </h3>
+                </div>
+                <div class="day-details">
+                    <div class="detail-section">
+                        <div class="detail-label">Rationale</div>
+                        <div class="detail-text">Interactive bathymetric map of Wellington Dam with dynamic water level
+                            control, dive survey data, and contour-following measurement tools. Features merged
+                            Department of Transport bathymetry with custom dive survey lines, real-time COG rendering
+                            with custom colormap, and advanced measure tool with A* pathfinding along depth contours.
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Data Sources</div>
+                        <div class="detail-text">Bathymetry from <a
+                                href="https://dot-wa.maps.arcgis.com/apps/webappviewer/index.html?id=d58dd77d85654783b5fc8c775953c69b">Department
+                                of Transport WA</a> (Surveys AS20131211 and AS20130627). Dive survey data (January
+                            2026). Water level from <a
+                                href="https://www.watercorporation.com.au/water-supply/rainfall-and-dams/dam-levels">Water
+                                Corporation of WA</a>. Current storage 84.35 GL used to map incomplete bathymetry to
+                            surveyed water levels.</div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Processing</div>
+                        <div class="detail-text">
+                            Two bathymetry datasets merged in QGIS and exported as Cloud Optimized GeoTIFF (COG) using
+                            <code>gdalwarp -of COG -co COMPRESS=DEFLATE -co NBITS=16 -co PREDICTOR=3</code>. Hillshade
+                            generated with multidirectional light source and converted to COG. Custom Python script
+                            (<code>generate_contour_source.py</code>) applied anisotropic diffusion to reduce noise
+                            while preserving cliff edges, creating optimized cache layer for real-time contouring. Water
+                            level calculated by cross-referencing 126 matched points between survey and bathymetry:
+                            median 156.96m AHD (std dev 0.69m). Volume estimation script
+                            (<code>generate_volume_lookup.py</code>) examines DEM to map Water Corporation storage
+                            volumes to dam levels and depths.
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Implementation Details</div>
+                        <div class="detail-text">
+                            Custom WebGL layers for bathymetry and hillshade rendering. Bathymetry converts elevation to
+                            depth below water surface, applies inverted Turbo colormap (red/orange for shallow,
+                            blue/purple for deep), masks pixels above water level, and caches raw elevation for instant
+                            re-coloring when water level slider adjusts. Hillshade uses multiply blend mode
+                            (<code>gl.blendFunc(gl.DST_COLOR, gl.ZERO)</code>) to darken slopes while preserving color
+                            palette. Dynamic depth contours generated at render time using d3-contour marching squares
+                            algorithm with two-tier resolution (4× overview for zoom &lt;16, 2× for ≥16), LRU cache (20
+                            entries), and clean boundary handling. Measure tool includes contour-following mode with A*
+                            pathfinding that snaps to target depth and applies Chaikin smoothing. Cost function combines
+                            base movement cost, quadratic depth penalty, and directness penalty. Module architecture:
+                            <code>main.js</code> (config/state), <code>map.js</code> (layers/UI),
+                            <code>measure.js</code> (A* pathfinding), <code>contours.js</code> (caching),
+                            <code>utils.js</code> (transforms/smoothing). Tech stack: MapLibre GL JS 4.7.1, GeoTIFF.js
+                            2.1.3, d3-contour 4.0.2.
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-label">Author</div>
+                        <div class="detail-text">Aren Leishman</div>
+                    </div>
+                </div>
+            </div>
+
             <p style="margin-top: 2rem; color: var(--muted); font-size: 0.95rem;">More sources will appear here as each
                 day is published.</p>
 
