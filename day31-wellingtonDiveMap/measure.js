@@ -134,6 +134,53 @@ export function initializeMeasureTool(map, state) {
             'circle-stroke-width': 2
         }
     });
+
+    // Profile hover position marker source
+    map.addSource('profile-hover-marker', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+    });
+
+    // Create direction arrow icon programmatically
+    const arrowSize = 32;
+    const arrowCanvas = document.createElement('canvas');
+    arrowCanvas.width = arrowSize;
+    arrowCanvas.height = arrowSize;
+    const ctx = arrowCanvas.getContext('2d');
+    ctx.fillStyle = '#FF00FF';
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    // Arrow pointing up (bearing 0)
+    ctx.moveTo(arrowSize / 2, 4);
+    ctx.lineTo(arrowSize - 6, arrowSize - 6);
+    ctx.lineTo(arrowSize / 2, arrowSize - 10);
+    ctx.lineTo(6, arrowSize - 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Get image data from canvas for MapLibre
+    const imageData = ctx.getImageData(0, 0, arrowSize, arrowSize);
+    map.addImage('direction-arrow', {
+        width: arrowSize,
+        height: arrowSize,
+        data: imageData.data
+    });
+
+    // Arrow marker using symbol layer with rotation
+    map.addLayer({
+        id: 'profile-hover-marker-layer',
+        type: 'symbol',
+        source: 'profile-hover-marker',
+        layout: {
+            'icon-image': 'direction-arrow',
+            'icon-size': 0.75,
+            'icon-rotate': ['get', 'bearing'],
+            'icon-rotation-alignment': 'map',
+            'icon-allow-overlap': true
+        }
+    });
 }
 
 // ============================================
@@ -177,8 +224,19 @@ export function clearMeasurements(map, state) {
     map.getSource('survey-vertex-highlight').setData({ type: 'FeatureCollection', features: [] });
     map.getSource('measure-contour-preview').setData({ type: 'FeatureCollection', features: [] });
 
+    // Clear profile hover marker
+    const hoverSource = map.getSource('profile-hover-marker');
+    if (hoverSource) {
+        hoverSource.setData({ type: 'FeatureCollection', features: [] });
+    }
+
     const profileEl = document.getElementById('measure-profile');
     if (profileEl) {
+        // Clean up hover handlers
+        if (profileEl._profileHoverCleanup) {
+            profileEl._profileHoverCleanup();
+            profileEl._profileHoverCleanup = null;
+        }
         profileEl.classList.remove('visible');
         profileEl.innerHTML = '';
     }
@@ -233,7 +291,7 @@ export function deleteMeasurePoint(map, state, config, index) {
 
     updateMeasureVisualization(map, state);
     rebuildMeasurePanel(state, config);
-    updateElevationProfile(state);
+    updateElevationProfile(state, state._map);
     updateVertexHighlights(map, state);
 }
 
@@ -378,7 +436,7 @@ export function updateMeasurePanel(state, segmentDistance, segmentBearing) {
         </span>
     `;
     measureItems.appendChild(itemEl);
-    updateElevationProfile(state);
+    updateElevationProfile(state, state._map);
 }
 
 /**
@@ -443,7 +501,7 @@ export function rebuildMeasurePanel(state, config) {
         `;
         measureItems.appendChild(itemEl);
     }
-    updateElevationProfile(state);
+    updateElevationProfile(state, state._map);
 }
 
 // ============================================
@@ -539,13 +597,20 @@ export function updateMeasureVisualization(map, state) {
  * Shows depth below water surface along the measured route.
  *
  * @param {Object} state - Application state
+ * @param {maplibregl.Map} [map] - Optional map instance for hover feature
  *
  * @reads state.measureSegments — segment coordinate data
  * @reads state.bathymetryLayer — for elevation queries
  */
-export function updateElevationProfile(state) {
+export function updateElevationProfile(state, map) {
     const container = document.getElementById('measure-profile');
     if (!container) return;
+
+    // Clean up previous hover handlers
+    if (container._profileHoverCleanup) {
+        container._profileHoverCleanup();
+        container._profileHoverCleanup = null;
+    }
 
     if (state.measureSegments.length === 0 || !state.bathymetryLayer) {
         container.classList.remove('visible');
@@ -626,7 +691,19 @@ export function updateElevationProfile(state) {
     }
 
     const xLabels = [];
-    const xStep = totalDist <= 50 ? 10 : totalDist <= 200 ? 50 : totalDist <= 500 ? 100 : 200;
+    // Calculate step based on distance range
+    let xStep = totalDist <= 50 ? 10 : totalDist <= 200 ? 50 : totalDist <= 500 ? 100 : 200;
+    // Ensure minimum 40px spacing between labels to prevent overlap
+    const minPixelSpacing = 40;
+    const minStepForSpacing = (totalDist / plotW) * minPixelSpacing;
+    // Round up to a nice number (10, 20, 50, 100, 200, 500, 1000, etc.)
+    const niceSteps = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
+    for (const ns of niceSteps) {
+        if (ns >= minStepForSpacing) {
+            xStep = Math.max(xStep, ns);
+            break;
+        }
+    }
     for (let d = 0; d <= totalDist; d += xStep) {
         xLabels.push(d);
     }
@@ -649,6 +726,248 @@ export function updateElevationProfile(state) {
 
     container.innerHTML = svg;
     container.classList.add('visible');
+
+    // Set up hover handlers if map is available
+    console.log('updateElevationProfile: map =', !!map, 'state._map =', !!state._map);
+    if (map) {
+        setupProfileHoverHandlers(container, state, map);
+    } else {
+        console.warn('updateElevationProfile: no map provided, hover handlers not set up');
+    }
+}
+
+// ============================================
+// Profile Hover Feature
+// ============================================
+
+/**
+ * Get the position, bearing, and depth at a given distance along the route.
+ *
+ * @param {Object} state - Application state
+ * @param {number} targetDist - Distance along the route in meters
+ * @returns {{ coord: [number, number], bearing: number, depth: number }|null}
+ */
+export function getPositionAtDistance(state, targetDist) {
+    if (state.measureSegments.length === 0) return null;
+
+    let cumulativeDist = 0;
+
+    for (const seg of state.measureSegments) {
+        const coords = seg.coords;
+        for (let i = 0; i < coords.length - 1; i++) {
+            const [lng1, lat1] = coords[i];
+            const [lng2, lat2] = coords[i + 1];
+            const segDist = haversineDistance([lng1, lat1], [lng2, lat2]);
+
+            if (cumulativeDist + segDist >= targetDist) {
+                // Target is within this sub-segment
+                const t = (targetDist - cumulativeDist) / segDist;
+                const lng = lng1 + (lng2 - lng1) * t;
+                const lat = lat1 + (lat2 - lat1) * t;
+                const segBearing = bearing([lng1, lat1], [lng2, lat2]);
+
+                // Query depth from bathymetry layer
+                let depth = 0;
+                if (state.bathymetryLayer) {
+                    const elev = state.bathymetryLayer.getElevationAtLngLat(lng, lat);
+                    if (elev !== null) {
+                        const waterLevel = getActiveWaterLevel(state, state._config);
+                        depth = Math.max(0, waterLevel - elev);
+                    }
+                }
+
+                return { coord: [lng, lat], bearing: segBearing, depth };
+            }
+
+            cumulativeDist += segDist;
+        }
+    }
+
+    // If we got here, return the last point
+    const lastSeg = state.measureSegments[state.measureSegments.length - 1];
+    const lastCoord = lastSeg.coords[lastSeg.coords.length - 1];
+    const [lng, lat] = lastCoord;
+
+    let depth = 0;
+    if (state.bathymetryLayer) {
+        const elev = state.bathymetryLayer.getElevationAtLngLat(lng, lat);
+        if (elev !== null) {
+            const waterLevel = getActiveWaterLevel(state, state._config);
+            depth = Math.max(0, waterLevel - elev);
+        }
+    }
+
+    // Use bearing of last segment
+    const lastCoords = lastSeg.coords;
+    const finalBearing = lastCoords.length >= 2
+        ? bearing(lastCoords[lastCoords.length - 2], lastCoords[lastCoords.length - 1])
+        : 0;
+
+    return { coord: [lng, lat], bearing: finalBearing, depth };
+}
+
+/**
+ * Update the profile hover marker on the map.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ * @param {[number, number]} coord - [lng, lat] coordinates
+ * @param {number} markerBearing - Bearing in degrees
+ */
+function updateProfileHoverMarker(map, coord, markerBearing) {
+    const source = map.getSource('profile-hover-marker');
+    if (!source) return;
+
+    source.setData({
+        type: 'FeatureCollection',
+        features: [{
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: coord },
+            properties: { bearing: markerBearing }
+        }]
+    });
+}
+
+/**
+ * Hide the profile hover marker on the map.
+ *
+ * @param {maplibregl.Map} map - The map instance
+ */
+function hideProfileHoverMarker(map) {
+    const source = map.getSource('profile-hover-marker');
+    if (!source) return;
+
+    source.setData({ type: 'FeatureCollection', features: [] });
+}
+
+/**
+ * Set up hover/touch handlers for the elevation profile SVG.
+ *
+ * @param {HTMLElement} container - The profile container element
+ * @param {Object} state - Application state
+ * @param {maplibregl.Map} map - The map instance
+ */
+function setupProfileHoverHandlers(container, state, map) {
+    console.log('setupProfileHoverHandlers called', { container, map: !!map });
+
+    // SVG dimensions from updateElevationProfile
+    const svgW = 260;
+    const margin = { left: 28, right: 8 };
+    const plotW = svgW - margin.left - margin.right; // 224
+
+    // Create hover line element (will be added to SVG)
+    let hoverLine = null;
+
+    // Create floating depth label
+    let depthLabel = document.querySelector('.profile-hover-label');
+    if (!depthLabel) {
+        depthLabel = document.createElement('div');
+        depthLabel.className = 'profile-hover-label';
+        document.body.appendChild(depthLabel);
+    }
+
+    function handleHover(e) {
+        console.log('handleHover called', e.type);
+
+        const svg = container.querySelector('svg');
+        if (!svg) {
+            console.log('No SVG found');
+            return;
+        }
+
+        // Get client coordinates
+        let clientX, clientY;
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+
+        // Convert screen position to SVG coordinates
+        const rect = svg.getBoundingClientRect();
+        const svgX = ((clientX - rect.left) / rect.width) * svgW;
+
+        // Check if within plot area
+        if (svgX < margin.left || svgX > svgW - margin.right) {
+            hideMarker();
+            return;
+        }
+
+        // Convert SVG X to distance along route
+        const totalDist = state.measureTotalDistance;
+        if (totalDist <= 0) {
+            hideMarker();
+            return;
+        }
+
+        const distFraction = (svgX - margin.left) / plotW;
+        const targetDist = distFraction * totalDist;
+
+        // Get position at distance
+        const pos = getPositionAtDistance(state, targetDist);
+        if (!pos) {
+            hideMarker();
+            return;
+        }
+
+        // Update map marker
+        updateProfileHoverMarker(map, pos.coord, pos.bearing);
+
+        // Update or create hover line on SVG
+        if (!hoverLine) {
+            hoverLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            hoverLine.classList.add('profile-hover-line');
+        }
+        if (!hoverLine.parentNode) {
+            svg.appendChild(hoverLine);
+        }
+
+        const svgH = 80;
+        const topMargin = 4;
+        const bottomMargin = 16;
+        hoverLine.setAttribute('x1', svgX);
+        hoverLine.setAttribute('y1', topMargin);
+        hoverLine.setAttribute('x2', svgX);
+        hoverLine.setAttribute('y2', svgH - bottomMargin);
+
+        // Update floating depth label
+        depthLabel.textContent = `${pos.depth.toFixed(1)}m`;
+        depthLabel.style.display = 'block';
+        depthLabel.style.left = `${clientX}px`;
+        depthLabel.style.top = `${clientY - 30}px`;
+    }
+
+    function hideMarker() {
+        hideProfileHoverMarker(map);
+
+        if (hoverLine && hoverLine.parentNode) {
+            hoverLine.parentNode.removeChild(hoverLine);
+        }
+
+        if (depthLabel) {
+            depthLabel.style.display = 'none';
+        }
+    }
+
+    // Desktop events
+    container.addEventListener('mousemove', handleHover);
+    container.addEventListener('mouseleave', hideMarker);
+
+    // Mobile events
+    container.addEventListener('touchstart', handleHover, { passive: false });
+    container.addEventListener('touchmove', handleHover, { passive: false });
+    container.addEventListener('touchend', hideMarker);
+
+    // Store cleanup function on container for later removal if needed
+    container._profileHoverCleanup = () => {
+        container.removeEventListener('mousemove', handleHover);
+        container.removeEventListener('mouseleave', hideMarker);
+        container.removeEventListener('touchstart', handleHover);
+        container.removeEventListener('touchmove', handleHover);
+        container.removeEventListener('touchend', hideMarker);
+        hideMarker();
+    };
 }
 
 // ============================================
@@ -1352,7 +1671,7 @@ export function initializeClickHandlers(map, state, config, callbacks) {
 
         updateMeasureVisualization(map, state);
         rebuildMeasurePanel(state, config);
-        updateElevationProfile(state);
+        updateElevationProfile(state, state._map);
 
         setTimeout(() => { state._suppressClick = false; }, 0);
     }
@@ -1433,13 +1752,16 @@ export function encodeNavPlan(map, state, config) {
             if (pt.isContourAnchor) return [r(pt.lng, 6), r(pt.lat, 6), 2];
             return [r(pt.lng, 6), r(pt.lat, 6), 0];
         }),
-        s: state.measureSegments.map(seg => {
-            if (seg.coords.length === 2 && seg.contourAHD === undefined) {
-                return 0; // straight line, derivable from points
-            }
+        s: state.measureSegments.map((seg, i) => {
+            console.log(`Encoding segment ${i}: coords=${seg.coords.length}, contourAHD=${seg.contourAHD}`);
             // v3: contour segments store only elevation, path regenerated at runtime
+            // Check this FIRST since contour placeholders may have only 2 coords
             if (seg.contourAHD !== undefined) {
                 return { a: r(seg.contourAHD, 2) };
+            }
+            // Straight line (2 coords, no contourAHD)
+            if (seg.coords.length === 2) {
+                return 0;
             }
             // Non-contour multi-point segment (e.g., vertex-to-vertex path)
             return { c: seg.coords.map(([lng, lat]) => [r(lng, 6), r(lat, 6)]) };
@@ -1530,6 +1852,7 @@ export function restoreNavPlan(map, state, config, plan) {
 
     // Restore segments
     let hasPendingContours = false;
+    console.log('Restoring segments, plan.v =', plan.v, ', segments:', plan.s.map(s => s === 0 ? '0' : JSON.stringify(s)));
     state.measureSegments = plan.s.map((seg, i) => {
         const ptA = state.measurePoints[i];
         const ptB = state.measurePoints[i + 1];
@@ -1543,6 +1866,7 @@ export function restoreNavPlan(map, state, config, plan) {
         if (seg.a !== undefined && !seg.c) {
             // v3 deferred contour: only elevation, needs regeneration
             // Create placeholder straight line for now
+            console.log(`Segment ${i}: deferred contour at ${seg.a}m AHD`);
             hasPendingContours = true;
             const coords = [[ptA.lng, ptA.lat], [ptB.lng, ptB.lat]];
             return {
@@ -1563,6 +1887,7 @@ export function restoreNavPlan(map, state, config, plan) {
         if (seg.a !== undefined) result.contourAHD = seg.a;
         return result;
     });
+    console.log('hasPendingContours =', hasPendingContours);
 
     state.measureTotalDistance = state.measureSegments.reduce((sum, s) => sum + s.distance, 0);
     state.lastMeasureVertexKey = null;
@@ -1578,28 +1903,94 @@ export function restoreNavPlan(map, state, config, plan) {
 
     updateMeasureVisualization(map, state);
     rebuildMeasurePanel(state, config);
-    updateElevationProfile(state);
+    updateElevationProfile(state, state._map);
     updateVertexHighlights(map, state);
 
     return hasPendingContours;
 }
 
 /**
+ * Load a native-resolution contour grid for the area between two points.
+ * Similar to loadContourGridForDrag but returns the grid instead of storing in state.
+ *
+ * @param {Object} state - Application state
+ * @param {Object} ptA - Start point {lng, lat}
+ * @param {Object} ptB - End point {lng, lat}
+ * @returns {Promise<{grid, width, height, bbox}|null>} Grid data or null on failure
+ */
+async function loadContourGridForSegment(state, ptA, ptB) {
+    if (!state.contourTiff || !state.contourBbox) return null;
+
+    try {
+        const [axM, ayM] = lngLatToWebMercator(ptA.lng, ptA.lat);
+        const [bxM, byM] = lngLatToWebMercator(ptB.lng, ptB.lat);
+
+        const minX = Math.min(axM, bxM);
+        const maxX = Math.max(axM, bxM);
+        const minY = Math.min(ayM, byM);
+        const maxY = Math.max(ayM, byM);
+
+        // Generous padding so the A* can find contours that curve away
+        const span = Math.sqrt((maxX - minX) ** 2 + (maxY - minY) ** 2);
+        const pad = Math.max(300, span * 1.0);
+        const [srcMinX, srcMinY, srcMaxX, srcMaxY] = state.contourBbox;
+        const bbox = [
+            Math.max(minX - pad, srcMinX),
+            Math.max(minY - pad, srcMinY),
+            Math.min(maxX + pad, srcMaxX),
+            Math.min(maxY + pad, srcMaxY)
+        ];
+
+        if (bbox[0] >= bbox[2] || bbox[1] >= bbox[3]) return null;
+
+        const resX = state.contourPixelSizeX || 0.5;
+        const resY = state.contourPixelSizeY || 0.5;
+
+        const rasters = await state.contourTiff.readRasters({
+            bbox,
+            resX,
+            resY,
+            pool: state.geoTiffPool
+        });
+
+        const rawGrid = rasters[0];
+        const width = rasters.width;
+        const height = rasters.height;
+
+        const grid = new Float32Array(rawGrid.length);
+        const noDataValue = state.contourNoData;
+        for (let i = 0; i < rawGrid.length; i++) {
+            const val = rawGrid[i];
+            if (val === noDataValue || val >= 1e5 || !Number.isFinite(val)) {
+                grid[i] = Number.NaN;
+            } else {
+                grid[i] = val;
+            }
+        }
+
+        return { grid, width, height, bbox };
+    } catch (error) {
+        console.error('Failed to load contour grid for segment:', error);
+        return null;
+    }
+}
+
+/**
  * Regenerate contour paths for segments marked as pending.
- * Call this once contour COG data (state.contourLowRes) is available.
+ * Call this once contour COG data (state.contourTiff) is available.
  *
  * @param {maplibregl.Map} map - The map instance
  * @param {Object} state - Application state
  * @param {Object} config - Application config
  */
-export function regeneratePendingContours(map, state, config) {
+export async function regeneratePendingContours(map, state, config) {
     if (!state.hasPendingContours) return;
-    if (!state.contourLowRes) {
-        console.warn('Cannot regenerate contours: COG data not loaded yet');
+    if (!state.contourTiff) {
+        console.warn('Cannot regenerate contours: COG not loaded yet');
         return;
     }
 
-    const { grid, width, height, bbox } = state.contourLowRes;
+    console.log('Regenerating pending contour paths...');
     let anyRegenerated = false;
 
     for (let i = 0; i < state.measureSegments.length; i++) {
@@ -1609,6 +2000,16 @@ export function regeneratePendingContours(map, state, config) {
         const ptA = state.measurePoints[i];
         const ptB = state.measurePoints[i + 1];
 
+        // Load native-resolution grid for this segment's area
+        const gridData = await loadContourGridForSegment(state, ptA, ptB);
+        if (!gridData) {
+            console.warn(`Could not load grid for segment ${i}`);
+            delete seg.pendingRegeneration;
+            delete seg.contourAHD;
+            continue;
+        }
+
+        const { grid, width, height, bbox } = gridData;
         const contourPath = findContourPath(
             grid, width, height, bbox,
             ptA.lng, ptA.lat, ptB.lng, ptB.lat,
@@ -1625,6 +2026,7 @@ export function regeneratePendingContours(map, state, config) {
             seg.distance = distance;
             delete seg.pendingRegeneration;
             anyRegenerated = true;
+            console.log(`Regenerated contour segment ${i} at ${seg.contourAHD}m AHD (${contourPath.length} points)`);
         } else {
             // Contour path couldn't be found - keep as straight line
             console.warn(`Could not regenerate contour path for segment ${i} at ${seg.contourAHD}m AHD`);
@@ -1639,9 +2041,10 @@ export function regeneratePendingContours(map, state, config) {
 
         updateMeasureVisualization(map, state);
         rebuildMeasurePanel(state, config);
-        updateElevationProfile(state);
+        updateElevationProfile(state, state._map);
 
         // Update URL with regenerated paths (will re-encode as v3)
         if (state.onNavPlanChange) state.onNavPlanChange();
+        console.log('Contour regeneration complete');
     }
 }

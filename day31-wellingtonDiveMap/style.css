@@ -152,6 +152,7 @@ body {
     pointer-events: auto;
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     min-height: 0;
 }
 
@@ -370,6 +371,7 @@ body {
     background: rgba(8, 145, 178, 0.08);
     border: 1px solid rgba(8, 145, 178, 0.2);
     border-radius: 8px;
+    overflow: hidden;
 }
 
 .measure-total {
@@ -449,6 +451,7 @@ body {
     margin-top: 8px;
     padding-top: 8px;
     border-top: 1px solid rgba(8, 145, 178, 0.2);
+    overflow: hidden;
 }
 
 .measure-profile.visible {
@@ -488,6 +491,29 @@ body {
 .measure-item-bearing.contour-label {
     color: #06b6d4;
     font-style: italic;
+}
+
+/* Profile hover line */
+.profile-hover-line {
+    stroke: #FF00FF;
+    stroke-width: 1;
+    stroke-dasharray: 3 2;
+    pointer-events: none;
+}
+
+/* Profile hover depth label */
+.profile-hover-label {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1500;
+    background: rgba(0, 0, 0, 0.85);
+    color: #FF00FF;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transform: translateX(-50%);
+    display: none;
 }
 
 /* ============================================
@@ -779,6 +805,11 @@ body {
    ============================================ */
 
 @media (max-width: 768px) {
+
+    /* Prevent default touch behavior on profile for hover/touch interaction */
+    .measure-profile svg {
+        touch-action: none;
+    }
 
     .back-link {
         font-size: 0.6rem;

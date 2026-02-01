@@ -152,7 +152,10 @@ const state = {
     contourPreviewCoords: null,      // Preview path coordinates during drag
 
     // Internal: config reference for modules that need it via state
-    _config: CONFIG
+    _config: CONFIG,
+
+    // Internal: map reference for modules that need it via state
+    _map: null
 };
 
 // ============================================
@@ -247,7 +250,7 @@ const boundGenerateContoursForViewport = () => generateContoursForViewport(map, 
 
 // Water level callbacks
 const waterLevelCallbacks = {
-    updateElevationProfile: () => updateElevationProfile(state),
+    updateElevationProfile: () => updateElevationProfile(state, state._map),
     generateContoursForViewport: boundGenerateContoursForViewport,
     rebuildMeasurePanel: () => rebuildMeasurePanel(state, CONFIG)
 };
@@ -276,6 +279,9 @@ const geoTiffPool = new GeoTIFF.Pool();
 
 map.on('load', async () => {
     try {
+        // Store map reference in state for modules that need it
+        state._map = map;
+
         // Initialize water level controls first
         initializeWaterLevelControls(map, state, CONFIG, waterLevelCallbacks);
         initializeDepthGradient(state, CONFIG);
@@ -357,7 +363,7 @@ map.on('load', async () => {
         // The initial updateElevationProfile in restoreNavPlan runs before data is available
         if (navPlanRestored) {
             map.once('idle', () => {
-                updateElevationProfile(state);
+                updateElevationProfile(state, map);
             });
         }
 
@@ -367,7 +373,7 @@ map.on('load', async () => {
 
             // Regenerate any pending contour paths now that COG data is available
             if (navPlanHasPendingContours) {
-                regeneratePendingContours(map, state, CONFIG);
+                await regeneratePendingContours(map, state, CONFIG);
                 // Now that contours are regenerated, upgrade URL to v3 format
                 const v3Encoded = encodeNavPlan(map, state, CONFIG);
                 if (v3Encoded) {
