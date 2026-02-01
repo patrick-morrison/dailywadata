@@ -1433,13 +1433,16 @@ export function encodeNavPlan(map, state, config) {
             if (pt.isContourAnchor) return [r(pt.lng, 6), r(pt.lat, 6), 2];
             return [r(pt.lng, 6), r(pt.lat, 6), 0];
         }),
-        s: state.measureSegments.map(seg => {
-            if (seg.coords.length === 2 && seg.contourAHD === undefined) {
-                return 0; // straight line, derivable from points
-            }
+        s: state.measureSegments.map((seg, i) => {
+            console.log(`Encoding segment ${i}: coords=${seg.coords.length}, contourAHD=${seg.contourAHD}`);
             // v3: contour segments store only elevation, path regenerated at runtime
+            // Check this FIRST since contour placeholders may have only 2 coords
             if (seg.contourAHD !== undefined) {
                 return { a: r(seg.contourAHD, 2) };
+            }
+            // Straight line (2 coords, no contourAHD)
+            if (seg.coords.length === 2) {
+                return 0;
             }
             // Non-contour multi-point segment (e.g., vertex-to-vertex path)
             return { c: seg.coords.map(([lng, lat]) => [r(lng, 6), r(lat, 6)]) };
@@ -1530,6 +1533,7 @@ export function restoreNavPlan(map, state, config, plan) {
 
     // Restore segments
     let hasPendingContours = false;
+    console.log('Restoring segments, plan.v =', plan.v, ', segments:', plan.s.map(s => s === 0 ? '0' : JSON.stringify(s)));
     state.measureSegments = plan.s.map((seg, i) => {
         const ptA = state.measurePoints[i];
         const ptB = state.measurePoints[i + 1];
@@ -1543,6 +1547,7 @@ export function restoreNavPlan(map, state, config, plan) {
         if (seg.a !== undefined && !seg.c) {
             // v3 deferred contour: only elevation, needs regeneration
             // Create placeholder straight line for now
+            console.log(`Segment ${i}: deferred contour at ${seg.a}m AHD`);
             hasPendingContours = true;
             const coords = [[ptA.lng, ptA.lat], [ptB.lng, ptB.lat]];
             return {
@@ -1563,6 +1568,7 @@ export function restoreNavPlan(map, state, config, plan) {
         if (seg.a !== undefined) result.contourAHD = seg.a;
         return result;
     });
+    console.log('hasPendingContours =', hasPendingContours);
 
     state.measureTotalDistance = state.measureSegments.reduce((sum, s) => sum + s.distance, 0);
     state.lastMeasureVertexKey = null;
@@ -1585,21 +1591,87 @@ export function restoreNavPlan(map, state, config, plan) {
 }
 
 /**
+ * Load a native-resolution contour grid for the area between two points.
+ * Similar to loadContourGridForDrag but returns the grid instead of storing in state.
+ *
+ * @param {Object} state - Application state
+ * @param {Object} ptA - Start point {lng, lat}
+ * @param {Object} ptB - End point {lng, lat}
+ * @returns {Promise<{grid, width, height, bbox}|null>} Grid data or null on failure
+ */
+async function loadContourGridForSegment(state, ptA, ptB) {
+    if (!state.contourTiff || !state.contourBbox) return null;
+
+    try {
+        const [axM, ayM] = lngLatToWebMercator(ptA.lng, ptA.lat);
+        const [bxM, byM] = lngLatToWebMercator(ptB.lng, ptB.lat);
+
+        const minX = Math.min(axM, bxM);
+        const maxX = Math.max(axM, bxM);
+        const minY = Math.min(ayM, byM);
+        const maxY = Math.max(ayM, byM);
+
+        // Generous padding so the A* can find contours that curve away
+        const span = Math.sqrt((maxX - minX) ** 2 + (maxY - minY) ** 2);
+        const pad = Math.max(300, span * 1.0);
+        const [srcMinX, srcMinY, srcMaxX, srcMaxY] = state.contourBbox;
+        const bbox = [
+            Math.max(minX - pad, srcMinX),
+            Math.max(minY - pad, srcMinY),
+            Math.min(maxX + pad, srcMaxX),
+            Math.min(maxY + pad, srcMaxY)
+        ];
+
+        if (bbox[0] >= bbox[2] || bbox[1] >= bbox[3]) return null;
+
+        const resX = state.contourPixelSizeX || 0.5;
+        const resY = state.contourPixelSizeY || 0.5;
+
+        const rasters = await state.contourTiff.readRasters({
+            bbox,
+            resX,
+            resY,
+            pool: state.geoTiffPool
+        });
+
+        const rawGrid = rasters[0];
+        const width = rasters.width;
+        const height = rasters.height;
+
+        const grid = new Float32Array(rawGrid.length);
+        const noDataValue = state.contourNoData;
+        for (let i = 0; i < rawGrid.length; i++) {
+            const val = rawGrid[i];
+            if (val === noDataValue || val >= 1e5 || !Number.isFinite(val)) {
+                grid[i] = Number.NaN;
+            } else {
+                grid[i] = val;
+            }
+        }
+
+        return { grid, width, height, bbox };
+    } catch (error) {
+        console.error('Failed to load contour grid for segment:', error);
+        return null;
+    }
+}
+
+/**
  * Regenerate contour paths for segments marked as pending.
- * Call this once contour COG data (state.contourLowRes) is available.
+ * Call this once contour COG data (state.contourTiff) is available.
  *
  * @param {maplibregl.Map} map - The map instance
  * @param {Object} state - Application state
  * @param {Object} config - Application config
  */
-export function regeneratePendingContours(map, state, config) {
+export async function regeneratePendingContours(map, state, config) {
     if (!state.hasPendingContours) return;
-    if (!state.contourLowRes) {
-        console.warn('Cannot regenerate contours: COG data not loaded yet');
+    if (!state.contourTiff) {
+        console.warn('Cannot regenerate contours: COG not loaded yet');
         return;
     }
 
-    const { grid, width, height, bbox } = state.contourLowRes;
+    console.log('Regenerating pending contour paths...');
     let anyRegenerated = false;
 
     for (let i = 0; i < state.measureSegments.length; i++) {
@@ -1609,6 +1681,16 @@ export function regeneratePendingContours(map, state, config) {
         const ptA = state.measurePoints[i];
         const ptB = state.measurePoints[i + 1];
 
+        // Load native-resolution grid for this segment's area
+        const gridData = await loadContourGridForSegment(state, ptA, ptB);
+        if (!gridData) {
+            console.warn(`Could not load grid for segment ${i}`);
+            delete seg.pendingRegeneration;
+            delete seg.contourAHD;
+            continue;
+        }
+
+        const { grid, width, height, bbox } = gridData;
         const contourPath = findContourPath(
             grid, width, height, bbox,
             ptA.lng, ptA.lat, ptB.lng, ptB.lat,
@@ -1625,6 +1707,7 @@ export function regeneratePendingContours(map, state, config) {
             seg.distance = distance;
             delete seg.pendingRegeneration;
             anyRegenerated = true;
+            console.log(`Regenerated contour segment ${i} at ${seg.contourAHD}m AHD (${contourPath.length} points)`);
         } else {
             // Contour path couldn't be found - keep as straight line
             console.warn(`Could not regenerate contour path for segment ${i} at ${seg.contourAHD}m AHD`);
@@ -1643,5 +1726,6 @@ export function regeneratePendingContours(map, state, config) {
 
         // Update URL with regenerated paths (will re-encode as v3)
         if (state.onNavPlanChange) state.onNavPlanChange();
+        console.log('Contour regeneration complete');
     }
 }

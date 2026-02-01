@@ -367,7 +367,7 @@ map.on('load', async () => {
 
             // Regenerate any pending contour paths now that COG data is available
             if (navPlanHasPendingContours) {
-                regeneratePendingContours(map, state, CONFIG);
+                await regeneratePendingContours(map, state, CONFIG);
                 // Now that contours are regenerated, upgrade URL to v3 format
                 const v3Encoded = encodeNavPlan(map, state, CONFIG);
                 if (v3Encoded) {
