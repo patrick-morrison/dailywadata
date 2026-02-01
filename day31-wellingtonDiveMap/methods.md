@@ -12,6 +12,8 @@ The bathymetry is derived from DOT surveys AS20131211 and AS20130627, the former
 
 ### Survey Lines
 
+**Survey team:** Aren Leishman, Matt Gannicott, Huw Porter, Doreen Ee, Gabriel Feng, Patrick Morrison, Geoff Paynter, Stuart Parsons, Andrew Currie.
+
 Five CSV files contain dive survey track data recorded with a cave survey tool:
 
 - `north_adjusted.csv` - Northern survey line (57 points)
