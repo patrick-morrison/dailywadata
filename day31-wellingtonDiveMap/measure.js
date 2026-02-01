@@ -626,7 +626,19 @@ export function updateElevationProfile(state) {
     }
 
     const xLabels = [];
-    const xStep = totalDist <= 50 ? 10 : totalDist <= 200 ? 50 : totalDist <= 500 ? 100 : 200;
+    // Calculate step based on distance range
+    let xStep = totalDist <= 50 ? 10 : totalDist <= 200 ? 50 : totalDist <= 500 ? 100 : 200;
+    // Ensure minimum 40px spacing between labels to prevent overlap
+    const minPixelSpacing = 40;
+    const minStepForSpacing = (totalDist / plotW) * minPixelSpacing;
+    // Round up to a nice number (10, 20, 50, 100, 200, 500, 1000, etc.)
+    const niceSteps = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
+    for (const ns of niceSteps) {
+        if (ns >= minStepForSpacing) {
+            xStep = Math.max(xStep, ns);
+            break;
+        }
+    }
     for (let d = 0; d <= totalDist; d += xStep) {
         xLabels.push(d);
     }
