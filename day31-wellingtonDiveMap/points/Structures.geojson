@@ -1,0 +1,12 @@
+{
+"type": "FeatureCollection",
+"name": "Structures",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::3857" } },
+"features": [
+{ "type": "Feature", "properties": { "fid": 1, "Name": "Standpipe", "Reporter": "Matt Gannicot" }, "geometry": { "type": "Point", "coordinates": [ 12911559.23208893276751, -3948164.94536743266508 ] } },
+{ "type": "Feature", "properties": { "fid": 2, "Name": "Corduroy Road", "Reporter": "Matt Gannicot" }, "geometry": { "type": "Point", "coordinates": [ 12911799.492945913225412, -3947675.862303992733359 ] } },
+{ "type": "Feature", "properties": { "fid": 3, "Name": "Creek crossing" }, "geometry": { "type": "Point", "coordinates": [ 12911920.552021104842424, -3947198.218718687538058 ] } },
+{ "type": "Feature", "properties": { "fid": 4, "Name": "Large pipe" }, "geometry": { "type": "Point", "coordinates": [ 12911403.239501407369971, -3948898.229057782329619 ] } },
+{ "type": "Feature", "properties": { "fid": 5, "Name": "River Crossing NW Corner" }, "geometry": { "type": "Point", "coordinates": [ 12913536.105706861242652, -3948456.750624650623649 ] } }
+]
+}
