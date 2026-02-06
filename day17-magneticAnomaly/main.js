@@ -1159,7 +1159,7 @@ function updateUserLocation(pos) {
             hEl.style.display = 'none';
         }
     }
-    map.flyTo({ center: [longitude, latitude], zoom: 10 });
+    map.flyTo({ center: [longitude, latitude], zoom: Math.max(10, map.getZoom()) });
 }
 
 // ============================================
