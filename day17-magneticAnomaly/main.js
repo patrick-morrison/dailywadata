@@ -1139,6 +1139,7 @@ function updateHeadingDisplay() {
 
 function updateUserLocation(pos) {
     const { longitude, latitude, heading } = pos.coords;
+    const isFirstFix = !state.userLocationMarker;
     if (state.userLocationMarker) {
         state.userLocationMarker.setLngLat([longitude, latitude]);
     } else {
@@ -1159,7 +1160,9 @@ function updateUserLocation(pos) {
             hEl.style.display = 'none';
         }
     }
-    map.flyTo({ center: [longitude, latitude], zoom: Math.max(10, map.getZoom()) });
+    if (isFirstFix) {
+        map.flyTo({ center: [longitude, latitude], zoom: Math.max(10, map.getZoom()) });
+    }
 }
 
 // ============================================
