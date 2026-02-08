@@ -60,8 +60,7 @@ dailywadata/
 All day pages should include Umami analytics tracking in the `<head>` section:
 
 ```html
-<script async defer data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"
-    src="https://umami.padmorrison.com/umami.js"></script>
+<script defer src="https://umami.padmorrison.com/script.js" data-website-id="1c211c11-4d9f-4266-bdc8-c0ec05d7a8cf"></script>
 ```
 
 This should be placed after styles, before the closing `</head>` tag.
