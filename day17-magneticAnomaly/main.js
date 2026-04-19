@@ -554,7 +554,7 @@ async function loadShipwrecks() {
                     region: 'Perth Metro'
                 }
             },
-            // Alasdair Cook magnetic anomaly candidates — unconfirmed targets, not yet identified as wrecks
+            // Alistair Cook magnetic anomaly candidates — unconfirmed targets, not yet identified as wrecks
             {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [115.4668009, -32.0088903] },
@@ -615,7 +615,7 @@ async function loadShipwrecks() {
                     region: 'Perth Metro'
                 }
             },
-            // Alasdair Cook unnamed target without a Wrecksploration cross-reference
+            // Alistair Cook unnamed target without a Wrecksploration cross-reference
             {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [115.4311538, -32.1060481] },
