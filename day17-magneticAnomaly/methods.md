@@ -12,6 +12,8 @@ To help use this visualization, the data from [day 2](https://dailywadata.com/da
 
 [Download mine data from Department of Mines, Petroleum, and Exploration](https://dasc.dmirs.wa.gov.au/home?productAlias=MINEDEXOperatingMines)
 
+[Download well data from Department of Mines, Petroleum, and Exploration](https://dasc.dmirs.wa.gov.au/home?productAlias=WAPetroleumWells)
+
 [Download wreck data from the Western Australian Museum](https://catalogue.data.wa.gov.au/dataset/shipwrecks)
 
 **Licence:** CC BY 4.0 — [Creative Commons Attribution](https://creativecommons.org/licenses/by/4.0/)
@@ -28,7 +30,9 @@ This styled data was then rendered as a GEOTIFF and reprojected from its native 
 
 **MINEDEX**: The mine data was retrieved on 2025-01-13 as a csv file. This is instead of the WMS server, which also provides this data, so that it can be better rendered in the map as an interactive vector layer, rather than a tileserver.
 
-**Shipwrecks**: This project directly references the day 2 dataset, however it also has manual entries for the [HNLMS K XI](https://wrecksploration.au/projects/kxi/), the [Thornliebank](https://wrecksploration.au/projects/thornliebank/), and the [Langstone](https://museum.wa.gov.au/maritime-archaeology-db/sites/default/files/langston_site_inspection_report_f7a344fc-927e-4530-acb4-8c517fcca6d5.pdf). These wrecks have all been relatively recent discoveries and hence do not appear in the published museum dataset.
+**WA Petroleum Wells (DMIRS-025)**: Downloaded from data WA as a KMZ, this data was then converted to a csv to utilize the existing data pipeline.
+
+**Shipwrecks**: This project directly references the day 2 dataset, however it also has manual entries for the [HNLMS K XI](https://wrecksploration.au/projects/kxi/), the [Thornliebank](https://wrecksploration.au/projects/thornliebank/), the [Langstone](https://museum.wa.gov.au/maritime-archaeology-db/sites/default/files/langston_site_inspection_report_f7a344fc-927e-4530-acb4-8c517fcca6d5.pdf), and a number of other wrecksploration wrecks have been added. These wrecks have all been relatively recent discoveries and hence do not appear in the published museum dataset.
 
 ## Implementation
 
@@ -39,6 +43,8 @@ HTML/CSS/JS webmap using MapLibre GL. The @geomatico/maplibre-cog-protocol libra
 **Magnetic Data**: [The Geologic Survey of Western Australia](https://geodownloads.dmp.wa.gov.au/downloads/geophysics/72204/)
 
 **Mine Data**: [Department of Mines, Petroleum, and Exploration](https://dasc.dmirs.wa.gov.au/home?productAlias=MINEDEXOperatingMines)
+
+**Well Data**: [Department of Mines, Petroleum, and Exploration](https://dasc.dmirs.wa.gov.au/home?productAlias=WAPetroleumWells)
 
 **Wreck Data**: [Western Australian Museum](https://catalogue.data.wa.gov.au/dataset/shipwrecks), [Wrecksploration](https://wrecksploration.au/)
 

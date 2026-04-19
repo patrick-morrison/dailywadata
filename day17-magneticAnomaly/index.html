@@ -235,6 +235,27 @@
                                     style="background: #888888;"></span>Unknown</div>
                         </div>
                     </div>
+
+                    <!-- Petroleum Wells Vector Layer -->
+                    <div class="layer-control vector-layer" data-layer="wells">
+                        <div class="layer-header">
+                            <label class="layer-toggle">
+                                <input type="checkbox" checked>
+                                <span class="layer-name">Petroleum Wells</span>
+                            </label>
+                        </div>
+                        <div class="layer-description">By status</div>
+                        <div class="color-legend">
+                            <div class="color-item active" data-well-status="Producing"><span class="color-dot"
+                                    style="background: #2E7D32;"></span>Producing</div>
+                            <div class="color-item active" data-well-status="Suspended"><span class="color-dot"
+                                    style="background: #F57C00;"></span>Suspended</div>
+                            <div class="color-item active" data-well-status="Plugged &amp; Abandoned"><span
+                                    class="color-dot" style="background: #C62828;"></span>P&amp;A</div>
+                            <div class="color-item active" data-well-status="Other"><span class="color-dot"
+                                    style="background: #888888;"></span>Other</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -256,7 +277,7 @@
                 <circle cx="11" cy="11" r="8" />
                 <path d="M21 21l-4.35-4.35" />
             </svg>
-            <input type="text" class="search-input" id="search-input" placeholder="Search wrecks & mines...">
+            <input type="text" class="search-input" id="search-input" placeholder="Search wrecks, mines & wells...">
             <button class="search-clear" id="search-clear" style="display: none;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M18 6L6 18M6 6l12 12" />
