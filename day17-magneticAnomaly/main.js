@@ -405,7 +405,7 @@ async function loadShipwrecks() {
                 geometry: { type: 'Point', coordinates: [115.4604, -32.1146] },
                 properties: {
                     name: 'Thornliebank',
-                    type_of_si: 'Ship',
+                    type_of_si: 'Barque (3-masted)',
                     constructi: 'Iron',
                     when_lost: '1928/04/18',
                     where_lost: 'Southwest of Rottnest Island',
@@ -420,7 +420,7 @@ async function loadShipwrecks() {
                     name: 'HNLMS K XI',
                     type_of_si: 'Submarine',
                     constructi: 'Steel',
-                    when_lost: '1946/09/01',
+                    when_lost: '1946/09',
                     where_lost: 'Southeast of Rottnest Island',
                     region: 'Perth Metro',
                     protected: 'Protected Heritage WA Act'
@@ -444,9 +444,11 @@ async function loadShipwrecks() {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [115.3699, -32.05263333] },
                 properties: {
-                    name: 'Sesa (ex Mallowdale)',
-                    type_of_si: 'Ship',
-                    where_lost: 'Rottnest Ship Graveyard (Site 03)',
+                    name: 'Sesa (ex Mallowdale, ex Adolphe II)',
+                    type_of_si: 'Barque',
+                    constructi: 'Iron',
+                    when_lost: '1928/06/10',
+                    where_lost: 'Rottnest Graveyard',
                     region: 'Perth Metro'
                 }
             },
@@ -454,9 +456,11 @@ async function loadShipwrecks() {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [115.36891, -32.070665] },
                 properties: {
-                    name: 'Knowsley',
-                    type_of_si: 'Ship',
-                    where_lost: 'Rottnest Ship Graveyard (Site 04)',
+                    name: 'Knowsley (ex Euterpe, ex Anna Maria Schwalbe)',
+                    type_of_si: 'Barque (coal hulk)',
+                    constructi: 'Iron',
+                    when_lost: '1923/10/03',
+                    where_lost: 'Rottnest Graveyard',
                     region: 'Perth Metro'
                 }
             },
@@ -464,9 +468,10 @@ async function loadShipwrecks() {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [115.3841833, -32.08588333] },
                 properties: {
-                    name: 'Clipper',
-                    type_of_si: 'Ship',
-                    where_lost: 'Rottnest Ship Graveyard (Site 06)',
+                    name: 'Clipper (unidentified, ~62m iron clipper)',
+                    type_of_si: 'Clipper (iron-hulled)',
+                    constructi: 'Iron',
+                    where_lost: 'Rottnest Graveyard',
                     region: 'Perth Metro'
                 }
             },
@@ -475,8 +480,10 @@ async function loadShipwrecks() {
                 geometry: { type: 'Point', coordinates: [115.3498288, -32.0596805] },
                 properties: {
                     name: 'Tamerlane',
-                    type_of_si: 'Ship',
-                    where_lost: 'Rottnest Ship Graveyard (Site 07)',
+                    type_of_si: 'Barque (coal hulk)',
+                    constructi: 'Iron',
+                    when_lost: '1919',
+                    where_lost: 'Rottnest Graveyard',
                     region: 'Perth Metro'
                 }
             },
@@ -485,8 +492,8 @@ async function loadShipwrecks() {
                 geometry: { type: 'Point', coordinates: [115.3450611, -32.06574305] },
                 properties: {
                     name: 'Premier',
-                    type_of_si: 'Ship',
-                    where_lost: 'Rottnest Ship Graveyard (Site 08)',
+                    type_of_si: 'Steam dredge',
+                    where_lost: 'Rottnest Graveyard',
                     region: 'Perth Metro'
                 }
             },
@@ -495,9 +502,11 @@ async function loadShipwrecks() {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [115.3138506, -32.10525] },
                 properties: {
-                    name: 'Bankfields',
-                    type_of_si: 'Ship',
-                    where_lost: 'Off Rottnest Island',
+                    name: 'Bankfields (ex James Beazley)',
+                    type_of_si: 'Barque (windjammer/coal hulk)',
+                    constructi: 'Iron',
+                    when_lost: '1950/06/07',
+                    where_lost: 'Rottnest Graveyard',
                     region: 'Perth Metro'
                 }
             },
@@ -505,9 +514,10 @@ async function loadShipwrecks() {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [115.3526316, -32.1090224] },
                 properties: {
-                    name: 'Clevedon',
-                    type_of_si: 'Ship',
-                    where_lost: 'South of Rottnest Island',
+                    name: 'Clevedon (ex Chrysomene)',
+                    type_of_si: 'Clipper (ship-rigged, 3 masts)',
+                    when_lost: '1930/10',
+                    where_lost: 'Rottnest Graveyard',
                     region: 'Perth Metro'
                 }
             },
@@ -515,9 +525,10 @@ async function loadShipwrecks() {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [115.3538213, -32.1216633] },
                 properties: {
-                    name: 'Caithness',
-                    type_of_si: 'Ship',
-                    where_lost: 'South of Rottnest Island',
+                    name: 'County of Caithness',
+                    type_of_si: 'Ship (4-masted)',
+                    constructi: 'Iron',
+                    where_lost: 'Rottnest Graveyard',
                     region: 'Perth Metro'
                 }
             },
@@ -526,8 +537,10 @@ async function loadShipwrecks() {
                 geometry: { type: 'Point', coordinates: [115.4327897, -32.069910] },
                 properties: {
                     name: 'Timaru',
-                    type_of_si: 'Ship',
-                    where_lost: 'East of Rottnest Island',
+                    type_of_si: 'Steam hopper barge / suction dredge',
+                    constructi: 'Steel',
+                    when_lost: '1920s',
+                    where_lost: 'Rottnest Graveyard',
                     region: 'Perth Metro'
                 }
             },
@@ -535,7 +548,7 @@ async function loadShipwrecks() {
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [115.288817, -31.9174] },
                 properties: {
-                    name: 'JFD Wreck',
+                    name: 'JFD Wreck (unidentified)',
                     type_of_si: 'Ship',
                     where_lost: 'North of Rottnest Island',
                     region: 'Perth Metro'
