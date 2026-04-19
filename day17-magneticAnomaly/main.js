@@ -24,6 +24,17 @@ const CONFIG = {
     // Operating Mines CSV
     MINES_URL: 'Operating_Mines.csv',
 
+    // Petroleum Wells CSV
+    WELLS_URL: 'Petroleum_Wells.csv',
+
+    // Petroleum well status group colors
+    WELL_STATUS_COLORS: {
+        'Producing': '#2E7D32',     // Green
+        'Suspended': '#F57C00',     // Orange
+        'Plugged & Abandoned': '#C62828', // Red
+        'Other': '#888888'          // Grey
+    },
+
     // Mine commodity group colors
     COMMODITY_COLORS: {
         'Construction material': '#795548',  // Brown
@@ -93,6 +104,15 @@ const state = {
         'Unknown': true
     },
 
+    // Petroleum Wells
+    wellsVisible: true,
+    visibleWellStatuses: {
+        'Producing': true,
+        'Suspended': true,
+        'Plugged & Abandoned': true,
+        'Other': true
+    },
+
     // Operating Mines
     minesVisible: true,
     visibleCommodities: {
@@ -127,6 +147,7 @@ const state = {
     // Search data (populated on load)
     shipwrecksData: null,
     minesData: null,
+    wellsData: null,
     searchResults: []
 };
 
@@ -231,12 +252,14 @@ map.on('load', async () => {
     // Load and add vector layers
     loadShipwrecks();
     loadMines();
+    loadWells();
 
     // Initialize controls
     initializeLayerControls();
     initializeBasemapToggle();
     initializeShipwrecksToggle();
     initializeMinesToggle();
+    initializeWellsToggle();
     initializeMobileLegendCollapse();
     initializeMobileTitleToggle();
     initializeInfoPopovers();
@@ -1014,6 +1037,194 @@ function initializeMinesToggle() {
 }
 
 // ============================================
+// Petroleum Wells Layer
+// ============================================
+
+function classifyWellStatus(status) {
+    if (!status) return 'Other';
+    const s = status.trim();
+    if (s.startsWith('P&A') || s === 'Abandoned' || s === 'A') return 'Plugged & Abandoned';
+    if (s.startsWith('SUSP') || s === 'Suspended' || s === 'P&S' || s === 'DRILLING SUSPENDED') return 'Suspended';
+    const producing = new Set(['O', 'G', 'G&C', 'O&G', 'GAS-INJECTION', 'WATER-INJECTION', 'Shut in', 'IN', 'WI']);
+    if (producing.has(s)) return 'Producing';
+    return 'Other';
+}
+
+async function loadWells() {
+    try {
+        const response = await fetch(CONFIG.WELLS_URL);
+        const csvText = await response.text();
+
+        const lines = csvText.split('\n');
+        const headers = lines[0].split(',');
+
+        const lonIdx = headers.indexOf('LONG');
+        const latIdx = headers.indexOf('LAT');
+        const nameIdx = headers.indexOf('WELL_NAME');
+        const uwiIdx = headers.indexOf('UWI');
+        const basinIdx = headers.indexOf('BASIN');
+        const operatorIdx = headers.indexOf('OPERATOR');
+        const classIdx = headers.indexOf('CLASS');
+        const statusIdx = headers.indexOf('STATUS');
+        const fieldIdx = headers.indexOf('FIELD');
+        const spudIdx = headers.indexOf('SPUD_DATE');
+
+        const features = [];
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            const values = parseCSVLine(line);
+            const lon = Number.parseFloat(values[lonIdx]);
+            const lat = Number.parseFloat(values[latIdx]);
+
+            if (Number.isNaN(lon) || Number.isNaN(lat)) continue;
+
+            const rawStatus = values[statusIdx] || '';
+            features.push({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [lon, lat] },
+                properties: {
+                    name: values[nameIdx] || 'Unknown',
+                    uwi: values[uwiIdx] || '',
+                    basin: values[basinIdx] || '',
+                    operator: values[operatorIdx] || '',
+                    class: values[classIdx] || '',
+                    status: rawStatus,
+                    status_group: classifyWellStatus(rawStatus),
+                    field: values[fieldIdx] || '',
+                    spud_date: values[spudIdx] || ''
+                }
+            });
+        }
+
+        const geojson = { type: 'FeatureCollection', features };
+        state.wellsData = geojson;
+
+        map.addSource('wells', {
+            type: 'geojson',
+            data: geojson
+        });
+
+        const colorExpr = ['match', ['get', 'status_group']];
+        for (const [status, color] of Object.entries(CONFIG.WELL_STATUS_COLORS)) {
+            if (status !== 'Other') {
+                colorExpr.push(status, color);
+            }
+        }
+        colorExpr.push(CONFIG.WELL_STATUS_COLORS['Other']);
+
+        map.addLayer({
+            id: 'wells-layer',
+            type: 'circle',
+            source: 'wells',
+            paint: {
+                'circle-radius': [
+                    'interpolate', ['linear'], ['zoom'],
+                    4, 2,
+                    8, 4,
+                    12, 7
+                ],
+                'circle-color': colorExpr,
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 1,
+                'circle-opacity': 0.85
+            }
+        });
+
+        map.on('click', 'wells-layer', (e) => {
+            if (e.features.length === 0) return;
+
+            const feature = e.features[0];
+            const props = feature.properties;
+            const coords = feature.geometry.coordinates.slice();
+
+            if (state.activePopup) {
+                state.activePopup.remove();
+            }
+
+            const spud = props.spud_date && props.spud_date.length === 8
+                ? `${props.spud_date.slice(0, 4)}-${props.spud_date.slice(4, 6)}-${props.spud_date.slice(6, 8)}`
+                : props.spud_date;
+
+            const popupContent = `
+                <div class="mine-popup">
+                    <div class="popup-title">${props.name}</div>
+                    ${props.uwi ? `<div class="popup-row"><span class="popup-label">UWI:</span> ${props.uwi}</div>` : ''}
+                    ${props.status ? `<div class="popup-row"><span class="popup-label">Status:</span> ${props.status} (${props.status_group})</div>` : ''}
+                    ${props.basin ? `<div class="popup-row"><span class="popup-label">Basin:</span> ${props.basin}</div>` : ''}
+                    ${props.field ? `<div class="popup-row"><span class="popup-label">Field:</span> ${props.field}</div>` : ''}
+                    ${props.operator ? `<div class="popup-row"><span class="popup-label">Operator:</span> ${props.operator}</div>` : ''}
+                    ${props.class ? `<div class="popup-row"><span class="popup-label">Class:</span> ${props.class}</div>` : ''}
+                    ${spud ? `<div class="popup-row"><span class="popup-label">Spud:</span> ${spud}</div>` : ''}
+                </div>
+            `;
+
+            state.activePopup = new maplibregl.Popup({ closeButton: true, maxWidth: '300px' })
+                .setLngLat(coords)
+                .setHTML(popupContent)
+                .addTo(map);
+        });
+
+        map.on('mouseenter', 'wells-layer', () => {
+            map.getCanvas().style.cursor = 'pointer';
+        });
+
+        map.on('mouseleave', 'wells-layer', () => {
+            map.getCanvas().style.cursor = '';
+        });
+
+    } catch (error) {
+        console.error('Failed to load wells:', error);
+    }
+}
+
+function toggleWellsVisibility(visible) {
+    state.wellsVisible = visible;
+    map.setLayoutProperty('wells-layer', 'visibility', visible ? 'visible' : 'none');
+
+    const control = document.querySelector('.layer-control[data-layer="wells"]');
+    if (control) {
+        control.classList.toggle('disabled', !visible);
+    }
+}
+
+function updateWellsFilter() {
+    const visibleStatuses = Object.entries(state.visibleWellStatuses)
+        .filter(([, visible]) => visible)
+        .map(([status]) => status);
+
+    if (visibleStatuses.length === 0) {
+        map.setFilter('wells-layer', ['==', ['get', 'status_group'], '__none__']);
+    } else if (visibleStatuses.length === Object.keys(state.visibleWellStatuses).length) {
+        map.setFilter('wells-layer', null);
+    } else {
+        map.setFilter('wells-layer', ['in', ['get', 'status_group'], ['literal', visibleStatuses]]);
+    }
+}
+
+function initializeWellsToggle() {
+    const control = document.querySelector('.layer-control[data-layer="wells"]');
+    if (!control) return;
+
+    const checkbox = control.querySelector('input[type="checkbox"]');
+
+    checkbox.addEventListener('change', () => {
+        toggleWellsVisibility(checkbox.checked);
+    });
+
+    const colorItems = control.querySelectorAll('.color-item[data-well-status]');
+    for (const item of colorItems) {
+        item.addEventListener('click', () => {
+            const status = item.dataset.wellStatus;
+            state.visibleWellStatuses[status] = !state.visibleWellStatuses[status];
+            item.classList.toggle('active');
+            updateWellsFilter();
+        });
+    }
+}
+
+// ============================================
 // Basemap Management
 // ============================================
 
@@ -1455,6 +1666,26 @@ function performSearch(query) {
         }
     }
 
+    // Search wells
+    if (state.wellsData) {
+        for (const feature of state.wellsData.features) {
+            const name = feature.properties.name || '';
+            const score = fuzzyMatch(name, lowerQuery);
+            if (score > 0) {
+                const statusGroup = feature.properties.status_group || 'Other';
+                results.push({
+                    type: 'well',
+                    name: name,
+                    subtype: feature.properties.status || statusGroup,
+                    color: CONFIG.WELL_STATUS_COLORS[statusGroup] || CONFIG.WELL_STATUS_COLORS['Other'],
+                    coordinates: feature.geometry.coordinates,
+                    properties: feature.properties,
+                    score: score
+                });
+            }
+        }
+    }
+
     // Search mines
     if (state.minesData) {
         for (const feature of state.minesData.features) {
@@ -1575,7 +1806,7 @@ function displaySearchResults(results) {
              data-index="${index}"
              style="border-left-color: ${result.color};">
             <div class="search-result-name">${escapeHtml(result.name)}</div>
-            <div class="search-result-type">${escapeHtml(result.subtype)} • ${result.type === 'wreck' ? 'Shipwreck' : 'Mine'}</div>
+            <div class="search-result-type">${escapeHtml(result.subtype)} • ${result.type === 'wreck' ? 'Shipwreck' : result.type === 'well' ? 'Petroleum Well' : 'Mine'}</div>
         </div>
     `).join('');
 
@@ -1614,6 +1845,23 @@ function navigateToSearchResult(result) {
                 ${props.where_lost ? `<div class="popup-row"><span class="popup-label">Location:</span> ${props.where_lost}</div>` : ''}
                 ${props.region ? `<div class="popup-row"><span class="popup-label">Region:</span> ${props.region}</div>` : ''}
                 ${props.protected ? `<div class="popup-row"><span class="popup-label">Status:</span> ${props.protected}</div>` : ''}
+            </div>
+        `;
+    } else if (result.type === 'well') {
+        const props = result.properties;
+        const spud = props.spud_date && props.spud_date.length === 8
+            ? `${props.spud_date.slice(0, 4)}-${props.spud_date.slice(4, 6)}-${props.spud_date.slice(6, 8)}`
+            : props.spud_date;
+        popupContent = `
+            <div class="mine-popup">
+                <div class="popup-title">${props.name}</div>
+                ${props.uwi ? `<div class="popup-row"><span class="popup-label">UWI:</span> ${props.uwi}</div>` : ''}
+                ${props.status ? `<div class="popup-row"><span class="popup-label">Status:</span> ${props.status} (${props.status_group})</div>` : ''}
+                ${props.basin ? `<div class="popup-row"><span class="popup-label">Basin:</span> ${props.basin}</div>` : ''}
+                ${props.field ? `<div class="popup-row"><span class="popup-label">Field:</span> ${props.field}</div>` : ''}
+                ${props.operator ? `<div class="popup-row"><span class="popup-label">Operator:</span> ${props.operator}</div>` : ''}
+                ${props.class ? `<div class="popup-row"><span class="popup-label">Class:</span> ${props.class}</div>` : ''}
+                ${spud ? `<div class="popup-row"><span class="popup-label">Spud:</span> ${spud}</div>` : ''}
             </div>
         `;
     } else {
