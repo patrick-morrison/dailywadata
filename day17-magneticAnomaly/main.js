@@ -438,6 +438,180 @@ async function loadShipwrecks() {
                     region: 'South West (Bunbury Area)',
                     protected: 'Protected UCH Act 2018'
                 }
+            },
+            // Wrecksploration identifications — new names for previously-unidentified Rottnest Graveyard sites
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.3699, -32.05263333] },
+                properties: {
+                    name: 'Sesa (ex Mallowdale)',
+                    type_of_si: 'Ship',
+                    where_lost: 'Rottnest Ship Graveyard (Site 03)',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.36891, -32.070665] },
+                properties: {
+                    name: 'Knowsley',
+                    type_of_si: 'Ship',
+                    where_lost: 'Rottnest Ship Graveyard (Site 04)',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.3841833, -32.08588333] },
+                properties: {
+                    name: 'Clipper',
+                    type_of_si: 'Ship',
+                    where_lost: 'Rottnest Ship Graveyard (Site 06)',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.3498288, -32.0596805] },
+                properties: {
+                    name: 'Tamerlane',
+                    type_of_si: 'Ship',
+                    where_lost: 'Rottnest Ship Graveyard (Site 07)',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.3450611, -32.06574305] },
+                properties: {
+                    name: 'Premier',
+                    type_of_si: 'Ship',
+                    where_lost: 'Rottnest Ship Graveyard (Site 08)',
+                    region: 'Perth Metro'
+                }
+            },
+            // Wrecksploration new locations — wrecks not in the WAM shipwrecks dataset
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.3138506, -32.10525] },
+                properties: {
+                    name: 'Bankfields',
+                    type_of_si: 'Ship',
+                    where_lost: 'Off Rottnest Island',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.3526316, -32.1090224] },
+                properties: {
+                    name: 'Clevedon',
+                    type_of_si: 'Ship',
+                    where_lost: 'South of Rottnest Island',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.3538213, -32.1216633] },
+                properties: {
+                    name: 'Caithness',
+                    type_of_si: 'Ship',
+                    where_lost: 'South of Rottnest Island',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.4327897, -32.069910] },
+                properties: {
+                    name: 'Timaru',
+                    type_of_si: 'Ship',
+                    where_lost: 'East of Rottnest Island',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.288817, -31.9174] },
+                properties: {
+                    name: 'JFD Wreck',
+                    type_of_si: 'Ship',
+                    where_lost: 'North of Rottnest Island',
+                    region: 'Perth Metro'
+                }
+            },
+            // Alasdair Cook magnetic anomaly candidates — unconfirmed targets, not yet identified as wrecks
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.4668009, -32.0088903] },
+                properties: {
+                    name: 'AC36',
+                    type_of_si: 'Magnetic anomaly',
+                    where_lost: 'North of Rottnest Island',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.4122556, -32.0623765] },
+                properties: {
+                    name: 'AC178',
+                    type_of_si: 'Magnetic anomaly',
+                    where_lost: 'Rottnest Graveyard area (unknown target)',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.4478922, -32.0381219] },
+                properties: {
+                    name: 'AC179',
+                    type_of_si: 'Magnetic anomaly',
+                    where_lost: 'Rottnest West End',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.4834991, -32.1140384] },
+                properties: {
+                    name: 'AC184',
+                    type_of_si: 'Magnetic anomaly',
+                    where_lost: 'Small anomaly, southeast of Rottnest Island',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.4222558, -32.1350603] },
+                properties: {
+                    name: 'AC186',
+                    type_of_si: 'Magnetic anomaly',
+                    where_lost: 'Good anomaly (noisy line), south of Rottnest Island',
+                    region: 'Perth Metro'
+                }
+            },
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.4182972, -32.0950561] },
+                properties: {
+                    name: 'AC187',
+                    type_of_si: 'Magnetic anomaly',
+                    where_lost: 'Small multi-peak anomaly, south of Rottnest Island',
+                    region: 'Perth Metro'
+                }
+            },
+            // Alasdair Cook unnamed target without a Wrecksploration cross-reference
+            {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [115.4311538, -32.1060481] },
+                properties: {
+                    name: 'AC43',
+                    type_of_si: 'Magnetic anomaly',
+                    where_lost: 'South of Rottnest Island (Wrecksploration site 43, not yet located)',
+                    region: 'Perth Metro'
+                }
             }
         ];
         geojson.features.push(...manualWrecks);
