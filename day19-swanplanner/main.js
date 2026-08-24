@@ -587,8 +587,14 @@ function renderBathymetry(width, height) {
     state.bathymetryLayer = bitmapLayer;
 
     if (!state.deckOverlay) {
+        // iOS Safari uses Metal via ANGLE which has a shader compilation bug with
+        // deck.gl's interleaved mode (INVALID_OPERATION on float4 address space).
+        // Disable interleaving on iOS to avoid the crash — visually identical for
+        // BitmapLayer since it covers a fixed geographic extent, not the full canvas.
+        const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         state.deckOverlay = new deck.MapboxOverlay({
-            interleaved: true,
+            interleaved: !isIOS,
             layers: [bitmapLayer]
         });
         map.addControl(state.deckOverlay);
