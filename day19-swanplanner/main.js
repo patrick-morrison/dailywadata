@@ -61,8 +61,6 @@ const state = {
     image: null,
     rasterData: null,
     bounds: null,
-    deckOverlay: null,
-    routeCoords: [],   // kept in sync for deck.gl PathLayer
     exaggeration: 15,
 
     // Rendered dimensions (may differ from TIFF dimensions due to scaling)
@@ -157,11 +155,16 @@ let bathymetryReady = null;
 map.on('load', () => {
     initializeLegend();
 
-    // Route-line source kept for data management; visual layer is a deck.gl PathLayer
-    // so it renders correctly above the BitmapLayer on both desktop (interleaved) and iOS (non-interleaved).
     map.addSource('route-line', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] }
+    });
+    map.addLayer({
+        id: 'route-line-layer',
+        type: 'line',
+        source: 'route-line',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#dc2626', 'line-width': 3, 'line-opacity': 1 }
     });
 
     // Store promise so we can await it elsewhere
@@ -563,74 +566,35 @@ function renderBathymetry(width, height) {
 
     ctx.putImageData(imageData, 0, 0);
 
-    const bitmapLayer = new deck.BitmapLayer({
-        id: 'bathymetry',
-        // Native LngLat bounds are sufficient because images are axis-aligned
-        bounds: [state.bounds.west, state.bounds.south, state.bounds.east, state.bounds.north],
-        image: canvas,
-        opacity: 0.9,
-        beforeId: 'route-line-layer' // Render beneath the route line
-    });
+    // Use a native MapLibre image source instead of deck.gl BitmapLayer.
+    // This avoids all WebGL shader compilation (no ANGLE/Metal involved),
+    // fixing the iOS 27 beta crash while keeping correct z-ordering via beforeId.
+    const imageUrl = canvas.toDataURL();
+    const coords = [
+        [state.bounds.west, state.bounds.north], // top-left
+        [state.bounds.east, state.bounds.north], // top-right
+        [state.bounds.east, state.bounds.south], // bottom-right
+        [state.bounds.west, state.bounds.south]  // bottom-left
+    ];
 
-    state.bathymetryLayer = bitmapLayer;
-
-    // iOS 27 Safari's Metal/ANGLE backend has a shader compilation bug with interleaved mode.
-    // Use non-interleaved on iOS — the route line is moved to a deck.gl PathLayer so it
-    // still renders above the BitmapLayer regardless of interleaved setting.
-    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
-        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-    if (!state.deckOverlay) {
-        state.deckOverlay = new deck.MapboxOverlay({
-            interleaved: !isIOS,
-            layers: [bitmapLayer, buildRouteLayer()]
-        });
-        map.addControl(state.deckOverlay);
+    if (!map.getSource('bathymetry-image')) {
+        map.addSource('bathymetry-image', { type: 'image', url: imageUrl, coordinates: coords });
+        map.addLayer({
+            id: 'bathymetry-layer',
+            type: 'raster',
+            source: 'bathymetry-image',
+            paint: { 'raster-opacity': 0.9 }
+        }, 'route-line-layer'); // insert below route line
     } else {
-        state.deckOverlay.setProps({
-            layers: [bitmapLayer, buildRouteLayer()]
-        });
+        map.getSource('bathymetry-image').updateImage({ url: imageUrl });
     }
-    // Route line z-order handled by beforeId on the BitmapLayer
 }
+
 
 // ============================================
 // Utilities
 // ============================================
 
-// ============================================
-// Deck.gl Route PathLayer helpers
-// ============================================
-
-/**
- * Build a deck.gl PathLayer from current route coords.
- * Replaces the MapLibre route-line-layer so it renders inside the
- * deck.gl canvas — correct z-order above BitmapLayer in both
- * interleaved (desktop) and non-interleaved (iOS) modes.
- */
-function buildRouteLayer() {
-    return new deck.PathLayer({
-        id: 'route-path',
-        data: state.routeCoords.length >= 2 ? [state.routeCoords] : [],
-        getPath: d => d,
-        getColor: [220, 38, 38],   // matches #dc2626
-        getWidth: 3,
-        widthUnits: 'pixels',
-        jointRounded: true,
-        capRounded: true,
-        pickable: false
-    });
-}
-
-/**
- * Refresh the deck overlay with updated route — call whenever routeCoords changes.
- */
-function refreshDeckRoute() {
-    if (!state.deckOverlay || !state.bathymetryLayer) return;
-    state.deckOverlay.setProps({
-        layers: [state.bathymetryLayer, buildRouteLayer()]
-    });
-}
 
 // Fast synchronous depth lookup using cached raster data (for profile generation)
 function queryDepthFast(lng, lat) {
@@ -2334,8 +2298,6 @@ class RouteProfiler {
             if (map.getLayer('route-arrows')) {
                 map.removeLayer('route-arrows');
             }
-            state.routeCoords = [];
-            refreshDeckRoute();
             return;
         }
 
@@ -2365,9 +2327,6 @@ class RouteProfiler {
         if (source) {
             source.setData(geojson);
         }
-        // Sync to deck.gl PathLayer
-        state.routeCoords = allCoords;
-        refreshDeckRoute();
     }
 
     async finishRoute() {
@@ -2849,20 +2808,27 @@ class RouteProfiler {
 
         ctx.putImageData(imageData, 0, 0);
 
-        if (!state.bathymetryLayer) return;
+        if (!map.getSource('bathymetry-image')) return;
 
-        const contourLayer = new deck.BitmapLayer({
-            id: 'contour-highlight',
-            bounds: [state.bounds.west, state.bounds.south, state.bounds.east, state.bounds.north],
-            image: canvas,
-            opacity: 1.0,
-            beforeId: 'route-line-layer' // Render beneath the route line
-        });
-
-        // Render contour on top of bathymetry, route on top of both
-        state.deckOverlay.setProps({
-            layers: [state.bathymetryLayer, contourLayer, buildRouteLayer()]
-        });
+        // Use MapLibre image source for the contour overlay — same approach as bathymetry
+        const contourUrl = canvas.toDataURL();
+        const coords = [
+            [state.bounds.west, state.bounds.north],
+            [state.bounds.east, state.bounds.north],
+            [state.bounds.east, state.bounds.south],
+            [state.bounds.west, state.bounds.south]
+        ];
+        if (!map.getSource('contour-image')) {
+            map.addSource('contour-image', { type: 'image', url: contourUrl, coordinates: coords });
+            map.addLayer({
+                id: 'contour-layer',
+                type: 'raster',
+                source: 'contour-image',
+                paint: { 'raster-opacity': 1.0 }
+            }, 'route-line-layer');
+        } else {
+            map.getSource('contour-image').updateImage({ url: contourUrl });
+        }
 
         // Add blue glow to waypoints within depth tolerance
         for (let i = 0; i < this.points.length; i++) {
@@ -2882,22 +2848,17 @@ class RouteProfiler {
     }
 
     hideContourHighlight() {
-        if (state.bathymetryLayer && state.deckOverlay) {
-            // Restore bathymetry + route, drop contour layer
-            state.deckOverlay.setProps({
-                layers: [state.bathymetryLayer, buildRouteLayer()]
-            });
-        }
+        // Remove the contour overlay layer and source
+        if (map.getLayer('contour-layer')) map.removeLayer('contour-layer');
+        if (map.getSource('contour-image')) map.removeSource('contour-image');
 
         // Remove blue glow from all waypoints (don't touch transform - MapLibre uses it for positioning!)
         for (let i = 0; i < this.markers.length; i++) {
             if (this.markers[i]) {
                 const el = this.markers[i].getElement();
                 el.style.filter = '';
-                // Don't reset transform - MapLibre uses it to position the marker on the map
             }
         }
-        // Route line z-order handled by beforeId on deck.gl layers
     }
 
     clearRoute() {
