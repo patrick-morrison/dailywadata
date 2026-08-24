@@ -3745,6 +3745,10 @@ class RouteProfiler {
                     maxZoom: 16
                 });
 
+                // Draw the straight-line route immediately so it's visible during
+                // the fitBounds camera animation (critical on iOS Safari)
+                this.updateLineLayer();
+
                 // Calculate contour suggestions for all legs
                 for (let i = 0; i < this.points.length - 1; i++) {
                     await this.calculateContourSuggestions(i);
@@ -3754,7 +3758,7 @@ class RouteProfiler {
                     }
                 }
 
-                // Update map with contour paths
+                // Update map with final contour paths
                 this.updateLineLayer();
 
                 // Generate profile with correct paths
