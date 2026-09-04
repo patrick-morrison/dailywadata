@@ -1,0 +1,2 @@
+# Exclude large source PDF book from git
+MAR_P_*.pdf

@@ -1,19 +1,9 @@
 /**
- * Swan Tides 2026 - Interactive Tide Calendar
+ * Western Australia Tides 2026 - Interactive Tide Calendar
+ * Sourced from Bureau of Meteorology & Department of Transport WA
  */
 
-const LOCATIONS = {
-    fremantle: {
-        file: 'tides_fremantle.json',
-        title: 'FREMANTLE – WESTERN AUSTRALIA',
-        subtitle: "LAT 32°03' S    LONG 115°44' E"
-    },
-    barrack: {
-        file: 'tides_barrack.json',
-        title: 'PERTH (BARRACK STREET JETTY) – WESTERN AUSTRALIA',
-        subtitle: "LAT 31° 57' S LONG 115° 51' E"
-    }
-};
+let LOCATIONS = null;
 
 const MONTH_NAMES = [
     'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
@@ -24,13 +14,15 @@ const DAY_ABBRS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
 
 let tideData = null;
 let currentLocation = 'fremantle';
+let neapDaysSet = new Set();
 let filters = {
     heightMin: 0,
     heightMax: 1.5,
     timeMin: 0,
     timeMax: 1440,
     showHighs: true,
-    showLows: true
+    showLows: true,
+    neapsOnly: false
 };
 
 // DOM Elements
@@ -45,27 +37,127 @@ const timeDisplay = document.getElementById('time-display');
 const filterSummary = document.getElementById('filter-summary');
 const showHighsCheckbox = document.getElementById('show-highs');
 const showLowsCheckbox = document.getElementById('show-lows');
+const neapsOnlyCheckbox = document.getElementById('neaps-only');
 const headerTitle = document.querySelector('.header-title h1');
 const headerSubtitle = document.querySelector('.header-title .subtitle');
 
 async function init() {
-    await loadData(currentLocation);
+    try {
+        const resp = await fetch('locations.json');
+        LOCATIONS = await resp.json();
+    } catch (e) {
+        console.warn('Could not load locations.json, using fallback dictionary', e);
+        LOCATIONS = {
+            fremantle: {
+                id: 'fremantle',
+                name: 'Fremantle',
+                file: 'tides_fremantle.json',
+                title: 'FREMANTLE – WESTERN AUSTRALIA',
+                subtitle: "LAT 32° 03' S    LONG 115° 44' E",
+                minHeight: 0.0,
+                maxHeight: 1.6,
+                heightStep: 0.1
+            }
+        };
+    }
+
+    if (locationSelect) {
+        currentLocation = locationSelect.value || 'fremantle';
+    }
+
     setupEventListeners();
+    await loadData(currentLocation);
+}
+
+function computeNeapDays(tides) {
+    // Calculates daily tidal range and identifies the fortnightly neap windows (local range minima)
+    const byDate = {};
+    tides.forEach(t => {
+        if (!byDate[t.date]) byDate[t.date] = [];
+        byDate[t.date].push(t.height);
+    });
+
+    const dates = Object.keys(byDate).sort();
+    const dailyRanges = dates.map(d => {
+        const hs = byDate[d];
+        return hs.length > 0 ? (Math.max(...hs) - Math.min(...hs)) : 0;
+    });
+
+    const neaps = new Set();
+    for (let i = 0; i < dates.length; i++) {
+        const wStart = Math.max(0, i - 6);
+        const wEnd = Math.min(dates.length, i + 7);
+        const minRange = Math.min(...dailyRanges.slice(wStart, wEnd));
+
+        // Peak neap day (local minimum of water movement)
+        if (dailyRanges[i] === minRange) {
+            for (let offset = -1; offset <= 1; offset++) {
+                const idx = i + offset;
+                if (idx >= 0 && idx < dates.length) {
+                    neaps.add(dates[idx]);
+                }
+            }
+        }
+    }
+    return neaps;
 }
 
 async function loadData(locationId) {
     calendarGrid.innerHTML = '<div class="loading">Loading tide data...</div>';
     try {
-        const loc = LOCATIONS[locationId];
+        const loc = LOCATIONS && LOCATIONS[locationId] ? LOCATIONS[locationId] : {
+            file: `tides_${locationId}.json`,
+            title: locationId.toUpperCase(),
+            subtitle: ''
+        };
+
         const response = await fetch(loc.file);
         tideData = await response.json();
-        headerTitle.textContent = loc.title;
-        headerSubtitle.textContent = loc.subtitle;
+
+        headerTitle.textContent = tideData.title || loc.title || 'WESTERN AUSTRALIA';
+        headerSubtitle.textContent = tideData.subtitle || loc.subtitle || '';
+
+        // Detect neap days for this port's tidal cycle
+        neapDaysSet = computeNeapDays(tideData.tides);
+
+        // Dynamically adjust height slider range based on port data
+        configureHeightSlider(tideData, loc);
+
         renderCalendar();
     } catch (error) {
         calendarGrid.innerHTML = '<div class="loading">Error loading tide data</div>';
         console.error('Failed to load tide data:', error);
     }
+}
+
+function configureHeightSlider(data, locMeta) {
+    if (!data.tides || data.tides.length === 0) return;
+
+    let minH, maxH;
+    if (locMeta && typeof locMeta.minHeight === 'number' && typeof locMeta.maxHeight === 'number') {
+        minH = locMeta.minHeight;
+        maxH = locMeta.maxHeight;
+    } else {
+        const heights = data.tides.map(t => t.height);
+        minH = Math.max(0.0, Math.floor(Math.min(...heights) * 10) / 10);
+        maxH = Math.ceil((Math.max(...heights) + 0.1) * 10) / 10;
+    }
+
+    heightMinInput.min = minH;
+    heightMinInput.max = maxH;
+    heightMinInput.step = "0.1";
+    heightMinInput.value = minH;
+
+    heightMaxInput.min = minH;
+    heightMaxInput.max = maxH;
+    heightMaxInput.step = "0.1";
+    heightMaxInput.value = maxH;
+
+    filters.heightMin = minH;
+    filters.heightMax = maxH;
+
+    heightDisplay.textContent = `${minH.toFixed(1)}m – ${maxH.toFixed(1)}m`;
+    updateSliderVisuals(heightMinInput.parentElement);
 }
 
 function setupEventListeners() {
@@ -97,6 +189,9 @@ function setupEventListeners() {
 
     showHighsCheckbox.addEventListener('change', updateFilters);
     showLowsCheckbox.addEventListener('change', updateFilters);
+    if (neapsOnlyCheckbox) {
+        neapsOnlyCheckbox.addEventListener('change', updateFilters);
+    }
 
     updateSliderVisuals(heightMinInput.parentElement);
     updateSliderVisuals(timeMinInput.parentElement);
@@ -125,6 +220,7 @@ function updateFilters() {
     filters.timeMax = parseInt(timeMaxInput.value);
     filters.showHighs = showHighsCheckbox.checked;
     filters.showLows = showLowsCheckbox.checked;
+    filters.neapsOnly = neapsOnlyCheckbox ? neapsOnlyCheckbox.checked : false;
 
     heightDisplay.textContent = `${filters.heightMin.toFixed(1)}m – ${filters.heightMax.toFixed(1)}m`;
     const maxTimeDisplay = filters.timeMax >= 1439 ? '23:59' : formatMinutes(filters.timeMax);
@@ -200,7 +296,8 @@ function createMonthElement(monthIndex, tidesByDate) {
         const dateStr = `${year}-${(monthIndex + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
         const dayTides = tidesByDate[dateStr] || [];
         const dayOfWeek = new Date(year, monthIndex, day).getDay();
-        const dayRow = createDayRow(day, dayOfWeek, dayTides);
+        const isNeap = neapDaysSet.has(dateStr);
+        const dayRow = createDayRow(day, dayOfWeek, dayTides, isNeap, dateStr);
 
         if (day <= 15) col1.appendChild(dayRow);
         else col2.appendChild(dayRow);
@@ -213,25 +310,30 @@ function createMonthElement(monthIndex, tidesByDate) {
     return monthEl;
 }
 
-function createDayRow(day, dayOfWeek, tides) {
+function createDayRow(day, dayOfWeek, tides, isNeap, dateStr) {
     const row = document.createElement('div');
-    row.className = 'day-row';
+    const isDimmedDay = filters.neapsOnly && !isNeap;
+    row.className = `day-row ${isNeap ? 'is-neap' : ''} ${isDimmedDay ? 'dimmed-day' : ''}`;
+    row.dataset.date = dateStr;
+    row.dataset.isNeap = isNeap ? "true" : "false";
+
     row.innerHTML = `
         <div class="day-info">
             <span class="day-num">${day}</span>
             <span class="day-abbr">${DAY_ABBRS[dayOfWeek]}</span>
+            ${isNeap ? '<span class="neap-badge" title="Neap window: minimum daily tidal movement">Neap</span>' : ''}
         </div>
         <div class="tides-list">
-            ${tides.map(tide => createTideEntry(tide)).join('')}
+            ${tides.map(tide => createTideEntry(tide, isNeap)).join('')}
         </div>
     `;
     return row;
 }
 
-function createTideEntry(tide) {
+function createTideEntry(tide, isNeap) {
     const timeMinutes = timeToMinutes(tide.displayTime.replace(/(\d{2})(\d{2})/, '$1:$2'));
     const tideType = tide.type || 'unknown';
-    const isMatch = matchesFilters(tide.displayHeight, timeMinutes, tideType);
+    const isMatch = matchesFilters(tide.displayHeight, timeMinutes, tideType, isNeap);
     const className = isMatch ? 'highlighted' : (hasActiveFilters() ? 'dimmed' : '');
 
     return `
@@ -245,31 +347,43 @@ function createTideEntry(tide) {
     `;
 }
 
-function matchesFilters(height, timeMinutes, tideType) {
+function matchesFilters(height, timeMinutes, tideType, isNeap) {
     const heightMatch = height >= filters.heightMin && height <= filters.heightMax;
     const timeMatch = timeMinutes >= filters.timeMin && timeMinutes <= filters.timeMax;
     const typeMatch = (tideType === 'high' && filters.showHighs) ||
         (tideType === 'low' && filters.showLows) ||
         (tideType === 'unknown');
-    return heightMatch && timeMatch && typeMatch;
+    const neapMatch = !filters.neapsOnly || isNeap;
+    return heightMatch && timeMatch && typeMatch && neapMatch;
 }
 
 function hasActiveFilters() {
-    return filters.heightMin > 0 ||
-        filters.heightMax < 1.5 ||
+    const minH = parseFloat(heightMinInput.min);
+    const maxH = parseFloat(heightMaxInput.max);
+    return filters.heightMin > minH ||
+        filters.heightMax < maxH ||
         filters.timeMin > 0 ||
         filters.timeMax < 1440 ||
         !filters.showHighs ||
-        !filters.showLows;
+        !filters.showLows ||
+        filters.neapsOnly;
 }
 
 function updateHighlights() {
+    const rows = document.querySelectorAll('.day-row');
+    rows.forEach(row => {
+        const isNeap = row.dataset.isNeap === "true";
+        row.classList.toggle('dimmed-day', filters.neapsOnly && !isNeap);
+    });
+
     const entries = document.querySelectorAll('.tide-entry');
     entries.forEach(entry => {
         const height = parseFloat(entry.dataset.height);
         const time = parseInt(entry.dataset.time);
         const tideType = entry.dataset.type || 'unknown';
-        const isMatch = matchesFilters(height, time, tideType);
+        const dayRow = entry.closest('.day-row');
+        const isNeap = dayRow && dayRow.dataset.isNeap === "true";
+        const isMatch = matchesFilters(height, time, tideType, isNeap);
 
         entry.classList.toggle('highlighted', isMatch);
         entry.classList.toggle('dimmed', !isMatch && hasActiveFilters());
@@ -278,8 +392,13 @@ function updateHighlights() {
 
 function updateFilterSummary() {
     const entries = document.querySelectorAll('.tide-entry');
-    const matching = document.querySelectorAll('.tide-entry:not(.dimmed)');
-    filterSummary.textContent = `Showing ${matching.length} of ${entries.length} tides`;
+    const matching = document.querySelectorAll('.tide-entry.highlighted, .tide-entry:not(.dimmed)');
+    const count = hasActiveFilters()
+        ? document.querySelectorAll('.tide-entry.highlighted').length
+        : entries.length;
+
+    const neapNote = filters.neapsOnly ? ' (Neap days only)' : '';
+    filterSummary.textContent = `Showing ${count} of ${entries.length} tides${neapNote}`;
 }
 
 // Sticky header offset observer

@@ -55,3 +55,9 @@ In respect of that part of the information which is sourced from the Bureau, and
 > (ii) The Bureau's liability for any loss, damage, cost or expense resulting from use of, or reliance on, the information is entirely excluded.
 
 **© Commonwealth of Australia 2025, Bureau of Meteorology**
+
+---
+
+## Update (September 2026)
+
+Expanded from Fremantle and Barrack Street to all 40 tide locations across Western Australia using the [Department of Transport 2026 tide tables](https://www.transport.wa.gov.au/marine/charts-warnings-current-conditions/coastal-data-charts/tide-predictions) (`MAR_P_2026_Tide_Predictions_by_Location_WA2.pdf`). The extractor script was updated to handle both BOM and DoT chart layouts, and the height slider now automatically scales to match each port's tidal range.

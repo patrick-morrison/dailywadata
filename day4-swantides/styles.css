@@ -262,12 +262,25 @@ body {
     background: #f9f9f9;
 }
 
+.day-row.is-neap {
+    background: #f0fdf4;
+}
+
+.day-row.is-neap:hover {
+    background: #e2fbe8;
+}
+
+.day-row.dimmed-day {
+    opacity: 0.22;
+}
+
 .day-info {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 25px;
+    width: 28px;
     margin-right: 5px;
+    position: relative;
 }
 
 .day-num {
@@ -280,6 +293,24 @@ body {
     font-size: 10px;
     font-weight: bold;
     margin-top: 2px;
+}
+
+.neap-badge {
+    display: none;
+    font-size: 8px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: #15803d;
+    background: #dcfce7;
+    padding: 1px 3px;
+    border-radius: 3px;
+    margin-top: 3px;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+.day-row.is-neap .neap-badge {
+    display: inline-block;
 }
 
 .tides-list {

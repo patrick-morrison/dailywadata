@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="../favicon-192x192.png">
     <link rel="apple-touch-icon" href="../favicon-192x192.png">
-    <meta name="description" content="Interactive tide predictions for Fremantle, Western Australia - 2026">
+    <meta name="description" content="Interactive tide predictions for Fremantle and Western Australia - 2026">
     <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -28,7 +28,7 @@
 
     <!-- Source Note -->
     <div class="source-note">
-        <span>Bureau of Meteorology tide predictions (extracted). Filters added for planning fieldwork. <a
+        <span>Bureau of Meteorology & Department of Transport WA tide predictions. Filters added for planning fieldwork. <a
                 href="../sources.html">Sources & methods →</a></span>
     </div>
 
@@ -37,10 +37,47 @@
         <div class="control-group">
             <label for="location">Location</label>
             <select id="location">
+                <option value="albany">Albany</option>
+                <option value="augusta">Augusta</option>
+                <option value="barrow_tanker">Barrow Island (Tanker Mooring)</option>
+                <option value="barrow_wapet">Barrow Island (Wapet Landing)</option>
+                <option value="bremer_bay">Bremer Bay</option>
+                <option value="broome">Broome</option>
+                <option value="bunbury">Bunbury</option>
+                <option value="caddadup">Caddadup</option>
+                <option value="cape_bouvard">Cape Bouvard</option>
+                <option value="cape_domett">Cape Domett</option>
+                <option value="cape_voltaire">Cape Voltaire (Krait Bay)</option>
+                <option value="carnarvon">Carnarvon</option>
+                <option value="coral_bay">Coral Bay (Ningaloo Reef)</option>
+                <option value="cowaramup">Cowaramup Bay</option>
+                <option value="dampier">Dampier (King Bay)</option>
+                <option value="denham">Denham</option>
+                <option value="derby">Derby</option>
+                <option value="esperance">Esperance</option>
+                <option value="exmouth">Exmouth</option>
                 <option value="fremantle" selected>Fremantle</option>
-                <option value="barrack">Barrack Street</option>
+                <option value="geraldton">Geraldton</option>
+                <option value="harvey">Harvey</option>
+                <option value="hillarys">Hillarys</option>
+                <option value="jurien_bay">Jurien Bay</option>
+                <option value="mandurah">Mandurah (Ocean Marina)</option>
+                <option value="monkey_mia">Monkey Mia (Shark Bay)</option>
+                <option value="napier_broome">Napier Broome Bay</option>
+                <option value="onslow">Onslow (Beadon Creek)</option>
+                <option value="peel_inlet">Peel Inlet</option>
+                <option value="barrack">Perth (Barrack Street Jetty)</option>
+                <option value="port_geographe">Port Geographe (Busselton)</option>
+                <option value="port_hedland">Port Hedland</option>
+                <option value="port_walcott">Port Walcott (Cape Lambert)</option>
+                <option value="shale_island">Shale Island (Collier Bay)</option>
+                <option value="tantabiddi">Tantabiddi (Ningaloo Reef)</option>
+                <option value="thevenard">Thevenard Island</option>
+                <option value="two_rocks">Two Rocks Marina</option>
+                <option value="woodbridge">Woodbridge (Swan River)</option>
+                <option value="wyndham">Wyndham</option>
+                <option value="yampi_sound">Yampi Sound (Koolan Island)</option>
             </select>
-
         </div>
 
         <div class="control-group">
@@ -51,6 +88,9 @@
                 </label>
                 <label class="checkbox-label">
                     <input type="checkbox" id="show-highs" checked> Highs
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="neaps-only"> Neap days only
                 </label>
             </div>
         </div>
